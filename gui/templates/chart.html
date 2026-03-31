@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Q-xApp Simulation</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+            width: 100%; height: 100%;
+            background-color: #ffffff;
+            color: #333;
+            font-family: 'Roboto', sans-serif;
+            overflow: auto;
+        }
+        #main-container {
+            width: 100%; min-height: 100%;
+            display: flex; flex-direction: column;
+            padding: 10px; gap: 8px;
+        }
+        #header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 5px 20px;
+            border-bottom: 2px solid #8B0000;
+        }
+        #header-left { display: flex; align-items: center; gap: 15px; }
+        #header-left .logo-text {
+            font-size: 14px; font-weight: bold; color: #8B0000;
+            line-height: 1.2;
+        }
+        #header-center { text-align: center; flex: 1; }
+        #header-center h1 { font-size: 24px; font-weight: 700; color: #333; }
+        #header-center .header-buttons {
+            margin-top: 5px; display: flex; justify-content: center; gap: 10px;
+        }
+        .header-btn {
+            background: #8B0000; color: white;
+            padding: 6px 16px; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 12px; font-weight: 600;
+        }
+        .header-btn:hover { background: #a00000; }
+        #header-right { display: flex; align-items: center; gap: 15px; }
+        #header-right .logo-text {
+            font-size: 12px; font-weight: bold; color: #003366;
+            text-align: right; line-height: 1.2;
+        }
+        #form-container {
+            display: none; background: #f5f5f5;
+            border: 1px solid #ddd; border-radius: 8px;
+            padding: 15px; margin: 5px 0;
+        }
+        #simulationForm {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 12px; font-size: 13px;
+        }
+        #simulationForm label { font-weight: 600; margin-bottom: 3px; color: #333; }
+        #simulationForm input, #simulationForm select {
+            padding: 6px; border-radius: 4px; border: 1px solid #ccc;
+            background: #fff; color: #333; width: 100%;
+        }
+        #simulationForm button {
+            padding: 8px; border-radius: 4px; border: none;
+            background: #8B0000; color: white; cursor: pointer; font-weight: bold;
+        }
+        #simulationForm button:disabled { background: #ccc; color: #999; cursor: not-allowed; }
+        #frameContainer {
+            display: none; background: #f5f5f5;
+            border: 1px solid #ddd; border-radius: 8px;
+            padding: 15px; margin: 5px 0;
+        }
+        #content-area {
+            display: flex; flex: 1; gap: 10px; min-height: 500px;
+        }
+        #grid-panel {
+            flex: 1.2; display: flex; flex-direction: column;
+            border: 1px solid #ddd; border-radius: 8px;
+            padding: 10px; background: #fff;
+        }
+        #grid-panel h3 { text-align: center; font-size: 16px; color: #333; margin-bottom: 5px; }
+        #grid-chart-container { flex: 1; position: relative; }
+        #grid-chart-container canvas { width: 100% !important; height: 100% !important; }
+        .grid-legend {
+            display: flex; justify-content: center; gap: 15px;
+            padding: 5px; font-size: 12px; flex-wrap: wrap;
+        }
+        .grid-legend-item { display: flex; align-items: center; gap: 4px; }
+        .grid-legend-color { width: 14px; height: 14px; display: inline-block; }
+        #kpi-panel {
+            flex: 2; display: flex; flex-direction: column; gap: 8px;
+        }
+        .kpi-row { display: flex; gap: 8px; flex: 1; }
+        .kpi-chart-box {
+            flex: 1; border: 1px solid #ddd; border-radius: 8px;
+            padding: 8px; background: #fff;
+            position: relative; min-height: 180px;
+        }
+        .kpi-chart-box canvas { width: 100% !important; height: 100% !important; }
+        #bar-panel {
+            width: 120px; border: 1px solid #ddd; border-radius: 8px;
+            padding: 8px; background: #fff;
+            display: flex; flex-direction: column;
+        }
+        #tab-container {
+            display: flex; justify-content: center; gap: 10px; padding: 8px;
+        }
+        .tab-button {
+            padding: 8px 24px; cursor: pointer;
+            background: #f0f0f0; border: 1px solid #ddd;
+            border-radius: 4px; font-weight: 600; color: #333;
+        }
+        .tab-button.active { background: #8B0000; color: white; border-color: #8B0000; }
+        .status-row {
+            display: flex; justify-content: center; align-items: center;
+            gap: 10px; font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+<div id="main-container">
+    <div id="header">
+        <div id="header-left">
+            <img src="/static/korea_univ.png" alt="Korea University" style="height: 50px;">
+        </div>
+        <div id="header-center">
+            <h1>Q-xApp Simulation</h1>
+            <div class="header-buttons">
+                <button class="header-btn" id="form-toggle-button" onclick="toggleForm()">Show simulation setup</button>
+                <button class="header-btn" id="toggleButton" onclick="toggleA1()">Show A1 policy manager</button>
+            </div>
+        </div>
+        <div id="header-right">
+            <img src="/static/lics_logo.png" alt="LICS" style="height: 45px;">
+        </div>
+    </div>
+
+    <div id="form-container">
+        <form id="simulationForm">
+            <div>
+                <div style="display: flex; flex-direction: column;">
+                    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                        <label for="flexric">Connect to FlexRIC:</label>
+                        <input type="checkbox" id="flexric" name="flexric" value="true" style="transform: scale(1.3); margin-left: 8px;">
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        <label for="e2TermIp" style="margin-right: 8px;">e2TermIp:</label>
+                        <input type="text" id="e2TermIp" name="e2TermIp" value="127.0.0.1" disabled style="background-color: #eee;">
+                    </div>
+                </div>
+            </div>
+            <div><label for="hoSinrDifference">hoSinrDifference (dB):</label><input type="number" id="hoSinrDifference" name="hoSinrDifference" value="3"></div>
+            <div><label for="indicationPeriodicity">indicationPeriodicity (s):</label><input type="number" id="indicationPeriodicity" name="indicationPeriodicity" value="1"></div>
+            <div><label for="simTime">simTime (s):</label><input type="number" id="simTime" name="simTime" value="1000"></div>
+            <div><label for="KPM_E2functionID">KPM_E2functionID:</label><input type="number" id="KPM_E2functionID" name="KPM_E2functionID" value="2"></div>
+            <div><label for="RC_E2functionID">RC_E2functionID:</label><input type="number" id="RC_E2functionID" name="RC_E2functionID" value="3"></div>
+            <div><label for="N_MmWaveEnbNodes">N_MmWaveEnbNodes:</label><input type="number" id="N_MmWaveEnbNodes" name="N_MmWaveEnbNodes" value="3"></div>
+            <div><label for="N_Ues">N_Ues:</label><input type="number" id="N_Ues" name="N_Ues" value="4"></div>
+            <div><label for="CenterFrequency">CenterFrequency (Hz):</label><input type="number" id="CenterFrequency" name="CenterFrequency" value="3.5e9"></div>
+            <div><label for="Bandwidth">Bandwidth (Hz):</label><input type="number" id="Bandwidth" name="Bandwidth" value="20e6"></div>
+            <div><label for="IntersideDistanceUEs">IntersideDistanceUEs (m):</label><input type="number" id="IntersideDistanceUEs" name="IntersideDistanceUEs" value="150"></div>
+            <div><label for="IntersideDistanceCells">IntersideDistanceCells (m):</label><input type="number" id="IntersideDistanceCells" name="IntersideDistanceCells" value="150"></div>
+            <div>
+                <label for="scenario">Scenario:</label>
+                <select id="scenario" name="scenario" onchange="setFlags()"></select>
+                <div style="display: flex; align-items: center; margin-top: 4px;">
+                    <label for="flags">Flags:</label>
+                    <input type="checkbox" id="flags" name="flags" value="true" style="transform: scale(1.3); margin-left: 8px;">
+                </div>
+            </div>
+            <button type="button" onclick="sendForm('/start_simulation')" id="start_button">Start</button>
+            <button type="button" onclick="stopSim('/stop_simulation')" id="stop_button" disabled>Stop</button>
+            <button type="button" onclick="resetSim('/reset_simulation')" id="reset_button">Reset</button>
+            <div class="status-row">
+                <label>Status:</label>
+                <label id="status_label">off</label>
+                <label id="label_between_status_and_simid"></label>
+                <label id="simid_label" style="color: #8B0000;"></label>
+            </div>
+            <div><label id="warning_label" style="color: red;"></label></div>
+        </form>
+    </div>
+
+    <div id="frameContainer"></div>
+
+    <div id="content-area">
+        <div id="grid-panel">
+            <div id="grid-chart-container">
+                <canvas id="myChart"></canvas>
+            </div>
+            <div class="grid-legend">
+                <div class="grid-legend-item">
+                    <span class="grid-legend-color" style="background: #33aa33; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span>
+                    <span>O-RU 1</span>
+                </div>
+                <div class="grid-legend-item">
+                    <span class="grid-legend-color" style="background: #9933cc; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span>
+                    <span>O-RU 2</span>
+                </div>
+                <div class="grid-legend-item">
+                    <span class="grid-legend-color" style="background: #cc3333; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span>
+                    <span>O-RU 3</span>
+                </div>
+                <div class="grid-legend-item">
+                    <span class="grid-legend-color" style="background: #999; border-radius: 50%; width: 10px; height: 10px;"></span>
+                    <span>UE (color = connected O-RU)</span>
+                </div>
+                <div class="grid-legend-item">
+                    <span class="grid-legend-color" style="background: #ff8c00;"></span>
+                    <span>Unassigned</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="kpi-panel">
+            <div class="kpi-row">
+                <div class="kpi-chart-box"><canvas id="sinr-chart"></canvas></div>
+                <div class="kpi-chart-box"><canvas id="serving-cell-chart"></canvas></div>
+            </div>
+            <div class="kpi-row">
+                <div class="kpi-chart-box"><canvas id="prb-chart"></canvas></div>
+                <div class="kpi-chart-box"><canvas id="retx-chart"></canvas></div>
+            </div>
+        </div>
+
+        <div id="bar-panel">
+            <canvas id="bar-chart"></canvas>
+        </div>
+    </div>
+
+    <div id="tab-container">
+        <div class="tab-button active" id="chart-tab" onclick="switchTab('grid')">Observe simulation grid</div>
+        <div class="tab-button" id="data-tab" onclick="switchTab('kpi')">Observe KPIs</div>
+    </div>
+</div>
+
+<script>
+    const host_ns3 = "{{ host_ns3 }}";
+    const cellColors = { 1: '#3366cc', 2: '#33aa33', 3: '#9933cc', 4: '#cc3333' };
+    const ueColors = ['#cc3333', '#33aa33', '#9933cc', '#3366cc'];
+    /* Fixed O-RU positions: triangular around center=(250,250), ISD=150 */
+    const fixedCellPos = { 2: {x:400,y:250}, 3: {x:175,y:380}, 4: {x:175,y:120} };
+
+    function toggleForm() {
+        const fc = document.getElementById('form-container');
+        const btn = document.getElementById('form-toggle-button');
+        if (fc.style.display === 'none' || fc.style.display === '') {
+            fc.style.display = 'block'; btn.textContent = 'Hide simulation setup';
+        } else {
+            fc.style.display = 'none'; btn.textContent = 'Show simulation setup';
+        }
+    }
+    function toggleA1() {
+        const fc = document.getElementById('frameContainer');
+        const btn = document.getElementById('toggleButton');
+        if (fc.style.display === 'none' || fc.style.display === '') {
+            fc.style.display = 'block'; btn.textContent = 'Hide A1 policy manager';
+        } else {
+            fc.style.display = 'none'; btn.textContent = 'Show A1 policy manager';
+        }
+    }
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        if (tab === 'grid') document.getElementById('chart-tab').classList.add('active');
+        else document.getElementById('data-tab').classList.add('active');
+    }
+
+    document.getElementById('flexric').addEventListener('change', function() {
+        var e2f = document.getElementById('e2TermIp');
+        if (this.checked) { e2f.disabled = false; e2f.style.backgroundColor = ''; }
+        else { e2f.disabled = true; e2f.value = '127.0.0.1'; e2f.style.backgroundColor = '#eee'; }
+    });
+
+    // Simulation Grid Chart
+    var ctx = document.getElementById('myChart').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'UEs', data: [], backgroundColor: [],
+                    borderWidth: 1, pointRadius: 6, pointStyle: 'circle',
+                    datalabels: {
+                        align: 'top', color: '#333', font: { size: 10 },
+                        formatter: function(value) {
+                            return 'UE ' + (value.ue_id || '');
+                        }, offset: 6
+                    }
+                },
+                {
+                    label: 'Cells', data: [], backgroundColor: [],
+                    borderWidth: 1, pointRadius: 18, pointStyle: 'triangle',
+                    datalabels: {
+                        align: 'top', color: '#8B0000', font: { size: 10, weight: 'bold' },
+                        formatter: function(value) {
+                            return value.bs_label || 'O-RU';
+                        }, offset: 12
+                    }
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            animation: { duration: 900, easing: 'easeInOutQuad' },
+            transitions: { active: { animation: { duration: 0 } } },
+            scales: {
+                x: { type: 'linear', position: 'bottom', min: 0, max: 500,
+                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333' }
+                },
+                y: { min: 0, max: 500,
+                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333' }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Simulation Grid', color: '#333', font: { size: 16 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const dp = context.dataset.data[context.dataIndex];
+                            let label = context.dataset.label;
+                            if (dp.ue_id) label += ' ID:' + dp.ue_id;
+                            if (dp.cell_id) label += ' ID:' + dp.cell_id;
+                            label += ' (' + dp.x.toFixed(1) + ', ' + dp.y.toFixed(1) + ')';
+                            if (dp.type) label += ' [' + dp.type + ']';
+                            return label;
+                        }
+                    }
+                },
+                datalabels: { display: true }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+
+    // KPI chart factory
+    function createLineChart(canvasId, title, yLabel, datasets) {
+        var c = document.getElementById(canvasId).getContext('2d');
+        return new Chart(c, {
+            type: 'line',
+            data: { labels: Array.from({length: 51}, function(_, i) { return -50 + i; }), datasets: datasets || [] },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Timeline', color: '#666', font: { size: 11 } },
+                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#666', font: { size: 9 } }
+                    },
+                    y: {
+                        title: { display: true, text: yLabel, color: '#666', font: { size: 11 } },
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#666', font: { size: 9 } }
+                    }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { color: '#333', font: { size: 10 }, usePointStyle: true, boxWidth: 8 } },
+                    title: { display: true, text: title, color: '#333', font: { size: 14 } },
+                    datalabels: { display: false }
+                }
+            },
+            plugins: [ChartDataLabels]
+        });
+    }
+
+    var sinrChart = createLineChart('sinr-chart', 'SINR (dB)', 'SINR (dB)', [
+        { label: 'Ue 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'Ue 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
+    ]);
+    var servingCellChart = createLineChart('serving-cell-chart', 'Serving Cell', 'Cell ID', [
+        { label: 'Ue 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 2 },
+        { label: 'Ue 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 2 },
+        { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 2 },
+        { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 2 }
+    ]);
+    var prbChart = createLineChart('prb-chart', 'PRB Usage (%)', 'PRB Usage (%)', [
+        { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 2, fill: false, pointRadius: 0 }
+    ]);
+    var retxChart = createLineChart('retx-chart', 'Retransmission (RETX)', 'Error Count', [
+        { label: 'Ue 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'Ue 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
+    ]);
+
+    // Bar chart
+    var barCtx = document.getElementById('bar-chart').getContext('2d');
+    var barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true, ticks: { color: '#666', font: { size: 9 } } },
+                y: { ticks: { color: '#333', font: { size: 9 } } }
+            },
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Power (J)', color: '#333', font: { size: 11 } },
+                datalabels: { display: false }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+
+    // History
+    var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
+    var servingCellHistory = { 1: [], 2: [], 3: [], 4: [] };
+    var prbHistory = { 2: [], 3: [], 4: [] };
+    var retxHistory = { 1: [], 2: [], 3: [], 4: [] };
+    var MAX_HISTORY = 51;
+
+    function pushHistory(histObj, id, value) {
+        if (!histObj[id]) histObj[id] = [];
+        histObj[id].push(value);
+        if (histObj[id].length > MAX_HISTORY) histObj[id].shift();
+    }
+
+    var qxappData = null; /* Q-xApp allocation result */
+
+    function fetchData() {
+        /* Fetch both InfluxDB data and Q-xApp result in parallel */
+        Promise.all([
+            fetch('/refresh-data').then(function(r) { return r.json(); }),
+            fetch('/qxapp-result').then(function(r) { return r.json(); }).catch(function() { return null; })
+        ]).then(function(results) {
+            var data = results[0];
+            qxappData = results[1];
+            if (!data) return;
+            updateGrid(data);
+            updateKPIs(data);
+            updateBar(data);
+        }).catch(function(e) { console.log('Fetch error:', e); });
+    }
+
+    function updateGrid(data) {
+        var ueData = [], ueBg = [], cellData = [], cellBg = [];
+
+        /* Build Q-xApp assignment map: ue_id -> cell_id */
+        var qxappAssign = {};
+        var oruToCellId = {'O-RU 1': 2, 'O-RU 2': 3, 'O-RU 3': 4};
+        /* Cell 5 no longer exists (no co-location) */
+        if (qxappData && qxappData.assignment) {
+            qxappData.assignment.forEach(function(a) {
+                var cellId = oruToCellId[a.oru] || 2;
+                qxappAssign[a.ue + 1] = cellId; /* ue is 0-based, uid is 1-based */
+            });
+        }
+
+        if (data.ues) {
+            data.ues.forEach(function(ue, i) {
+                var ux = ue.x_position || ue.x || 0;
+                var uy = ue.y_position || ue.y || 0;
+                var uid = ue.ue_id || i+1;
+
+                /* UE 4 has no position: place near center */
+                if (ux == 0 && uy == 0) { ux = 250 + uid * 20; uy = 250 + uid * 15; }
+
+                /* Use Q-xApp assignment if available, otherwise ns-3 data */
+                var connCell = qxappAssign[uid] || ue.MMWave_Cell || 0;
+                if (connCell === 1) connCell = 2;
+
+                ueData.push({ x: ux, y: uy, ue_id: uid, type: ue.type || '', MMWave_Cell: connCell });
+                ueBg.push(cellColors[connCell] || '#999');
+            });
+        }
+        /* Always show O-RUs at fixed positions */
+        [2, 3, 4].forEach(function(cid) {
+            var fp = fixedCellPos[cid];
+            var bsLabel = 'O-RU ' + (cid - 1);
+            cellData.push({ x: fp.x, y: fp.y, cell_id: cid, bs_label: bsLabel, type: 'mmwave' });
+            cellBg.push(cellColors[cid] || '#999');
+        });
+        myChart.data.datasets[0].data = ueData;
+        myChart.data.datasets[0].backgroundColor = ueBg;
+        myChart.data.datasets[1].data = cellData;
+        myChart.data.datasets[1].backgroundColor = cellBg;
+        myChart.update();
+    }
+
+    function updateKPIs(data) {
+        if (data.ues) {
+            data.ues.forEach(function(ue, i) {
+                var uid = ue.ue_id || (i + 1);
+                pushHistory(sinrHistory, uid, ue.L3servingSINR_dB || 0);
+                pushHistory(servingCellHistory, uid, ue.MMWave_Cell || 0);
+                pushHistory(retxHistory, uid, ue.ErrTotalNbrDl || 0);
+            });
+        }
+        if (data.cells) {
+            data.cells.forEach(function(cell, i) {
+                var cid = cell.cell_id || (i + 1);
+                if (cid >= 2 && cid <= 4) {
+                    pushHistory(prbHistory, cid, cell.dlPrbUsage_percentage || 0);
+                }
+            });
+        }
+
+        // Update SINR chart (per UE)
+        [1,2,3,4].forEach(function(uid, idx) {
+            sinrChart.data.datasets[idx].data = sinrHistory[uid] || [];
+            servingCellChart.data.datasets[idx].data = servingCellHistory[uid] || [];
+            retxChart.data.datasets[idx].data = retxHistory[uid] || [];
+        });
+
+        // Update PRB chart (per Cell, mmWave only)
+        [2,3,4].forEach(function(cid, idx) {
+            prbChart.data.datasets[idx].data = prbHistory[cid] || [];
+        });
+
+        var maxLen = Math.max.apply(null, Object.keys(sinrHistory).map(function(k) { return sinrHistory[k].length; }).concat([1]));
+        var labels = Array.from({length: maxLen}, function(_, i) { return i; });
+        sinrChart.data.labels = labels; sinrChart.update();
+        servingCellChart.data.labels = labels; servingCellChart.update();
+        prbChart.data.labels = labels; prbChart.update();
+        retxChart.data.labels = labels; retxChart.update();
+    }
+
+    function updateBar(data) {
+        if (!data.cells) return;
+        var labels = [], values = [], colors = [];
+        data.cells.forEach(function(cell, i) {
+            var cid = cell.cell_id || (i+1);
+            labels.push('Cell ' + cid);
+            values.push(cell.totalcurrec || cell.maxec || 0);
+            colors.push(cellColors[cid] || '#999');
+        });
+        barChart.data.labels = labels;
+        barChart.data.datasets[0].data = values;
+        barChart.data.datasets[0].backgroundColor = colors;
+        barChart.update();
+    }
+
+    async function sendForm(url) {
+        var form = document.getElementById('simulationForm');
+        var formData = new FormData(form);
+        var params = {};
+        formData.forEach(function(v, k) { params[k] = v; });
+        if (!params.scenario || params.scenario.indexOf('scenario-zero-with_parallel_loging') < 0) {
+            var sel = document.getElementById('scenario');
+            for (var si = 0; si < sel.options.length; si++) {
+                if (sel.options[si].value.indexOf('scenario-zero-with_parallel_loging') >= 0) {
+                    sel.selectedIndex = si; params.scenario = sel.options[si].value; break;
+                }
+            }
+            if (!params.scenario || params.scenario.indexOf('scenario-zero-with_parallel_loging') < 0)
+                params.scenario = 'scratch/scenario-zero-with_parallel_loging.cc';
+        }
+        params.flags = 'true';
+        document.getElementById('start_button').disabled = true;
+        document.getElementById('stop_button').disabled = false;
+        document.getElementById('status_label').textContent = 'starting...';
+        try {
+            var response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            var result = await response.json();
+            document.getElementById('status_label').textContent = 'on';
+            if (result.simid) document.getElementById('simid_label').textContent = 'ID: ' + result.simid;
+        } catch (e) {
+            document.getElementById('status_label').textContent = 'error';
+            document.getElementById('start_button').disabled = false;
+        }
+    }
+
+    async function stopSim(url) {
+        try {
+            await fetch(url, { method: 'POST' });
+            document.getElementById('status_label').textContent = 'off';
+            document.getElementById('start_button').disabled = false;
+            document.getElementById('stop_button').disabled = true;
+        } catch (e) { console.log('Stop error:', e); }
+    }
+
+    async function resetSim(url) {
+        try {
+            await fetch(url, { method: 'POST' });
+            document.getElementById('status_label').textContent = 'off';
+            document.getElementById('start_button').disabled = false;
+            document.getElementById('stop_button').disabled = true;
+            [sinrHistory, servingCellHistory, prbHistory, retxHistory].forEach(function(h) {
+                Object.keys(h).forEach(function(k) { h[k] = []; });
+            });
+        } catch (e) { console.log('Reset error:', e); }
+    }
+
+    function setFlags() {}
+
+    async function fetchScenarios() {
+        try {
+            var response = await fetch('/scenarios');
+            var scenarios = await response.json();
+            var select = document.getElementById('scenario');
+            var values = Array.isArray(scenarios) ? scenarios : Object.values(scenarios);
+            values.forEach(function(s) {
+                var opt = document.createElement('option');
+                opt.value = s; opt.textContent = s.replace('scratch/', '').replace('.cc', '');
+                if (s.indexOf('scenario-zero-with_parallel_loging') >= 0) opt.selected = true;
+                select.appendChild(opt);
+            });
+        } catch (e) { console.log('Scenario fetch error:', e); }
+    }
+
+    fetchScenarios();
+    setInterval(fetchData, 1000);
+</script>
+</body>
+</html>

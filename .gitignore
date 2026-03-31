@@ -1,0 +1,9 @@
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.o
+*.d
+__pycache__/
+.vscode/
+vc140.pdb
