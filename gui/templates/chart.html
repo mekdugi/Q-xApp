@@ -71,16 +71,16 @@
             padding: 15px; margin: 5px 0;
         }
         #content-area {
-            display: flex; flex: 1; gap: 10px; min-height: 500px;
+            display: flex; gap: 10px; align-items: flex-start;
         }
         #grid-panel {
-            flex: 1.2; display: flex; flex-direction: column;
+            width: 580px; display: flex; flex-direction: column;
             border: 1px solid #ddd; border-radius: 8px;
-            padding: 10px; background: #fff;
+            padding: 10px; background: #fff; flex-shrink: 0;
         }
         #grid-panel h3 { text-align: center; font-size: 16px; color: #333; margin-bottom: 5px; }
-        #grid-chart-container { flex: 1; position: relative; }
-        #grid-chart-container canvas { width: 100% !important; height: 100% !important; }
+        #grid-chart-container { position: relative; width: 100%; margin: 0 auto; }
+        #grid-chart-container canvas { }
         .grid-legend {
             display: flex; justify-content: center; gap: 15px;
             padding: 5px; font-size: 12px; flex-wrap: wrap;
@@ -88,29 +88,16 @@
         .grid-legend-item { display: flex; align-items: center; gap: 4px; }
         .grid-legend-color { width: 14px; height: 14px; display: inline-block; }
         #kpi-panel {
-            flex: 2; display: flex; flex-direction: column; gap: 8px;
+            flex: 1; display: flex; flex-direction: column; gap: 8px; 
         }
         .kpi-row { display: flex; gap: 8px; flex: 1; }
         .kpi-chart-box {
             flex: 1; border: 1px solid #ddd; border-radius: 8px;
             padding: 8px; background: #fff;
-            position: relative; min-height: 180px;
+            position: relative; min-height: 0; max-height: 280px;
         }
         .kpi-chart-box canvas { width: 100% !important; height: 100% !important; }
-        #bar-panel {
-            width: 120px; border: 1px solid #ddd; border-radius: 8px;
-            padding: 8px; background: #fff;
-            display: flex; flex-direction: column;
-        }
-        #tab-container {
-            display: flex; justify-content: center; gap: 10px; padding: 8px;
-        }
-        .tab-button {
-            padding: 8px 24px; cursor: pointer;
-            background: #f0f0f0; border: 1px solid #ddd;
-            border-radius: 4px; font-weight: 600; color: #333;
-        }
-        .tab-button.active { background: #8B0000; color: white; border-color: #8B0000; }
+
         .status-row {
             display: flex; justify-content: center; align-items: center;
             gap: 10px; font-size: 13px;
@@ -205,17 +192,13 @@
                     <span class="grid-legend-color" style="background: #999; border-radius: 50%; width: 10px; height: 10px;"></span>
                     <span>UE (color = connected O-RU)</span>
                 </div>
-                <div class="grid-legend-item">
-                    <span class="grid-legend-color" style="background: #ff8c00;"></span>
-                    <span>Unassigned</span>
-                </div>
+
             </div>
         </div>
 
         <div id="kpi-panel">
             <div class="kpi-row">
                 <div class="kpi-chart-box"><canvas id="sinr-chart"></canvas></div>
-                <div class="kpi-chart-box"><canvas id="serving-cell-chart"></canvas></div>
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box"><canvas id="prb-chart"></canvas></div>
@@ -223,14 +206,9 @@
             </div>
         </div>
 
-        <div id="bar-panel">
-            <canvas id="bar-chart"></canvas>
-        </div>
+
     </div>
 
-    <div id="tab-container">
-        <div class="tab-button active" id="chart-tab" onclick="switchTab('grid')">Observe simulation grid</div>
-        <div class="tab-button" id="data-tab" onclick="switchTab('kpi')">Observe KPIs</div>
     </div>
 </div>
 
@@ -259,17 +237,29 @@
             fc.style.display = 'none'; btn.textContent = 'Show A1 policy manager';
         }
     }
-    function switchTab(tab) {
-        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-        if (tab === 'grid') document.getElementById('chart-tab').classList.add('active');
-        else document.getElementById('data-tab').classList.add('active');
-    }
 
     document.getElementById('flexric').addEventListener('change', function() {
         var e2f = document.getElementById('e2TermIp');
         if (this.checked) { e2f.disabled = false; e2f.style.backgroundColor = ''; }
         else { e2f.disabled = true; e2f.value = '127.0.0.1'; e2f.style.backgroundColor = '#eee'; }
     });
+
+    // Background map plugin
+    var mapImg = new Image();
+    mapImg.src = '/static/univmap.png';
+    var bgMapPlugin = {
+        id: 'bgMap',
+        beforeDraw: function(chart) {
+            if (chart.canvas.id !== 'myChart') return;
+            if (!mapImg.complete) return;
+            var ca = chart.chartArea;
+            if (!ca) return;
+            chart.ctx.save();
+            chart.ctx.globalAlpha = 1.0;
+            chart.ctx.drawImage(mapImg, ca.left, ca.top, ca.right - ca.left, ca.bottom - ca.top);
+            chart.ctx.restore();
+        }
+    };
 
     // Simulation Grid Chart
     var ctx = document.getElementById('myChart').getContext('2d');
@@ -300,9 +290,7 @@
             ]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
-            animation: { duration: 900, easing: 'easeInOutQuad' },
-            transitions: { active: { animation: { duration: 0 } } },
+            responsive: true, maintainAspectRatio: true, aspectRatio: 1,
             scales: {
                 x: { type: 'linear', position: 'bottom', min: 0, max: 500,
                     grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333' }
@@ -330,7 +318,7 @@
                 datalabels: { display: true }
             }
         },
-        plugins: [ChartDataLabels]
+        plugins: [bgMapPlugin, ChartDataLabels]
     });
 
     // KPI chart factory
@@ -368,12 +356,6 @@
         { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
         { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
     ]);
-    var servingCellChart = createLineChart('serving-cell-chart', 'Serving Cell', 'Cell ID', [
-        { label: 'Ue 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 2 },
-        { label: 'Ue 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 2 },
-        { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 2 },
-        { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 2 }
-    ]);
     var prbChart = createLineChart('prb-chart', 'PRB Usage (%)', 'PRB Usage (%)', [
         { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
         { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 2, fill: false, pointRadius: 0 },
@@ -387,28 +369,9 @@
     ]);
 
     // Bar chart
-    var barCtx = document.getElementById('bar-chart').getContext('2d');
-    var barChart = new Chart(barCtx, {
-        type: 'bar',
-        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: {
-                x: { beginAtZero: true, ticks: { color: '#666', font: { size: 9 } } },
-                y: { ticks: { color: '#333', font: { size: 9 } } }
-            },
-            plugins: {
-                legend: { display: false },
-                title: { display: true, text: 'Power (J)', color: '#333', font: { size: 11 } },
-                datalabels: { display: false }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
 
     // History
     var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
-    var servingCellHistory = { 1: [], 2: [], 3: [], 4: [] };
     var prbHistory = { 2: [], 3: [], 4: [] };
     var retxHistory = { 1: [], 2: [], 3: [], 4: [] };
     var MAX_HISTORY = 51;
@@ -432,7 +395,6 @@
             if (!data) return;
             updateGrid(data);
             updateKPIs(data);
-            updateBar(data);
         }).catch(function(e) { console.log('Fetch error:', e); });
     }
 
@@ -486,7 +448,6 @@
             data.ues.forEach(function(ue, i) {
                 var uid = ue.ue_id || (i + 1);
                 pushHistory(sinrHistory, uid, ue.L3servingSINR_dB || 0);
-                pushHistory(servingCellHistory, uid, ue.MMWave_Cell || 0);
                 pushHistory(retxHistory, uid, ue.ErrTotalNbrDl || 0);
             });
         }
@@ -502,7 +463,6 @@
         // Update SINR chart (per UE)
         [1,2,3,4].forEach(function(uid, idx) {
             sinrChart.data.datasets[idx].data = sinrHistory[uid] || [];
-            servingCellChart.data.datasets[idx].data = servingCellHistory[uid] || [];
             retxChart.data.datasets[idx].data = retxHistory[uid] || [];
         });
 
@@ -514,25 +474,10 @@
         var maxLen = Math.max.apply(null, Object.keys(sinrHistory).map(function(k) { return sinrHistory[k].length; }).concat([1]));
         var labels = Array.from({length: maxLen}, function(_, i) { return i; });
         sinrChart.data.labels = labels; sinrChart.update();
-        servingCellChart.data.labels = labels; servingCellChart.update();
         prbChart.data.labels = labels; prbChart.update();
         retxChart.data.labels = labels; retxChart.update();
     }
 
-    function updateBar(data) {
-        if (!data.cells) return;
-        var labels = [], values = [], colors = [];
-        data.cells.forEach(function(cell, i) {
-            var cid = cell.cell_id || (i+1);
-            labels.push('Cell ' + cid);
-            values.push(cell.totalcurrec || cell.maxec || 0);
-            colors.push(cellColors[cid] || '#999');
-        });
-        barChart.data.labels = labels;
-        barChart.data.datasets[0].data = values;
-        barChart.data.datasets[0].backgroundColor = colors;
-        barChart.update();
-    }
 
     async function sendForm(url) {
         var form = document.getElementById('simulationForm');
@@ -583,7 +528,7 @@
             document.getElementById('status_label').textContent = 'off';
             document.getElementById('start_button').disabled = false;
             document.getElementById('stop_button').disabled = true;
-            [sinrHistory, servingCellHistory, prbHistory, retxHistory].forEach(function(h) {
+            [sinrHistory, prbHistory, retxHistory].forEach(function(h) {
                 Object.keys(h).forEach(function(k) { h[k] = []; });
             });
         } catch (e) { console.log('Reset error:', e); }
