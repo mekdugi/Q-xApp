@@ -10,19 +10,20 @@ The project consists of three main components:
 
 1. **Quantum Circuit Solver** — Encodes the BS-UE assignment as a quantum optimization problem using Grover's search to find the throughput-maximizing assignment among all valid configurations.
 2. **FlexRIC xApp Controller** — A C-based xApp that reads real-time SINR measurements from ns-3 via E2 interface, computes the optimal assignment using greedy matching, and sends RC handover commands to execute the assignment.
-3. **Real-time GUI** — A Docker-based web dashboard showing UE positions, cell assignments, SINR/KPI charts, and energy consumption on a live simulation grid.
+3. **Real-time GUI** — A Docker-based web dashboard with campus map overlay, showing UE positions, cell assignments, and SINR/PRB/RETX charts on a live simulation grid.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Docker GUI (port 3000)                 │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌─────────┐ │
-│  │ Sim Grid  │  │ SINR Chart│  │ PRB Chart │  │ Retx    │ │
-│  │ (UE+O-RU) │  │ (per UE)  │  │ (per Cell)│  │ Chart   │ │
-│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └────┬────┘ │
-│        └───────────────┴───────────────┴─────────────┘      │
-│                         InfluxDB                             │
+│  ┌───────────┐  ┌───────────┐  ┌──────────────────────┐ │
+│  │ Sim Grid  │  │ SINR Chart│  │ PRB + Retx Charts    │ │
+│  │ (Map+UE+  │  │ (per UE)  │  │ (per Cell / per UE)  │ │
+│  │  O-RU)    │  │           │  │                      │ │
+│  └─────┬─────┘  └─────┬─────┘  └──────────┬───────────┘ │
+│        └───────────────┴───────────────────┘              │
+│                         InfluxDB                           │
 └──────────────────────────┬──────────────────────────────────┘
                            │ KPM data
 ┌──────────────────────────┴──────────────────────────────────┐
@@ -93,7 +94,10 @@ Q-xApp/
 │   └── scenario-zero-with_parallel_loging.cc  # ns-3 mmWave simulation scenario
 ├── gui/
 │   ├── templates/chart.html       # Web GUI: simulation grid + KPI charts
-│   └── src/data_controller.py     # FastAPI backend for GUI
+│   ├── src/data_controller.py     # FastAPI backend for GUI
+│   ├── src/simulation.py          # Simulation data manager (InfluxDB integration)
+│   ├── static/univmap.png         # Campus map background for simulation grid
+│   └── docker-compose.yml         # Docker Compose: GUI + InfluxDB + Grafana
 ├── scripts/
 │   ├── collect_qxapp_verification.py  # Verification: distance vs assignment check
 │   └── qxapp_verification.csv        # 100-sample validation results
@@ -151,13 +155,13 @@ Modified `scenario-zero-with_parallel_loging.cc`:
 ### 4. Docker GUI (`gui/`)
 
 Real-time web dashboard (FastAPI + Chart.js):
-- **Simulation Grid**: Scatter plot showing O-RU positions (triangles) and UE positions (circles) with color-coded cell assignments
+- **Simulation Grid**: Campus map background with O-RU positions (triangles) and UE positions (circles), color-coded by cell assignment. Square 1:1 aspect ratio for accurate distance representation.
 - **SINR Chart**: Per-UE serving SINR over time
-- **Serving Cell Chart**: Per-UE cell attachment history
 - **PRB Usage Chart**: Per-cell downlink PRB utilization
 - **Retransmission Chart**: Per-UE DL error count
-- **Energy Bar**: Per-cell power consumption
 - **Q-xApp Integration**: Reads `/qxapp-result` endpoint showing quantum/greedy assignment overlay
+- **Auto-detection**: Automatically detects UE/cell count from InfluxDB measurements (no manual configuration needed)
+- **Docker Compose**: `restart: unless-stopped` policy, volume mounts for live file editing without rebuilds
 
 ## Prerequisites
 
@@ -189,7 +193,11 @@ sudo /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_greedy_handover
 You should see rate matrix output and handover commands being sent.
 
 ### Step 4: Open GUI
-Navigate to `http://localhost:3000` in your browser.
+```bash
+cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/GUI
+sudo docker compose up -d
+```
+Navigate to `http://localhost:8000` in your browser.
 
 ## Building from Source
 
