@@ -176,3 +176,56 @@ async def stop_simulation():
         print(f"An error occurred: {e}")
 
 
+
+
+@influx_data_router.post("/switch_usecase")
+async def switch_usecase(request: Request):
+    body = await request.json()
+    mode = body.get("mode", "ts")
+    mode_file = "/host_data/xapp_mode.txt"
+    with open(mode_file, "w") as f:
+        f.write(mode)
+    return {"status": "ok", "mode": mode}
+
+
+@influx_data_router.get("/current_usecase")
+async def current_usecase():
+    mode_file = "/host_data/xapp_mode.txt"
+    try:
+        with open(mode_file, "r") as f:
+            mode = f.read().strip()
+    except Exception:
+        mode = "ts"
+    return {"mode": mode}
+
+
+
+@influx_data_router.get("/qxapp-result")
+async def qxapp_result():
+    import json
+    result_path = "/host_data/qxapp_result.json"
+    try:
+        with open(result_path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+@influx_data_router.post("/set_a1_policy")
+async def set_a1_policy(request: Request):
+    body = await request.json()
+    max_ue = body.get("max_ue_per_cell", 2)
+    policy_file = "/host_data/xapp_a1_policy.txt"
+    with open(policy_file, "w") as f:
+        f.write(str(max_ue))
+    return {"status": "ok", "max_ue_per_cell": max_ue}
+
+
+@influx_data_router.post("/set_sleep_config")
+async def set_sleep_config(request: Request):
+    body = await request.json()
+    sleep_cells = body.get("sleep_cells", [])
+    config_file = "/host_data/xapp_sleep_config.txt"
+    with open(config_file, "w") as f:
+        f.write(",".join(str(c) for c in sleep_cells))
+    return {"status": "ok", "sleep_cells": sleep_cells}
