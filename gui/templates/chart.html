@@ -124,7 +124,7 @@
 
     <div id="form-container">
         <form id="simulationForm">
-            <div>
+            <div style="display:none">
                 <div style="display: flex; flex-direction: column;">
                     <div style="display: flex; align-items: center; margin-bottom: 8px;">
                         <label for="flexric">Connect to FlexRIC:</label>
@@ -136,11 +136,11 @@
                     </div>
                 </div>
             </div>
-            <div><label for="hoSinrDifference">hoSinrDifference (dB):</label><input type="number" id="hoSinrDifference" name="hoSinrDifference" value="3"></div>
+            <div style="display:none"><label for="hoSinrDifference">hoSinrDifference (dB):</label><input type="number" id="hoSinrDifference" name="hoSinrDifference" value="3"></div>
             <div><label for="indicationPeriodicity">indicationPeriodicity (s):</label><input type="number" id="indicationPeriodicity" name="indicationPeriodicity" value="1"></div>
             <div><label for="simTime">simTime (s):</label><input type="number" id="simTime" name="simTime" value="1000"></div>
-            <div><label for="KPM_E2functionID">KPM_E2functionID:</label><input type="number" id="KPM_E2functionID" name="KPM_E2functionID" value="2"></div>
-            <div><label for="RC_E2functionID">RC_E2functionID:</label><input type="number" id="RC_E2functionID" name="RC_E2functionID" value="3"></div>
+            <div style="display:none"><label for="KPM_E2functionID">KPM_E2functionID:</label><input type="number" id="KPM_E2functionID" name="KPM_E2functionID" value="2"></div>
+            <div style="display:none"><label for="RC_E2functionID">RC_E2functionID:</label><input type="number" id="RC_E2functionID" name="RC_E2functionID" value="3"></div>
             <div><label for="N_MmWaveEnbNodes">N_MmWaveEnbNodes:</label><input type="number" id="N_MmWaveEnbNodes" name="N_MmWaveEnbNodes" value="3"></div>
             <div><label for="N_Ues">N_Ues:</label><input type="number" id="N_Ues" name="N_Ues" value="4"></div>
             <div><label for="CenterFrequency">CenterFrequency (Hz):</label><input type="number" id="CenterFrequency" name="CenterFrequency" value="3.5e9"></div>
@@ -150,7 +150,7 @@
             <div>
                 <label for="scenario">Scenario:</label>
                 <select id="scenario" name="scenario" onchange="setFlags()"></select>
-                <div style="display: flex; align-items: center; margin-top: 4px;">
+                <div style="display:none; align-items: center; margin-top: 4px;">
                     <label for="flags">Flags:</label>
                     <input type="checkbox" id="flags" name="flags" value="true" style="transform: scale(1.3); margin-left: 8px;">
                 </div>
@@ -158,7 +158,7 @@
             <button type="button" onclick="sendForm('/start_simulation')" id="start_button">Start</button>
             <button type="button" onclick="stopSim('/stop_simulation')" id="stop_button" disabled>Stop</button>
             <button type="button" onclick="resetSim('/reset_simulation')" id="reset_button">Reset</button>
-            <div class="status-row">
+            <div class="status-row" style="display:none">
                 <label>Status:</label>
                 <label id="status_label">off</label>
                 <label id="label_between_status_and_simid"></label>
@@ -168,7 +168,7 @@
         </form>
     </div>
 
-    <div id="frameContainer"></div>
+    <div id="frameContainer" style="display:none"></div>
 
     <div id="content-area">
         <div id="grid-panel">
@@ -223,10 +223,8 @@
 
     function toggleA1Manager() {
         const form = document.getElementById('form-container');
-        const frame = document.getElementById('frameContainer');
         const shouldShow = form.style.display === 'none' || form.style.display === '';
         form.style.display = shouldShow ? 'block' : 'none';
-        frame.style.display = shouldShow ? 'block' : 'none';
     }
 
     document.getElementById('flexric').addEventListener('change', function() {
