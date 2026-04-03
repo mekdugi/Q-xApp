@@ -88,7 +88,7 @@
         .grid-legend-item { display: flex; align-items: center; gap: 4px; }
         .grid-legend-color { width: 14px; height: 14px; display: inline-block; }
         #kpi-panel {
-            flex: 1; display: flex; flex-direction: column; gap: 8px; 
+            flex: 1; display: flex; flex-direction: column; gap: 8px;
         }
         .kpi-row { display: flex; gap: 8px; flex: 1; }
         .kpi-chart-box {
@@ -97,6 +97,7 @@
             position: relative; min-height: 0; max-height: 280px;
         }
         .kpi-chart-box canvas { width: 100% !important; height: 100% !important; }
+
 
         .status-row {
             display: flex; justify-content: center; align-items: center;
@@ -113,8 +114,7 @@
         <div id="header-center">
             <h1>Q-xApp Simulation</h1>
             <div class="header-buttons">
-                <button class="header-btn" id="form-toggle-button" onclick="toggleForm()">Show simulation setup</button>
-                <button class="header-btn" id="toggleButton" onclick="toggleA1()">Show A1 policy manager</button>
+                <button class="header-btn" id="a1-manager-button" onclick="toggleA1Manager()">A1 Policy Manager</button>
             </div>
         </div>
         <div id="header-right">
@@ -209,33 +209,24 @@
 
     </div>
 
-    </div>
+
 </div>
 
 <script>
     const host_ns3 = "{{ host_ns3 }}";
+    const DEFAULT_SCENARIO = 'scratch/scenario-zero-with_parallel_loging.cc';
+    const DEFAULT_SIMULATION_PARAMS = { flexric: 'true', flags: 'true', scenario: DEFAULT_SCENARIO };
     const cellColors = { 1: '#3366cc', 2: '#33aa33', 3: '#9933cc', 4: '#cc3333' };
     const ueColors = ['#cc3333', '#33aa33', '#9933cc', '#3366cc'];
     /* Fixed O-RU positions: triangular around center=(250,250), ISD=150 */
     const fixedCellPos = { 2: {x:400,y:250}, 3: {x:175,y:380}, 4: {x:175,y:120} };
 
-    function toggleForm() {
-        const fc = document.getElementById('form-container');
-        const btn = document.getElementById('form-toggle-button');
-        if (fc.style.display === 'none' || fc.style.display === '') {
-            fc.style.display = 'block'; btn.textContent = 'Hide simulation setup';
-        } else {
-            fc.style.display = 'none'; btn.textContent = 'Show simulation setup';
-        }
-    }
-    function toggleA1() {
-        const fc = document.getElementById('frameContainer');
-        const btn = document.getElementById('toggleButton');
-        if (fc.style.display === 'none' || fc.style.display === '') {
-            fc.style.display = 'block'; btn.textContent = 'Hide A1 policy manager';
-        } else {
-            fc.style.display = 'none'; btn.textContent = 'Show A1 policy manager';
-        }
+    function toggleA1Manager() {
+        const form = document.getElementById('form-container');
+        const frame = document.getElementById('frameContainer');
+        const shouldShow = form.style.display === 'none' || form.style.display === '';
+        form.style.display = shouldShow ? 'block' : 'none';
+        frame.style.display = shouldShow ? 'block' : 'none';
     }
 
     document.getElementById('flexric').addEventListener('change', function() {
@@ -350,22 +341,22 @@
         });
     }
 
-    var sinrChart = createLineChart('sinr-chart', 'SINR (dB)', 'SINR (dB)', [
-        { label: 'Ue 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'Ue 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
+    var sinrChart = createLineChart('sinr-chart', 'Throughput', 'Mbps', [
+        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
     ]);
-    var prbChart = createLineChart('prb-chart', 'PRB Usage (%)', 'PRB Usage (%)', [
+    var prbChart = createLineChart('prb-chart', 'PRB Usage', 'PRB Usage', [
         { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
         { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 2, fill: false, pointRadius: 0 },
         { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 2, fill: false, pointRadius: 0 }
     ]);
-    var retxChart = createLineChart('retx-chart', 'Retransmission (RETX)', 'Error Count', [
-        { label: 'Ue 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'Ue 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'Ue 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'Ue 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
+    var retxChart = createLineChart('retx-chart', 'RETX', 'Error Count', [
+        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
+        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
     ]);
 
     // Bar chart
@@ -379,6 +370,14 @@
     function pushHistory(histObj, id, value) {
         if (!histObj[id]) histObj[id] = [];
         histObj[id].push(value);
+        if (histObj[id].length > MAX_HISTORY) histObj[id].shift();
+    }
+
+    function pushDeltaHistory(histObj, id, value) {
+        if (!histObj[id]) histObj[id] = [];
+        var prev = histObj[id].length ? histObj[id][histObj[id].length - 1].__raw : null;
+        var delta = prev === null ? 0 : Math.max(0, value - prev);
+        histObj[id].push({ value: delta, __raw: value });
         if (histObj[id].length > MAX_HISTORY) histObj[id].shift();
     }
 
@@ -447,8 +446,8 @@
         if (data.ues) {
             data.ues.forEach(function(ue, i) {
                 var uid = ue.ue_id || (i + 1);
-                pushHistory(sinrHistory, uid, ue.L3servingSINR_dB || 0);
-                pushHistory(retxHistory, uid, ue.ErrTotalNbrDl || 0);
+                pushHistory(sinrHistory, uid, (ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0);
+                pushDeltaHistory(retxHistory, uid, ue.ErrTotalNbrDl || 0);
             });
         }
         if (data.cells) {
@@ -463,7 +462,7 @@
         // Update SINR chart (per UE)
         [1,2,3,4].forEach(function(uid, idx) {
             sinrChart.data.datasets[idx].data = sinrHistory[uid] || [];
-            retxChart.data.datasets[idx].data = retxHistory[uid] || [];
+            retxChart.data.datasets[idx].data = (retxHistory[uid] || []).map(function(point) { return typeof point === 'object' ? point.value : point; });
         });
 
         // Update PRB chart (per Cell, mmWave only)
@@ -482,7 +481,7 @@
     async function sendForm(url) {
         var form = document.getElementById('simulationForm');
         var formData = new FormData(form);
-        var params = {};
+        var params = Object.assign({}, DEFAULT_SIMULATION_PARAMS);
         formData.forEach(function(v, k) { params[k] = v; });
         if (!params.scenario || params.scenario.indexOf('scenario-zero-with_parallel_loging') < 0) {
             var sel = document.getElementById('scenario');

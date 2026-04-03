@@ -1,5 +1,6 @@
 import os
 import time
+from collections import defaultdict
 
 from influxdb import InfluxDBClient
 
@@ -18,6 +19,8 @@ class Simulation:
             database=os.getenv("INFLUXDB_DATABASE"),
         )
         self.simulation_start_time = time.time_ns()
+        self.host_data_dir = os.getenv("HOST_DATA_DIR", "/host_data")
+        self.text_fallback_values = {}
         self.number_of_ues = number_of_ues
         self.number_of_cells = number_of_cells
         self.temp_number_of_ues = 0
@@ -143,34 +146,13 @@ class Simulation:
         n_number_of_g_cells, n_timestamp = self.get_last_count_from_measurement('gnbs_count')
         n_number_of_e_cells, n_timestamp = self.get_last_count_from_measurement('enbs_count')
         n_number_of_ues, n_timestamp = self.get_last_count_from_measurement('ue_position_count') 
-        # Fallback: detect UE/cell count from existing measurements
+        # Fallback: read txt files directly if InfluxDB has no count measurements
         if n_number_of_ues is None:
-            try:
-                result = self.db_client.query('SHOW MEASUREMENTS')
-                measurements = [m['name'] for m in result.get_points()]
-                ue_ids = set()
-                g_cell_ids = set()
-                e_cell_ids = set()
-                for m in measurements:
-                    if m.startswith('ue_position_x_'):
-                        ue_ids.add(int(m.split('_')[-1]))
-                    if m.startswith('gnbs_x_') and not m.endswith('_0'):
-                        g_cell_ids.add(int(m.split('_')[-1]))
-                    if m.startswith('enbs_x_') and not m.endswith('_0'):
-                        e_cell_ids.add(int(m.split('_')[-1]))
-                if ue_ids:
-                    self.number_of_ues = len(ue_ids)
-                    self.number_of_cells = len(g_cell_ids) + len(e_cell_ids)
-                    if self.number_of_ues > 0 and self.number_of_cells > 0:
-                        self.max_x, self.max_y = self.get_charts_max_axis_value()
-                        self.ues, self.cells, sim_id_from_ue = self.get_simulation_data(self.number_of_ues, self.number_of_cells)
-                        self.ue_history.append(self.ues)
-                        self.cell_history.append(self.cells)
-                        if self.sim_id is None:
-                            self.sim_id = sim_id_from_ue
-                    return
-            except Exception:
-                pass
+            self._refresh_text_fallback()
+            n_number_of_ues = self.text_fallback_values.get("ue_position_count")
+            n_number_of_g_cells = self.text_fallback_values.get("gnbs_count")
+            n_number_of_e_cells = self.text_fallback_values.get("enbs_count", 0)
+            n_timestamp = ""
         if n_number_of_g_cells is not None or n_number_of_e_cells is not None:
             if n_number_of_g_cells is None:
                 n_number_of_g_cells = 0
@@ -196,6 +178,12 @@ class Simulation:
                     else:
                         self.sim_id = sim_id_from_ue
 
+    def _fallback_value(self, measurement_name: str):
+        value = self.text_fallback_values.get(measurement_name)
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
+
     def get_last_value_from_measurement(self, measurement_name: str) -> float | str | int | None:
         try:
             result = self.db_client.query(f'SELECT LAST("value") FROM "{measurement_name}" where time > {self.simulation_start_time}')
@@ -208,6 +196,9 @@ class Simulation:
             else:
                 return None
         except Exception as e:
+            fallback = self._fallback_value(measurement_name)
+            if fallback is not None:
+                return fallback
             raise Exception(f"Error querying InfluxDB: {e}")
 
     def get_last_count_from_measurement(self, measurement_name: str):
@@ -289,3 +280,99 @@ class Simulation:
             maxec = self.get_last_value_from_measurement(f'gnbs_maxec_{cell_id}')
             totalcurrec = self.get_last_value_from_measurement(f'gnbs_totalcurrec_{cell_id}')
         return es_state, es_power, maxec, totalcurrec
+
+    def _safe_read_lines(self, path):
+        try:
+            with open(path, encoding="utf-8") as file:
+                return [line.strip() for line in file if line.strip()]
+        except OSError:
+            return []
+
+    def _refresh_text_fallback(self):
+        values = {}
+        values.update(self._load_ue_position_fallback())
+        values.update(self._load_gnbs_fallback())
+        values.update(self._load_sinr_fallback())
+        self.text_fallback_values = values
+
+    def _load_ue_position_fallback(self):
+        path = os.path.join(self.host_data_dir, "ue_position.txt")
+        lines = self._safe_read_lines(path)
+        if len(lines) <= 1:
+            return {}
+        rows = [line.split(",") for line in lines[1:] if len(line.split(",")) >= 7]
+        if not rows:
+            return {}
+        latest_simid = rows[-1][6]
+        latest_rows = {}
+        for row in rows:
+            if row[6] != latest_simid:
+                continue
+            latest_rows[int(row[1])] = row
+        values = {"ue_position_count": len(latest_rows)}
+        for ue_id, row in latest_rows.items():
+            values[f"ue_position_x_{ue_id}"] = float(row[2])
+            values[f"ue_position_y_{ue_id}"] = float(row[3])
+            values[f"ue_position_type_{ue_id}"] = row[4]
+            values[f"ue_position_cell_{ue_id}"] = int(float(row[5]))
+            values[f"ue_position_simid_{ue_id}"] = int(float(row[6]))
+        return values
+
+    def _load_gnbs_fallback(self):
+        path = os.path.join(self.host_data_dir, "gnbs.txt")
+        lines = self._safe_read_lines(path)
+        if len(lines) <= 1:
+            return {}
+        rows = [line.split(",") for line in lines[1:] if len(line.split(",")) >= 4]
+        if not rows:
+            return {}
+        latest_cells = {}
+        for row in rows:
+            cell_id = int(float(row[1]))
+            latest_cells[cell_id] = row
+        mmwave_cells = [c for c in latest_cells if c != 0]
+        values = {"gnbs_count": len(mmwave_cells)}
+        for cell_id, row in latest_cells.items():
+            if cell_id == 0:
+                values["gnbs_x_0"] = float(row[2])
+                values["gnbs_y_0"] = float(row[3])
+                continue
+            values[f"gnbs_x_{cell_id}"] = float(row[2])
+            values[f"gnbs_y_{cell_id}"] = float(row[3])
+            if len(row) >= 9:
+                values[f"gnbs_esstate_{cell_id}"] = int(float(row[5]))
+                values[f"gnbs_espower_{cell_id}"] = float(row[6])
+                values[f"gnbs_maxec_{cell_id}"] = float(row[7])
+                values[f"gnbs_totalcurrec_{cell_id}"] = float(row[8])
+        return values
+
+    def _load_sinr_fallback(self):
+        latest_by_ue = {}
+        cell_sinr_values = defaultdict(list)
+        for cell_id in (2, 3, 4):
+            path = os.path.join(self.host_data_dir, f"cu-cp-cell-{cell_id}.txt")
+            lines = self._safe_read_lines(path)
+            if len(lines) <= 1:
+                continue
+            for line in lines[1:]:
+                row = line.split(",")
+                if len(row) < 8:
+                    continue
+                try:
+                    timestamp = int(float(row[0]))
+                    ue_id = int(float(row[6]))
+                    serving_sinr = float(row[7])
+                except ValueError:
+                    continue
+                cell_sinr_values[cell_id].append(serving_sinr)
+                prev = latest_by_ue.get(ue_id)
+                if prev is None or timestamp >= prev["timestamp"]:
+                    latest_by_ue[ue_id] = {"timestamp": timestamp, "sinr": serving_sinr, "cell_id": cell_id}
+        values = {}
+        for ue_id, item in latest_by_ue.items():
+            values[f"ue_{ue_id}_l3 serving sinr"] = item["sinr"]
+            values.setdefault(f"ue_position_cell_{ue_id}", item["cell_id"])
+        for cell_id, sinrs in cell_sinr_values.items():
+            if sinrs:
+                values[f"cu-cp-cell-{cell_id}_l3 serving sinr"] = sum(sinrs) / len(sinrs)
+        return values

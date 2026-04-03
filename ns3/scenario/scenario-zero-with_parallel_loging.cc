@@ -382,16 +382,15 @@ static ns3::GlobalValue center_freq ("CenterFrequency", "Center Frequency Value"
                                       ns3::MakeDoubleChecker<double> ());
 
 static ns3::GlobalValue bandwidth_value ("Bandwidth", "Bandwidth Value",
-                                      ns3::DoubleValue (20e6),
+                                      ns3::DoubleValue (100e6),
                                       ns3::MakeDoubleChecker<double> ());
-// TODO: check for later
-// static ns3::GlobalValue num_antennas_McUe ("N_AntennasMcUe", "Number of Antenna as McUe",
-//                                       ns3::IntegerValue (1),
-//                                       ns3::MakeIntegerChecker<int> ());
+static ns3::GlobalValue num_antennas_McUe ("N_AntennasMcUe", "Number of antennas on each MC UE",
+                                      ns3::UintegerValue (1),
+                                      ns3::MakeUintegerChecker<uint32_t> (1));
 
-// static ns3::GlobalValue num_antennas_MmWave ("N_AntennasMmWave", "Number of Antenna as MmWave",
-//                                       ns3::IntegerValue (1),
-//                                       ns3::MakeIntegerChecker<int> ());
+static ns3::GlobalValue num_antennas_MmWave ("N_AntennasMmWave", "Number of antennas on each mmWave node",
+                                        ns3::UintegerValue (4),
+                                        ns3::MakeUintegerChecker<uint32_t> (1));
 
 static ns3::GlobalValue interside_distance_value_ue ("IntersideDistanceUEs", "Interside Distance Value",
                                       ns3::DoubleValue (150),
@@ -586,11 +585,11 @@ main(int argc, char *argv[]) {
     double isd_cell = doubleValue.Get(); // (interside distance)
 
     // Number of antennas in each UE
-    // GlobalValue::GetValueByName ("N_AntennasMcUe", uintegerValue);
-    int numAntennasMcUe = 1; //uintegerValue.Get();
+    GlobalValue::GetValueByName ("N_AntennasMcUe", uintegerValue);
+    uint32_t numAntennasMcUe = uintegerValue.Get();
     // Number of antennas in each mmWave BS
-    // GlobalValue::GetValueByName ("N_AntennasMmWave", uintegerValue);
-    int numAntennasMmWave = 1; //uintegerValue.Get();
+    GlobalValue::GetValueByName ("N_AntennasMmWave", uintegerValue);
+    uint32_t numAntennasMmWave = uintegerValue.Get();
 
     NS_LOG_INFO("Bandwidth " << bandwidth << " centerFrequency " << double(centerFrequency)
                              << " isd_ue " << isd_ue << " numAntennasMcUe " << numAntennasMcUe
@@ -691,8 +690,8 @@ main(int argc, char *argv[]) {
     uePositionAlloc->SetRho(isd_ue);
 
     Ptr <UniformRandomVariable> speedVar = CreateObject<UniformRandomVariable>();
-    speedVar->SetAttribute("Min", DoubleValue(20.0));
-    speedVar->SetAttribute("Max", DoubleValue(40.0));
+    speedVar->SetAttribute("Min", DoubleValue(5.0));
+    speedVar->SetAttribute("Max", DoubleValue(10.0));
 
     Ptr <UniformRandomVariable> pauseVar = CreateObject<UniformRandomVariable>();
     pauseVar->SetAttribute("Min", DoubleValue(0.0));
@@ -786,9 +785,9 @@ main(int argc, char *argv[]) {
                                             InetSocketAddress(Ipv4Address::GetAny(), 1234));
         sinkApp.Add(dlPacketSinkHelper.Install(ueNodes.Get(u)));
         UdpClientHelper dlClient(ueIpIface.GetAddress(u), 1234);
-        dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(500)));
+        dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(100)));
         dlClient.SetAttribute("MaxPackets", UintegerValue(UINT32_MAX));
-        dlClient.SetAttribute("PacketSize", UintegerValue(200)); //defult 1280
+        dlClient.SetAttribute("PacketSize", UintegerValue(1200));
         clientApp.Add(dlClient.Install(remoteHost));
     }
 

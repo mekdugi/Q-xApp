@@ -4,7 +4,6 @@ from dataclasses import asdict
 
 import requests
 import json
-import os as _os
 
 import paramiko
 from fastapi import APIRouter, Request, Depends
@@ -40,14 +39,15 @@ async def root(request: Request, simulation: Simulation = Depends(get_simulation
 @influx_data_router.get("/scenarios")
 async def scenarios(request: Request):
     remote_host = os.getenv('NS3_HOST')
-    response = requests.get( f'http://{remote_host}:38866')
-    files = {}
-    if response.status_code == 200:
-        files = json.loads(response.text)
-    else:
-        files = {"0":"scratch/scenario-zero-with_parallel_loging.cc",
-            "1":"scratch/scenario-one.cc",
-            "2":"scratch/scenario-zero.cc"}
+    files = {"0":"scratch/scenario-zero-with_parallel_loging.cc",
+        "1":"scratch/scenario-one.cc",
+        "2":"scratch/scenario-zero.cc"}
+    try:
+        response = requests.get(f'http://{remote_host}:38866', timeout=1.5)
+        if response.status_code == 200:
+            files = json.loads(response.text)
+    except Exception:
+        pass
     return files
 
 @influx_data_router.get("/refresh-data")
@@ -82,18 +82,6 @@ async def refresh_data(request: Request, simulation: Simulation = Depends(get_si
         "totalcurrec": updated_simulation.totalcurrec,
         "simulation_status": updated_simulation.simulation_status,
     }
-
-
-@influx_data_router.get("/qxapp-result")
-async def qxapp_result():
-    try:
-        result_path = "/host_data/qxapp_result.json"
-        if _os.path.exists(result_path):
-            with open(result_path) as f:
-                return json.load(f)
-    except:
-        pass
-    return {"assignments": [], "matrix": []}
 
 
 @influx_data_router.post("/start_simulation")
@@ -152,7 +140,7 @@ async def start_simulation(request: Request):
     except Exception as e:
         print(f"An error occurred: {e}")
     number_of_ues = int(form_data.get('N_Ues', 2))
-    number_of_cells = int(form_data.get('N_LteEnbNodes', 1)) + int(form_data.get('N_MmWaveEnbNodes', 3))
+    number_of_cells = int(form_data.get('N_LteEnbNodes', 1)) + int(form_data.get('N_MmWaveEnbNodes', 4))
     if not flags:
         number_of_ues = 0
         number_of_cells = 0
