@@ -18,7 +18,7 @@ class Simulation:
             password=os.getenv("INFLUXDB_PASSWORD"),
             database=os.getenv("INFLUXDB_DATABASE"),
         )
-        self.simulation_start_time = time.time_ns()
+        self.simulation_start_time = 0
         self.host_data_dir = os.getenv("HOST_DATA_DIR", "/host_data")
         self.text_fallback_values = {}
         self.number_of_ues = number_of_ues
@@ -146,13 +146,41 @@ class Simulation:
         n_number_of_g_cells, n_timestamp = self.get_last_count_from_measurement('gnbs_count')
         n_number_of_e_cells, n_timestamp = self.get_last_count_from_measurement('enbs_count')
         n_number_of_ues, n_timestamp = self.get_last_count_from_measurement('ue_position_count') 
-        # Fallback: read txt files directly if InfluxDB has no count measurements
+        # Fallback 1: read txt files directly
         if n_number_of_ues is None:
             self._refresh_text_fallback()
             n_number_of_ues = self.text_fallback_values.get("ue_position_count")
             n_number_of_g_cells = self.text_fallback_values.get("gnbs_count")
             n_number_of_e_cells = self.text_fallback_values.get("enbs_count", 0)
             n_timestamp = ""
+        # Fallback 2: count from InfluxDB SHOW MEASUREMENTS and directly initialize
+        if n_number_of_ues is None:
+            try:
+                result = self.db_client.query('SHOW MEASUREMENTS')
+                measurements = [m['name'] for m in result.get_points()]
+                ue_ids = set()
+                g_cell_ids = set()
+                e_cell_ids = set()
+                for m in measurements:
+                    if m.startswith('ue_position_x_'):
+                        ue_ids.add(int(m.split('_')[-1]))
+                    if m.startswith('gnbs_x_') and not m.endswith('_0'):
+                        g_cell_ids.add(int(m.split('_')[-1]))
+                    if m.startswith('enbs_x_') and not m.endswith('_0'):
+                        e_cell_ids.add(int(m.split('_')[-1]))
+                if ue_ids:
+                    self.number_of_ues = len(ue_ids)
+                    self.number_of_cells = len(g_cell_ids) + len(e_cell_ids)
+                    if self.number_of_ues > 0 and self.number_of_cells > 0:
+                        self.max_x, self.max_y = self.get_charts_max_axis_value()
+                        self.ues, self.cells, sim_id = self.get_simulation_data(self.number_of_ues, self.number_of_cells)
+                        self.ue_history.append(self.ues)
+                        self.cell_history.append(self.cells)
+                        if self.sim_id is None:
+                            self.sim_id = sim_id
+                    return
+            except Exception:
+                pass
         if n_number_of_g_cells is not None or n_number_of_e_cells is not None:
             if n_number_of_g_cells is None:
                 n_number_of_g_cells = 0

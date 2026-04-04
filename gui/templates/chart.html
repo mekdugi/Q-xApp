@@ -47,7 +47,7 @@
             text-align: right; line-height: 1.2;
         }
         #form-container {
-            display: block; background: #f5f5f5;
+            display: none; background: #f5f5f5;
             border: 1px solid #ddd; border-radius: 8px;
             padding: 15px; margin: 5px 0;
         }
@@ -114,7 +114,7 @@
         <div id="header-center">
             <h1>Q-xApp Simulation</h1>
             <div class="header-buttons">
-                <button class="header-btn" id="a1-manager-button" onclick="toggleA1Manager()">A1 Policy Manager</button>
+
 
             </div>
         </div>
@@ -138,8 +138,8 @@
                 </div>
             </div>
             <div style="display:none"><label for="hoSinrDifference">hoSinrDifference (dB):</label><input type="number" id="hoSinrDifference" name="hoSinrDifference" value="3"></div>
-            <div><label for="indicationPeriodicity">indicationPeriodicity (s):</label><input type="number" id="indicationPeriodicity" name="indicationPeriodicity" value="1"></div>
-            <div><label for="simTime">simTime (s):</label><input type="number" id="simTime" name="simTime" value="1000"></div>
+            <div style="display:none"><label for="indicationPeriodicity">indicationPeriodicity (s):</label><input type="number" id="indicationPeriodicity" name="indicationPeriodicity" value="1"></div>
+            <div style="display:none"><label for="simTime">simTime (s):</label><input type="number" id="simTime" name="simTime" value="1800"></div>
             <div style="display:none"><label for="KPM_E2functionID">KPM_E2functionID:</label><input type="number" id="KPM_E2functionID" name="KPM_E2functionID" value="2"></div>
             <div style="display:none"><label for="RC_E2functionID">RC_E2functionID:</label><input type="number" id="RC_E2functionID" name="RC_E2functionID" value="3"></div>
             <div><label for="N_MmWaveEnbNodes">N_MmWaveEnbNodes:</label><input type="number" id="N_MmWaveEnbNodes" name="N_MmWaveEnbNodes" value="3"></div>
@@ -202,6 +202,44 @@
 
     <div id="frameContainer" style="display:none"></div>
 
+
+    <div id="sim-info-bar" style="display:flex; flex-direction:column; padding:8px 20px; font-size:13px; color:#333; border-bottom:2px solid #8B0000; gap:6px;">
+        <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+            <span style="font-weight:700; color:#333;">Network Settings</span>
+            <span style="color:#999;">|</span>
+            <span>O-RU: 3 (mmWave)</span>
+            <span>UE: 4</span>
+            <span>Bandwidth: 100 MHz</span>
+            <span>Center Freq: 3.5 GHz</span>
+            <span>ISD (UE): 150 m</span>
+            <span>ISD (Cell): 150 m</span>
+            <span id="sim-timer" style="margin-left:auto; font-weight:600; color:#8B0000;"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+            <span style="font-weight:700; color:white; background:#8B0000; padding:3px 10px; border-radius:4px;">A1 Policy Manager</span>
+            <label style="font-weight:600;">Use Case:
+                <select id="scenario-mode-bar" onchange="switchScenario(this.value)" style="font-size:13px; padding:3px 6px; margin-left:4px;">
+                    <option value="ts">Traffic Steering</option>
+                    <option value="nes">Network Energy Saving</option>
+                    <option value="qos">QoS-based Resource Allocation</option>
+                </select>
+            </label>
+            <label id="ts-maxue-bar">Max UE/Cell: <select id="maxue-select" style="font-size:12px;"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
+            <span id="sleep-oru-bar" style="display:none;">
+                Sleep O-RU:
+                <label><input type="radio" name="sleep-oru-bar" value="2" onchange="updateSleepConfig()"> O-RU 1</label>
+                <label><input type="radio" name="sleep-oru-bar" value="3" onchange="updateSleepConfig()"> O-RU 2</label>
+                <label><input type="radio" name="sleep-oru-bar" value="4" onchange="updateSleepConfig()" checked> O-RU 3</label>
+            </span>
+            <span id="qos-config-bar" style="display:none;">
+                UE Priority:
+                <label>UE1:<select id="qos-ue-bar-1" onchange="updateQosConfig()" style="font-size:12px;"><option value="high" selected>High</option><option value="low">Low</option></select></label>
+                <label>UE2:<select id="qos-ue-bar-2" onchange="updateQosConfig()" style="font-size:12px;"><option value="high" selected>High</option><option value="low">Low</option></select></label>
+                <label>UE3:<select id="qos-ue-bar-3" onchange="updateQosConfig()" style="font-size:12px;"><option value="high">High</option><option value="low" selected>Low</option></select></label>
+                <label>UE4:<select id="qos-ue-bar-4" onchange="updateQosConfig()" style="font-size:12px;"><option value="high">High</option><option value="low" selected>Low</option></select></label>
+            </span>
+        </div>
+    </div>
     <div id="content-area">
         <div id="grid-panel">
             <div id="grid-chart-container">
@@ -262,6 +300,16 @@
     var currentScenario = 'ts';
     function switchScenario(mode) {
         currentScenario = mode;
+        var headerSelect = document.getElementById("scenario-mode-header");
+        if (headerSelect) headerSelect.value = mode;
+        var barSelect = document.getElementById("scenario-mode-bar");
+        if (barSelect) barSelect.value = mode;
+        var tsMaxUe = document.getElementById("ts-maxue-bar");
+        if (tsMaxUe) tsMaxUe.style.display = (mode === 'ts') ? 'inline' : 'none';
+        var sleepBar = document.getElementById("sleep-oru-bar");
+        if (sleepBar) sleepBar.style.display = (mode === 'nes') ? 'inline' : 'none';
+        var qosBar = document.getElementById("qos-config-bar");
+        if (qosBar) qosBar.style.display = (mode === 'qos') ? 'inline' : 'none';
         var sleepPanel = document.getElementById('sleep-oru-panel');
         if (sleepPanel) sleepPanel.style.display = (mode === 'nes') ? 'flex' : 'none';
         var a1Panel = document.getElementById('a1-policy-panel');
@@ -291,7 +339,7 @@
     }
 
     function updateSleepConfig() {
-        var selected = document.querySelector('input[name="sleep-oru"]:checked');
+        var selected = document.querySelector('input[name="sleep-oru"]:checked') || document.querySelector('input[name="sleep-oru-bar"]:checked');
         var sleepCells = selected ? [parseInt(selected.value)] : [];
         fetch('/set_sleep_config', {
             method: 'POST',
@@ -304,7 +352,7 @@
     function updateQosConfig() {
         var weights = [];
         for (var i = 1; i <= 4; i++) {
-            var sel = document.getElementById('qos-ue-' + i);
+            var sel = document.getElementById('qos-ue-bar-' + i) || document.getElementById('qos-ue-' + i);
             weights.push(sel.value === 'high' ? 2.0 : 1.0);
         }
         fetch('/set_qos_config', {
@@ -489,6 +537,29 @@
             if (!data) return;
             updateGrid(data);
             updateKPIs(data);
+            /* Update sim timer */
+            var timerEl = document.getElementById('sim-timer');
+            if (timerEl) {
+                if (!window._simStartTime && data.ues && data.ues.length > 0 && data.ues[0].x_position) {
+                    window._simStartTime = Date.now() / 1000;
+                }
+                if (window._simStartTime) {
+                    var simMaxSec = 1800;
+                    var elapsed = Math.floor(Date.now() / 1000 - window._simStartTime);
+                    var remain = Math.max(0, simMaxSec - elapsed);
+                    var mm = Math.floor(remain / 60);
+                    var ss = remain % 60;
+                    timerEl.textContent = 'Remaining Sim. Time: ' + mm + 'm ' + (ss < 10 ? '0' : '') + ss + 's';
+                    if (remain <= 0) {
+                        timerEl.style.color = '#cc0000';
+                        timerEl.textContent = 'Simulation ended';
+                        if (!window._simEnded) {
+                            window._simEnded = true;
+                            fetch('/kill_simulation', {method: 'POST'}).catch(function(){});
+                        }
+                    }
+                }
+            }
         }).catch(function(e) { console.log('Fetch error:', e); });
     }
 
@@ -656,8 +727,14 @@
     fetchScenarios();
     /* Load current use case mode */
     fetch("/current_usecase").then(function(r) { return r.json(); }).then(function(d) {
-        document.getElementById("scenario-mode").value = d.mode;
+        var headerSelect = document.getElementById("scenario-mode-header");
+        if (headerSelect) headerSelect.value = d.mode;
+        var barSelect = document.getElementById("scenario-mode-bar");
+        if (barSelect) barSelect.value = d.mode;
+        var formSelect = document.getElementById("scenario-mode");
+        if (formSelect) formSelect.value = d.mode;
         currentScenario = d.mode;
+        switchScenario(d.mode);
     });
     setInterval(fetchData, 1000);
 </script>

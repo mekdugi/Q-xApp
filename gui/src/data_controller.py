@@ -211,6 +211,24 @@ async def qxapp_result():
         return []
 
 
+
+
+@influx_data_router.post("/kill_simulation")
+async def kill_simulation():
+    """Kill all simulation processes (RIC, ns-3, xApp)"""
+    import subprocess
+    commands = [
+        "sudo pkill -9 -f nearRT-RIC",
+        "sudo pkill -9 -f xapp_qxapp",
+        "pkill -9 -f scenario-zero",
+    ]
+    for cmd in commands:
+        try:
+            subprocess.run(cmd, shell=True, capture_output=True, timeout=5)
+        except Exception:
+            pass
+    return {"status": "killed"}
+
 @influx_data_router.post("/set_a1_policy")
 async def set_a1_policy(request: Request):
     body = await request.json()

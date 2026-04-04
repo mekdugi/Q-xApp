@@ -297,7 +297,7 @@ static void energy_aware_match(int assignment[NUM_UE],
           candidates[i] = candidates[j];
           candidates[j] = tmp;
         }
-    for (int i = 0; i < nc && cell_load[c] < NUM_UE; i++) {
+    for (int i = 0; i < nc && cell_load[c] < MAX_UE_PER_CELL; i++) {
       int u = candidates[i].ue;
       assignment[u] = c;
       assigned[u] = 1;
@@ -309,7 +309,7 @@ static void energy_aware_match(int assignment[NUM_UE],
     if (assignment[u] >= 0) continue;
     int best = -1;
     for (int c = 0; c < NUM_CELL; c++) {
-      if (cell_load[c] >= NUM_UE) continue;
+      if (cell_load[c] >= MAX_UE_PER_CELL) continue;
       if (best < 0 || cell_load[c] < cell_load[best]) best = c;
     }
     if (best < 0) best = 0;
@@ -776,6 +776,17 @@ int main(int argc, char *argv[])
     if (strcmp(mode, prev_mode) != 0) {
       if (strcmp(mode, "nes") == 0) {
         printf("[Q-xApp] Mode switched to: NES\n");
+      /* Reset all UE scheduling weights to default */
+      for (int u = 0; u < NUM_UE; u++) {
+        uint64_t imsi = (uint64_t)(u + 1);
+        ue_id_e2sm_t rst_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+        rc_ctrl_req_data_t rst_ctrl = {0};
+        rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
+        rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
+        for (size_t i = 1; i < nodes.len; i++)
+          control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rst_ctrl);
+        free_rc_ctrl_req_data(&rst_ctrl);
+      }
       } else if (strcmp(mode, "qos") == 0) {
         printf("[Q-xApp] Mode switched to: QoS-based Resource Allocation\n");
         /* Wake up ALL cells when switching to QoS-RA */
@@ -794,6 +805,18 @@ int main(int argc, char *argv[])
         }
       } else {
         printf("[Q-xApp] Mode switched to: Traffic Steering\n");
+        /* Reset all UE scheduling weights to default */
+        printf("[Q-xApp] Resetting all UE scheduling weights...\n");
+        for (int u = 0; u < NUM_UE; u++) {
+          uint64_t imsi = (uint64_t)(u + 1);
+          ue_id_e2sm_t rst_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+          rc_ctrl_req_data_t rst_ctrl = {0};
+          rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
+          rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
+          for (size_t i = 1; i < nodes.len; i++)
+            control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rst_ctrl);
+          free_rc_ctrl_req_data(&rst_ctrl);
+        }
         /* Wake up ALL cells when switching to TS */
         printf("[Q-xApp] Waking up all cells...\n");
         for (int c = 0; c < NUM_CELL; c++) {

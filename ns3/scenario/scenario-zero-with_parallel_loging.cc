@@ -321,7 +321,7 @@ static ns3::GlobalValue
                                 "E2 Indication Periodicity reports (value in seconds)",
                                 ns3::DoubleValue(1.0), ns3::MakeDoubleChecker<double>(0.01, 10.0));
 
-static ns3::GlobalValue g_simTime("simTime", "Simulation time in seconds", ns3::DoubleValue(1000),
+static ns3::GlobalValue g_simTime("simTime", "Simulation time in seconds", ns3::DoubleValue(1800),
                                   ns3::MakeDoubleChecker<double>(0.1, 100000.0));
 
 static ns3::GlobalValue g_outageThreshold("outageThreshold",
@@ -779,25 +779,15 @@ main(int argc, char *argv[]) {
 
     ApplicationContainer clientApp;
 
-    // Differentiated traffic per UE for QoS scenario
-    // UE 0,1: high-rate (1200B @ 100us), UE 2,3: low-rate (600B @ 500us)
+    // Uniform traffic for all UEs
     for (uint32_t u = 0; u < ueNodes.GetN(); ++u) {
-        // Primary traffic sink (port 1234)
         PacketSinkHelper dlPacketSinkHelper("ns3::UdpSocketFactory",
                                             InetSocketAddress(Ipv4Address::GetAny(), 1234));
         sinkApp.Add(dlPacketSinkHelper.Install(ueNodes.Get(u)));
-
         UdpClientHelper dlClient(ueIpIface.GetAddress(u), 1234);
-        if (u < 2) {
-            // High-rate UEs (UE 0, 1)
-            dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(100)));
-            dlClient.SetAttribute("PacketSize", UintegerValue(1200));
-        } else {
-            // Low-rate UEs (UE 2, 3)
-            dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(500)));
-            dlClient.SetAttribute("PacketSize", UintegerValue(600));
-        }
+        dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(100)));
         dlClient.SetAttribute("MaxPackets", UintegerValue(UINT32_MAX));
+        dlClient.SetAttribute("PacketSize", UintegerValue(1200));
         clientApp.Add(dlClient.Install(remoteHost));
 
         // Secondary GBR traffic sink (port 2345) - activated by xApp DRB control
