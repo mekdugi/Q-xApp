@@ -2,6 +2,9 @@
  * Q-xApp Unified Controller
  * Supports both Traffic Steering (greedy) and Network Energy Saving modes
  * Mode is read from xapp_mode.txt each round
+ *
+ * Architecture follows Fig. 2 of the Q-xApp paper:
+ *   E2 Measurements -> Use-Case Encoder -> Quantum Assignment Algorithm -> Output Interpreter -> E2 Control
  */
 
 #include "qxapp_common.h"
@@ -296,7 +299,201 @@ static void read_mode(char *mode_buf, size_t buf_sz)
   }
 }
 
-/* main */
+/* =========================================================================
+ * Fig. 2 Pipeline Functions
+ * ========================================================================= */
+
+/* Stage 1: Use-Case Encoder (Fig. 2)
+ * Reads E2 measurements (SINR CSV, energy CSV) and encodes them into the
+ * rate matrix used by the assignment algorithm.
+ * Also reads mode-specific configuration (A1 policy for TS, sleep config for NES).
+ */
+static void use_case_encoder(const char *mode)
+{
+  printf("[Q-xApp] --- Stage 1: Use-Case Encoder ---\n");
+
+  /* Read E2 measurements */
+  read_sinr_from_csv();
+  read_cell_energy();
+
+  /* UE 3 (IMSI 4) fallback: fill with average if no data */
+  {
+    int has = 0;
+    for (int c = 0; c < NUM_CELL; c++)
+      if (sinr_matrix[3][c] > 0.01) has = 1;
+    if (!has) {
+      for (int c = 0; c < NUM_CELL; c++) {
+        double sum = 0; int cnt = 0;
+        for (int u = 0; u < 3; u++)
+          if (sinr_matrix[u][c] > 0.01) { sum += sinr_matrix[u][c]; cnt++; }
+        if (cnt > 0) sinr_matrix[3][c] = sum / cnt;
+      }
+    }
+  }
+
+  /* Print rate matrix */
+  printf("[Q-xApp] Rate matrix (bps/Hz):\n");
+  printf("         ");
+  for (int c = 0; c < NUM_CELL; c++) printf("%-10s", ORU_NAMES[c]);
+  printf("\n");
+  for (int u = 0; u < NUM_UE; u++) {
+    printf("  UE %d:  ", u);
+    for (int c = 0; c < NUM_CELL; c++)
+      printf("%-10.4f", sinr_matrix[u][c]);
+    printf("  (serving: %s)\n", ORU_NAMES[serving_cell[u]]);
+  }
+
+  /* Mode-specific configuration */
+  if (strcmp(mode, "ts") == 0) {
+    read_a1_policy();
+    printf("[Q-xApp] A1 policy: max_ue_per_cell=%d\n", a1_max_ue_per_cell);
+  } else {
+    read_sleep_config();
+    if (n_forced_sleep > 0) {
+      printf("[Q-xApp NES] Forced sleep cells:");
+      for (int i = 0; i < n_forced_sleep; i++)
+        printf(" %d", forced_sleep_cells[i]);
+      printf("\n");
+    }
+  }
+}
+
+/* Stage 2: Quantum Assignment Algorithm (Fig. 2)
+ * Runs the appropriate matching algorithm based on the current mode.
+ * TS mode: greedy matching to maximise throughput.
+ * NES mode: energy-aware matching to minimise active cells.
+ */
+static void assignment_algorithm(const char *mode,
+                                 int assignment[NUM_UE],
+                                 int *active_cells,
+                                 int sleep_cells[],
+                                 int *n_sleep)
+{
+  printf("[Q-xApp] --- Stage 2: Quantum Assignment Algorithm ---\n");
+
+  if (strcmp(mode, "nes") == 0) {
+    energy_aware_match(assignment, active_cells, sleep_cells, n_sleep);
+  } else {
+    greedy_match(assignment);
+    *active_cells = NUM_CELL;
+    *n_sleep = 0;
+  }
+
+  /* Compute total rate */
+  double total_rate = 0.0;
+  for (int u = 0; u < NUM_UE; u++)
+    total_rate += sinr_matrix[u][assignment[u]];
+
+  /* Log results */
+  if (strcmp(mode, "nes") == 0) {
+    printf("[Q-xApp NES] Energy-aware assignment (total rate=%.4f bps/Hz, active=%d, sleep=%d):\n",
+           total_rate, *active_cells, *n_sleep);
+  } else {
+    printf("[Q-xApp TS] Greedy assignment (total rate=%.4f bps/Hz):\n", total_rate);
+  }
+  for (int u = 0; u < NUM_UE; u++) {
+    printf("  UE %d -> %s (rate=%.4f bps/Hz)\n",
+           u, ORU_NAMES[assignment[u]], sinr_matrix[u][assignment[u]]);
+  }
+
+  /* Write result JSON */
+  write_result_json_unified(assignment, total_rate, mode, *active_cells, sleep_cells, *n_sleep);
+}
+
+/* Stage 3: Output Interpreter (Fig. 2)
+ * Translates assignment decisions into E2 RC Control messages.
+ * Sends handover commands (style=3) for UEs that changed cells.
+ * In NES mode, also sends wake/sleep commands (style=300).
+ */
+static void output_interpreter(const char *mode,
+                               int assignment[NUM_UE],
+                               int prev_assignment[NUM_UE],
+                               int sleep_cells[],
+                               int n_sleep,
+                               e2_node_arr_xapp_t *nodes)
+{
+  printf("[Q-xApp] --- Stage 3: Output Interpreter ---\n");
+
+  /* Send handover commands (RC style=3) for changed UEs */
+  for (int u = 0; u < NUM_UE; u++) {
+    int new_cell_idx = assignment[u];
+    if (new_cell_idx == prev_assignment[u]) {
+      printf("[Q-xApp] UE %d already on %s, skip handover.\n", u, ORU_NAMES[new_cell_idx]);
+      continue;
+    }
+
+    uint64_t imsi = (uint64_t)(u + 1);
+    char target_cell_char = '0' + CELL_IDS[new_cell_idx];
+
+    ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+
+    rc_ctrl_req_data_t rc_ctrl = {0};
+    rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 3, HANDOVER_CONTROL_7_6_4_1);
+    rc_ctrl.msg = gen_rc_ctrl_msg(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
+
+    int64_t st = time_now_us();
+    printf("[Q-xApp] HO: UE %d (IMSI %lu) -> %s (char '%c')\n",
+           u, imsi, ORU_NAMES[new_cell_idx], target_cell_char);
+
+    for (size_t i = 1; i < nodes->len; i++) {
+      printf("[Q-xApp]   Sending HO to node[%zu] nb_id=%u\n", i, nodes->n[i].id.nb_id.nb_id);
+      control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rc_ctrl);
+    }
+
+    printf("[Q-xApp] HO latency for UE %d: %ld us\n", u, time_now_us() - st);
+    free_rc_ctrl_req_data(&rc_ctrl);
+    usleep(500000);
+  }
+
+  /* NES mode: Wake non-sleep cells, then sleep selected cells (RC style=300) */
+  if (strcmp(mode, "nes") == 0) {
+    /* Wake ALL cells that are NOT sleep targets */
+    for (int c = 0; c < NUM_CELL; c++) {
+      char wake_char = '0' + CELL_IDS[c];
+      int is_sleep_target = 0;
+      for (int s = 0; s < n_sleep; s++)
+        if (sleep_cells[s] == CELL_IDS[c]) { is_sleep_target = 1; break; }
+      if (is_sleep_target) continue; /* will be slept below */
+      ue_id_e2sm_t wid = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
+      rc_ctrl_req_data_t wctrl = {0};
+      wctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wid, 300, 2);
+      wctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_char);
+      for (size_t i = 1; i < nodes->len; i++)
+        control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &wctrl);
+      free_rc_ctrl_req_data(&wctrl);
+    }
+    /* Sleep selected cells */
+    for (int s = 0; s < n_sleep; s++) {
+      int sleep_cell_id = sleep_cells[s];
+      char target_cell_char = '0' + sleep_cell_id;
+
+      printf("[Q-xApp NES] Sending Energy_state SLEEP for cell ID=%d (char '%c')\n",
+             sleep_cell_id, target_cell_char);
+
+      ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 0);
+
+      rc_ctrl_req_data_t rc_ctrl = {0};
+      rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 300, 1);
+      rc_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
+
+      for (size_t i = 1; i < nodes->len; i++) {
+        printf("[Q-xApp NES]   Sending Energy_state to node[%zu] nb_id=%u\n", i, nodes->n[i].id.nb_id.nb_id);
+        control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rc_ctrl);
+      }
+
+      free_rc_ctrl_req_data(&rc_ctrl);
+      usleep(200000);
+    }
+  }
+
+  /* Update prev_assignment */
+  for (int u = 0; u < NUM_UE; u++)
+    prev_assignment[u] = assignment[u];
+}
+
+/* =========================================================================
+ * main
+ * ========================================================================= */
 int main(int argc, char *argv[])
 {
   fr_args_t args = init_fr_args(argc, argv);
@@ -332,176 +529,52 @@ int main(int argc, char *argv[])
   char prev_mode[32] = "";
 
   while (1) {
-  round++;
+    round++;
 
-  /* Read current mode */
-  char mode[32];
-  read_mode(mode, sizeof(mode));
+    /* Read current mode */
+    char mode[32];
+    read_mode(mode, sizeof(mode));
 
-  if (strcmp(mode, prev_mode) != 0) {
-    if (strcmp(mode, "nes") == 0) {
-      printf("[Q-xApp] Mode switched to: NES\n");
-    } else {
-      printf("[Q-xApp] Mode switched to: Traffic Steering\n");
-      /* Wake up ALL cells when switching to TS */
-      printf("[Q-xApp] Waking up all cells...\n");
-      for (int c = 0; c < NUM_CELL; c++) {
-        char wake_cell = '0' + CELL_IDS[c];
-        ue_id_e2sm_t wake_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
-        rc_ctrl_req_data_t wake_ctrl = {0};
-        wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
-        wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
-        for (size_t i = 1; i < nodes.len; i++) {
-          control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
+    /* Handle mode transitions */
+    if (strcmp(mode, prev_mode) != 0) {
+      if (strcmp(mode, "nes") == 0) {
+        printf("[Q-xApp] Mode switched to: NES\n");
+      } else {
+        printf("[Q-xApp] Mode switched to: Traffic Steering\n");
+        /* Wake up ALL cells when switching to TS */
+        printf("[Q-xApp] Waking up all cells...\n");
+        for (int c = 0; c < NUM_CELL; c++) {
+          char wake_cell = '0' + CELL_IDS[c];
+          ue_id_e2sm_t wake_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
+          rc_ctrl_req_data_t wake_ctrl = {0};
+          wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
+          wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
+          for (size_t i = 1; i < nodes.len; i++) {
+            control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
+          }
+          free_rc_ctrl_req_data(&wake_ctrl);
+          printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
         }
-        free_rc_ctrl_req_data(&wake_ctrl);
-        printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
       }
-    }
-    strncpy(prev_mode, mode, sizeof(prev_mode));
-    /* Reset prev_assignment on mode change to force re-evaluation */
-    for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
-  }
-
-  printf("===== Q-xApp Unified Round %d [mode=%s] =====\n", round, mode);
-
-  /* Read SINR from CSV */
-  printf("[Q-xApp] Reading SINR data from CSV...\n");
-  read_a1_policy();
-  read_sinr_from_csv();
-  read_cell_energy();
-
-  /* Fill UE 3 (IMSI 4) with average if no data */
-  {
-    int has = 0;
-    for (int c = 0; c < NUM_CELL; c++) if (sinr_matrix[3][c] > 0.01) has = 1;
-    if (!has) {
-      for (int c = 0; c < NUM_CELL; c++) {
-        double sum = 0; int cnt = 0;
-        for (int u = 0; u < 3; u++) if (sinr_matrix[u][c] > 0.01) { sum += sinr_matrix[u][c]; cnt++; }
-        if (cnt > 0) sinr_matrix[3][c] = sum / cnt;
-      }
-    }
-  }
-
-  /* Print rate matrix */
-  printf("[Q-xApp] Rate matrix (bps/Hz):\n");
-  printf("         ");
-  for (int c = 0; c < NUM_CELL; c++) printf("%-10s", ORU_NAMES[c]);
-  printf("\n");
-  for (int u = 0; u < NUM_UE; u++) {
-    printf("  UE %d:  ", u);
-    for (int c = 0; c < NUM_CELL; c++)
-      printf("%-10.4f", sinr_matrix[u][c]);
-    printf("  (serving: %s)\n", ORU_NAMES[serving_cell[u]]);
-  }
-
-  /* Run matching algorithm based on mode */
-  int assignment[NUM_UE];
-  int active_cells = NUM_CELL;
-  int sleep_cells[NUM_CELL];
-  int n_sleep = 0;
-
-  if (strcmp(mode, "nes") == 0) {
-    read_sleep_config();
-    energy_aware_match(assignment, &active_cells, sleep_cells, &n_sleep);
-  } else {
-    greedy_match(assignment);
-  }
-
-  double total_rate = 0.0;
-  for (int u = 0; u < NUM_UE; u++)
-    total_rate += sinr_matrix[u][assignment[u]];
-
-  if (strcmp(mode, "nes") == 0) {
-    printf("[Q-xApp NES] Energy-aware assignment (total rate=%.4f bps/Hz, active=%d, sleep=%d):\n",
-           total_rate, active_cells, n_sleep);
-  } else {
-    printf("[Q-xApp TS] Greedy assignment (total rate=%.4f bps/Hz):\n", total_rate);
-  }
-  for (int u = 0; u < NUM_UE; u++) {
-    printf("  UE %d -> %s (rate=%.4f bps/Hz)\n",
-           u, ORU_NAMES[assignment[u]], sinr_matrix[u][assignment[u]]);
-  }
-
-  /* Write result JSON */
-  write_result_json_unified(assignment, total_rate, mode, active_cells, sleep_cells, n_sleep);
-
-  /* Send handover commands (style 3) */
-  for (int u = 0; u < NUM_UE; u++) {
-    int new_cell_idx = assignment[u];
-    if (new_cell_idx == prev_assignment[u]) {
-      printf("[Q-xApp] UE %d already on %s, skip handover.\n", u, ORU_NAMES[new_cell_idx]);
-      continue;
+      strncpy(prev_mode, mode, sizeof(prev_mode));
+      /* Reset prev_assignment on mode change to force re-evaluation */
+      for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
     }
 
-    uint64_t imsi = (uint64_t)(u + 1);
-    char target_cell_char = '0' + CELL_IDS[new_cell_idx];
+    printf("===== Q-xApp Round %d [mode=%s] =====\n", round, mode);
 
-    ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+    /* Fig. 2: Q-xApp Pipeline */
+    int assignment[NUM_UE];
+    int active_cells = NUM_CELL;
+    int sleep_cells[NUM_CELL];
+    int n_sleep = 0;
 
-    rc_ctrl_req_data_t rc_ctrl = {0};
-    rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 3, HANDOVER_CONTROL_7_6_4_1);
-    rc_ctrl.msg = gen_rc_ctrl_msg(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
+    use_case_encoder(mode);                                                        /* Stage 1 */
+    assignment_algorithm(mode, assignment, &active_cells, sleep_cells, &n_sleep);  /* Stage 2 */
+    output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
 
-    int64_t st = time_now_us();
-    printf("[Q-xApp] HO: UE %d (IMSI %lu) -> %s (char '%c')\n",
-           u, imsi, ORU_NAMES[new_cell_idx], target_cell_char);
-
-    for (size_t i = 1; i < nodes.len; i++) {
-      printf("[Q-xApp]   Sending HO to node[%zu] nb_id=%u\n", i, nodes.n[i].id.nb_id.nb_id);
-      control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rc_ctrl);
-    }
-
-    printf("[Q-xApp] HO latency for UE %d: %ld us\n", u, time_now_us() - st);
-    free_rc_ctrl_req_data(&rc_ctrl);
-    usleep(500000);
-  }
-
-  /* NES mode: Wake all cells first, then sleep selected ones */
-  if (strcmp(mode, "nes") == 0) {
-    /* Wake ALL cells first to clear previous sleep states */
-    for (int c = 0; c < NUM_CELL; c++) {
-      char wake_char = '0' + CELL_IDS[c];
-      int is_sleep_target = 0;
-      for (int s = 0; s < n_sleep; s++)
-        if (sleep_cells[s] == CELL_IDS[c]) { is_sleep_target = 1; break; }
-      if (is_sleep_target) continue; /* will be slept below */
-      ue_id_e2sm_t wid = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
-      rc_ctrl_req_data_t wctrl = {0};
-      wctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wid, 300, 2);
-      wctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_char);
-      for (size_t i = 1; i < nodes.len; i++)
-        control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wctrl);
-      free_rc_ctrl_req_data(&wctrl);
-    }
-    /* Now sleep selected cells */
-    for (int s = 0; s < n_sleep; s++) {
-      int sleep_cell_id = sleep_cells[s];
-      char target_cell_char = '0' + sleep_cell_id;
-
-      printf("[Q-xApp NES] Sending Energy_state SLEEP for cell ID=%d (char '%c')\n",
-             sleep_cell_id, target_cell_char);
-
-      ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 0);
-
-      rc_ctrl_req_data_t rc_ctrl = {0};
-      rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 300, 1);
-      rc_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
-
-      for (size_t i = 1; i < nodes.len; i++) {
-        printf("[Q-xApp NES]   Sending Energy_state to node[%zu] nb_id=%u\n", i, nodes.n[i].id.nb_id.nb_id);
-        control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rc_ctrl);
-      }
-
-      free_rc_ctrl_req_data(&rc_ctrl);
-      usleep(200000);
-    }
-  }
-
-  printf("[Q-xApp] Round %d complete. [mode=%s]\n", round, mode);
-  for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = assignment[u];
-  sleep(5);
+    printf("[Q-xApp] Round %d complete. [mode=%s]\n", round, mode);
+    sleep(5);
   } /* end while loop */
 
   return 0;
