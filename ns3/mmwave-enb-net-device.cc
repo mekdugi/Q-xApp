@@ -59,6 +59,7 @@
 #include <ns3/log.h>
 #include <ns3/lte-enb-component-carrier-manager.h>
 #include <ns3/mmwave-component-carrier-enb.h>
+#include "mmwave-flex-tti-pf-mac-scheduler.h"
 #include <ns3/config.h>
 #include <ns3/lte-rlc-um.h>
 #include <ns3/lte-rlc-um-lowlat.h>
@@ -759,8 +760,8 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
   switch (controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type)
     {
       case RicControlMessage::ControlMessageServiceStyle::Radio_Bearer_Control: {
-        // DRB priority control from Q-xApp QoS mode
-        // ctrl_act_id=1: HIGH priority, ctrl_act_id=2: LOW priority
+        // DRB-based scheduling weight control from Q-xApp QoS-RA mode
+        // ctrl_act_id = DRB index (1-4) -> scheduling weight: {1:4.0, 2:3.0, 3:2.0, 4:1.0}
         uint16_t ctrlActionDrb = controlMessage->m_e2SmRcControlHeaderFormat1->ric_ControlAction_ID;
         UEID_GNB_t *UEgnbDrb = controlMessage->m_e2SmRcControlHeaderFormat1->ueID.choice.gNB_UEID;
         uint64_t imsiDrb = 0;
@@ -769,39 +770,43 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
             memcpy (&imsiDrb, UEgnbDrb->ran_UEID->buf, UEgnbDrb->ran_UEID->size);
           }
 
-        if (ctrlActionDrb == 1)
+        // DRB index -> scheduling weight mapping
+        double drbWeights[5] = {1.0, 4.0, 3.0, 2.0, 1.0}; // index 0 unused, 1-4 valid
+        double schedWeight = 1.0;
+        if (ctrlActionDrb >= 1 && ctrlActionDrb <= 4)
+          schedWeight = drbWeights[ctrlActionDrb];
+
+        printf ("## RC-DRB: UE IMSI=%lu -> DRB index=%u, sched_weight=%.1f\n",
+                (unsigned long)imsiDrb, ctrlActionDrb, schedWeight);
+
+        // Find UE RNTI from IMSI and apply scheduling weight
+        auto ueMapDrb = m_rrc->GetUeMap ();
+        for (auto ue : ueMapDrb)
           {
-            printf ("## RC-DRB: UE IMSI=%lu -> HIGH priority (GBR)\n", (unsigned long)imsiDrb);
-            auto ueMapDrb = m_rrc->GetUeMap ();
-            for (auto ue : ueMapDrb)
+            if (ue.second->GetImsi () == imsiDrb)
               {
-                if (ue.second->GetImsi () == imsiDrb)
+                uint16_t rntiDrb = ue.first;
+                printf ("## RC-DRB: UE IMSI=%lu RNTI=%u in cell %u, setting weight=%.1f\n",
+                        (unsigned long)imsiDrb, rntiDrb, m_cellId, schedWeight);
+                // Get scheduler and set weight
+                auto ccEnb = DynamicCast<MmWaveComponentCarrierEnb> (m_ccMap.at (0));
+                if (ccEnb)
                   {
-                    printf ("## RC-DRB: UE IMSI=%lu found in cell %u, HIGH priority set\n", (unsigned long)imsiDrb, m_cellId);
-                    break;
+                    auto pfSched = DynamicCast<MmWaveFlexTtiPfMacScheduler> (ccEnb->GetMacScheduler ());
+                    if (pfSched)
+                      {
+                        pfSched->SetUeSchedulingWeight (rntiDrb, schedWeight);
+                      }
+                    else
+                      {
+                        printf ("## RC-DRB: Warning - scheduler is not PF type\n");
+                      }
                   }
+                break;
               }
-          }
-        else if (ctrlActionDrb == 2)
-          {
-            printf ("## RC-DRB: UE IMSI=%lu -> LOW priority (NGBR)\n", (unsigned long)imsiDrb);
-            auto ueMapDrb2 = m_rrc->GetUeMap ();
-            for (auto ue : ueMapDrb2)
-              {
-                if (ue.second->GetImsi () == imsiDrb)
-                  {
-                    printf ("## RC-DRB: UE IMSI=%lu found in cell %u, LOW priority set\n", (unsigned long)imsiDrb, m_cellId);
-                    break;
-                  }
-              }
-          }
-        else
-          {
-            printf ("## RC-DRB: Unknown ctrl_act_id=%u for IMSI=%lu\n", ctrlActionDrb, (unsigned long)imsiDrb);
           }
         break;
       }
-
       case RicControlMessage::ControlMessageServiceStyle::Radio_Resource_Allocation_Control: {
         NS_LOG_UNCOND ("Unsupported RIC Style Type ");
         break;
