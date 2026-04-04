@@ -160,6 +160,7 @@
                 <select id="scenario-mode" onchange="switchScenario(this.value)">
                     <option value="ts">Traffic Steering</option>
                     <option value="nes">Network Energy Saving</option>
+                    <option value="qos">QoS Optimization</option>
                 </select>
             </div>
             <div id="a1-policy-panel" style="display:flex; flex-direction:row; align-items:center; gap:8px;">
@@ -176,6 +177,13 @@
                 <label style="margin-left:8px"><input type="radio" name="sleep-oru" value="2" onchange="updateSleepConfig()"> O-RU 1</label>
                 <label style="margin-left:8px"><input type="radio" name="sleep-oru" value="3" onchange="updateSleepConfig()"> O-RU 2</label>
                 <label style="margin-left:8px"><input type="radio" name="sleep-oru" value="4" onchange="updateSleepConfig()" checked> O-RU 3</label>
+            </div>
+            <div id="qos-config-panel" style="display:none; flex-direction:row; align-items:center; gap:8px;">
+                <label>UE Priority:</label>
+                <label>UE1:<select id="qos-ue-1" onchange="updateQosConfig()"><option value="high" selected>High</option><option value="low">Low</option></select></label>
+                <label>UE2:<select id="qos-ue-2" onchange="updateQosConfig()"><option value="high" selected>High</option><option value="low">Low</option></select></label>
+                <label>UE3:<select id="qos-ue-3" onchange="updateQosConfig()"><option value="high">High</option><option value="low" selected>Low</option></select></label>
+                <label>UE4:<select id="qos-ue-4" onchange="updateQosConfig()"><option value="high">High</option><option value="low" selected>Low</option></select></label>
             </div>
             <div style="grid-column: 1 / -1; display: flex; gap: 8px;">
                 <button type="button" onclick="sendForm('/start_simulation')" id="start_button">Start</button>
@@ -257,7 +265,9 @@
         var sleepPanel = document.getElementById('sleep-oru-panel');
         if (sleepPanel) sleepPanel.style.display = (mode === 'nes') ? 'flex' : 'none';
         var a1Panel = document.getElementById('a1-policy-panel');
-        if (a1Panel) a1Panel.style.display = (mode === 'nes') ? 'none' : 'flex';
+        if (a1Panel) a1Panel.style.display = (mode === 'nes' || mode === 'qos') ? 'none' : 'flex';
+        var qosPanel = document.getElementById('qos-config-panel');
+        if (qosPanel) qosPanel.style.display = (mode === 'qos') ? 'flex' : 'none';
         fetch("/switch_usecase", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -265,7 +275,8 @@
         }).then(function(r) { return r.json(); })
         .then(function(d) { console.log("Switched to:", d.mode); });
         if (mode === 'nes') updateSleepConfig();
-        var throughputTitle = (mode === 'nes') ? 'Throughput (NES)' : 'Throughput';
+        if (mode === 'qos') updateQosConfig();
+        var throughputTitle = (mode === 'nes') ? 'Throughput (NES)' : (mode === 'qos') ? 'Throughput (QoS)' : 'Throughput';
         sinrChart.options.plugins.title.text = throughputTitle;
         sinrChart.update();
     }
@@ -288,6 +299,19 @@
             body: JSON.stringify({sleep_cells: sleepCells})
         });
         myChart.update();
+    }
+
+    function updateQosConfig() {
+        var weights = [];
+        for (var i = 1; i <= 4; i++) {
+            var sel = document.getElementById('qos-ue-' + i);
+            weights.push(sel.value === 'high' ? 2.0 : 1.0);
+        }
+        fetch('/set_qos_config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({weights: weights})
+        });
     }
 
     document.getElementById('flexric').addEventListener('change', function() {
@@ -325,7 +349,13 @@
                     datalabels: {
                         align: 'top', color: '#333', font: { size: 10 },
                         formatter: function(value) {
-                            return 'UE ' + (value.ue_id || '');
+                            var label = 'UE ' + (value.ue_id || '');
+                            if (currentScenario === 'qos' && qxappData && qxappData.qos_weights) {
+                                var idx = (value.ue_id || 1) - 1;
+                                var w = qxappData.qos_weights[idx];
+                                label += w >= 2.0 ? ' (H)' : ' (L)';
+                            }
+                            return label;
                         }, offset: 6
                     }
                 },

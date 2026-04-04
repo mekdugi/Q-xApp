@@ -229,3 +229,12 @@ async def set_sleep_config(request: Request):
     with open(config_file, "w") as f:
         f.write(",".join(str(c) for c in sleep_cells))
     return {"status": "ok", "sleep_cells": sleep_cells}
+
+@influx_data_router.post("/set_qos_config")
+async def set_qos_config(request: Request):
+    body = await request.json()
+    weights = body.get("weights", [2.0, 2.0, 1.0, 1.0])
+    config_file = "/host_data/xapp_qos_config.txt"
+    with open(config_file, "w") as f:
+        f.write(",".join(str(w) for w in weights))
+    return {"status": "ok", "weights": weights}

@@ -1,6 +1,6 @@
 /*
  * Q-xApp Unified Controller
- * Supports both Traffic Steering (greedy) and Network Energy Saving modes
+ * Supports Traffic Steering, Network Energy Saving, and QoS Optimization modes
  * Mode is read from xapp_mode.txt each round
  *
  * Architecture follows Fig. 2 of the Q-xApp paper:
@@ -14,6 +14,86 @@ static int a1_max_ue_per_cell = 2;
 #define MODE_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_mode.txt"
 #define SLEEP_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_sleep_config.txt"
 #define A1_POLICY_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_a1_policy.txt"
+#define QOS_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_qos_config.txt"
+
+static double qos_weights[NUM_UE] = {2.0, 2.0, 1.0, 1.0};
+
+/* read QoS weight config from file */
+static void read_qos_config(void)
+{
+  FILE *fp = fopen(QOS_CONFIG_FILE, "r");
+  if (!fp) {
+    printf("[Q-xApp QoS] Config file not found, using defaults\n");
+    qos_weights[0] = 2.0; qos_weights[1] = 2.0;
+    qos_weights[2] = 1.0; qos_weights[3] = 1.0;
+    return;
+  }
+  char buf[256];
+  if (fgets(buf, sizeof(buf), fp)) {
+    int idx = 0;
+    char *p = buf;
+    while (*p && idx < NUM_UE) {
+      qos_weights[idx++] = atof(p);
+      char *comma = strchr(p, ',');
+      if (!comma) break;
+      p = comma + 1;
+    }
+  }
+  fclose(fp);
+  printf("[Q-xApp QoS] Loaded weights:");
+  for (int u = 0; u < NUM_UE; u++) printf(" %.1f", qos_weights[u]);
+  printf("\n");
+}
+
+/* QoS weighted matching: greedy but rate weighted by UE priority */
+static void qos_weighted_match(int assignment[NUM_UE])
+{
+  int cell_load[NUM_CELL] = {0};
+
+  typedef struct { double weighted_rate; int ue; int cell; } qtuple_t;
+  qtuple_t tuples[NUM_UE * NUM_CELL];
+  int nt = 0;
+  for (int u = 0; u < NUM_UE; u++)
+    for (int c = 0; c < NUM_CELL; c++) {
+      tuples[nt].weighted_rate = qos_weights[u] * sinr_matrix[u][c];
+      tuples[nt].ue   = u;
+      tuples[nt].cell = c;
+      nt++;
+    }
+
+  for (int i = 0; i < nt - 1; i++)
+    for (int j = i + 1; j < nt; j++)
+      if (tuples[j].weighted_rate > tuples[i].weighted_rate) {
+        qtuple_t tmp = tuples[i]; tuples[i] = tuples[j]; tuples[j] = tmp;
+      }
+
+  int assigned[NUM_UE];
+  memset(assigned, 0, sizeof(assigned));
+  for (int u = 0; u < NUM_UE; u++)
+    assignment[u] = -1;
+
+  for (int i = 0; i < nt; i++) {
+    int u = tuples[i].ue;
+    int c = tuples[i].cell;
+    if (assigned[u]) continue;
+    if (cell_load[c] >= MAX_UE_PER_CELL) continue;
+    assignment[u] = c;
+    assigned[u] = 1;
+    cell_load[c]++;
+  }
+
+  for (int u = 0; u < NUM_UE; u++) {
+    if (assignment[u] >= 0) continue;
+    int best = -1;
+    for (int c = 0; c < NUM_CELL; c++) {
+      if (cell_load[c] >= MAX_UE_PER_CELL) continue;
+      if (best < 0 || cell_load[c] < cell_load[best]) best = c;
+    }
+    if (best < 0) best = 0;
+    assignment[u] = best;
+    cell_load[best]++;
+  }
+}
 
 /* greedy matching: assign UEs to cells maximising total rate */
 static void greedy_match(int assignment[NUM_UE])
@@ -257,6 +337,12 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
       fprintf(fp, "%d%s", sleep_cells[i], i < n_sleep - 1 ? ", " : "");
     fprintf(fp, "],\n");
   }
+  if (strcmp(mode, "qos") == 0) {
+    fprintf(fp, "  \"qos_weights\": [");
+    for (int u = 0; u < NUM_UE; u++)
+      fprintf(fp, "%.1f%s", qos_weights[u], u < NUM_UE - 1 ? ", " : "");
+    fprintf(fp, "],\n");
+  }
   fprintf(fp, "  \"assignment\": [\n");
   for (int u = 0; u < NUM_UE; u++) {
     fprintf(fp, "    {\"ue\": %d, \"oru\": \"%s\", \"rate\": %.4f}%s\n",
@@ -294,7 +380,7 @@ static void read_mode(char *mode_buf, size_t buf_sz)
     mode_buf[--len] = '\0';
   }
   /* default to ts if unrecognized */
-  if (strcmp(mode_buf, "ts") != 0 && strcmp(mode_buf, "nes") != 0) {
+  if (strcmp(mode_buf, "ts") != 0 && strcmp(mode_buf, "nes") != 0 && strcmp(mode_buf, "qos") != 0) {
     strncpy(mode_buf, "ts", buf_sz);
   }
 }
@@ -347,6 +433,12 @@ static void use_case_encoder(const char *mode)
   if (strcmp(mode, "ts") == 0) {
     read_a1_policy();
     printf("[Q-xApp] A1 policy: max_ue_per_cell=%d\n", a1_max_ue_per_cell);
+  } else if (strcmp(mode, "qos") == 0) {
+    read_qos_config();
+    read_a1_policy();
+    printf("[Q-xApp QoS] Weights:");
+    for (int u = 0; u < NUM_UE; u++) printf(" UE%d=%.1f", u, qos_weights[u]);
+    printf(", max_ue_per_cell=%d\n", a1_max_ue_per_cell);
   } else {
     read_sleep_config();
     if (n_forced_sleep > 0) {
@@ -373,6 +465,10 @@ static void assignment_algorithm(const char *mode,
 
   if (strcmp(mode, "nes") == 0) {
     energy_aware_match(assignment, active_cells, sleep_cells, n_sleep);
+  } else if (strcmp(mode, "qos") == 0) {
+    qos_weighted_match(assignment);
+    *active_cells = NUM_CELL;
+    *n_sleep = 0;
   } else {
     greedy_match(assignment);
     *active_cells = NUM_CELL;
@@ -388,6 +484,8 @@ static void assignment_algorithm(const char *mode,
   if (strcmp(mode, "nes") == 0) {
     printf("[Q-xApp NES] Energy-aware assignment (total rate=%.4f bps/Hz, active=%d, sleep=%d):\n",
            total_rate, *active_cells, *n_sleep);
+  } else if (strcmp(mode, "qos") == 0) {
+    printf("[Q-xApp QoS] Weighted assignment (total rate=%.4f bps/Hz):\n", total_rate);
   } else {
     printf("[Q-xApp TS] Greedy assignment (total rate=%.4f bps/Hz):\n", total_rate);
   }
@@ -539,6 +637,22 @@ int main(int argc, char *argv[])
     if (strcmp(mode, prev_mode) != 0) {
       if (strcmp(mode, "nes") == 0) {
         printf("[Q-xApp] Mode switched to: NES\n");
+      } else if (strcmp(mode, "qos") == 0) {
+        printf("[Q-xApp] Mode switched to: QoS Optimization\n");
+        /* Wake up ALL cells when switching to QoS */
+        printf("[Q-xApp] Waking up all cells...\n");
+        for (int c = 0; c < NUM_CELL; c++) {
+          char wake_cell = '0' + CELL_IDS[c];
+          ue_id_e2sm_t wake_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
+          rc_ctrl_req_data_t wake_ctrl = {0};
+          wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
+          wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
+          for (size_t i = 1; i < nodes.len; i++) {
+            control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
+          }
+          free_rc_ctrl_req_data(&wake_ctrl);
+          printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
+        }
       } else {
         printf("[Q-xApp] Mode switched to: Traffic Steering\n");
         /* Wake up ALL cells when switching to TS */
