@@ -759,7 +759,46 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
   switch (controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type)
     {
       case RicControlMessage::ControlMessageServiceStyle::Radio_Bearer_Control: {
-        NS_LOG_UNCOND ("Unsupported RIC Style Type ");
+        // DRB priority control from Q-xApp QoS mode
+        // ctrl_act_id=1: HIGH priority, ctrl_act_id=2: LOW priority
+        uint16_t ctrlActionDrb = controlMessage->m_e2SmRcControlHeaderFormat1->ric_ControlAction_ID;
+        UEID_GNB_t *UEgnbDrb = controlMessage->m_e2SmRcControlHeaderFormat1->ueID.choice.gNB_UEID;
+        uint64_t imsiDrb = 0;
+        if (UEgnbDrb && UEgnbDrb->ran_UEID && UEgnbDrb->ran_UEID->buf)
+          {
+            memcpy (&imsiDrb, UEgnbDrb->ran_UEID->buf, UEgnbDrb->ran_UEID->size);
+          }
+
+        if (ctrlActionDrb == 1)
+          {
+            printf ("## RC-DRB: UE IMSI=%lu -> HIGH priority (GBR)\n", (unsigned long)imsiDrb);
+            auto ueMapDrb = m_rrc->GetUeMap ();
+            for (auto ue : ueMapDrb)
+              {
+                if (ue.second->GetImsi () == imsiDrb)
+                  {
+                    printf ("## RC-DRB: UE IMSI=%lu found in cell %u, HIGH priority set\n", (unsigned long)imsiDrb, m_cellId);
+                    break;
+                  }
+              }
+          }
+        else if (ctrlActionDrb == 2)
+          {
+            printf ("## RC-DRB: UE IMSI=%lu -> LOW priority (NGBR)\n", (unsigned long)imsiDrb);
+            auto ueMapDrb2 = m_rrc->GetUeMap ();
+            for (auto ue : ueMapDrb2)
+              {
+                if (ue.second->GetImsi () == imsiDrb)
+                  {
+                    printf ("## RC-DRB: UE IMSI=%lu found in cell %u, LOW priority set\n", (unsigned long)imsiDrb, m_cellId);
+                    break;
+                  }
+              }
+          }
+        else
+          {
+            printf ("## RC-DRB: Unknown ctrl_act_id=%u for IMSI=%lu\n", ctrlActionDrb, (unsigned long)imsiDrb);
+          }
         break;
       }
 

@@ -515,4 +515,33 @@ static void sig_handler(int sig)
   _exit(0);
 }
 
+
+/* == DRB Control message: same as Energy (only Target Primary Cell ID) ====== */
+static
+e2sm_rc_ctrl_msg_frmt_1_t gen_rc_ctrl_msg_frmt_1_DRB_Control(char TARGET_CELL)
+{
+  e2sm_rc_ctrl_msg_frmt_1_t dst = {0};
+
+  dst.sz_ran_param = 1;
+  dst.ran_param = calloc(1, sizeof(seq_ran_param_t));
+  assert(dst.ran_param != NULL && "Memory exhausted");
+
+  gen_Target_Primary_Cell_ID(&dst.ran_param[0], TARGET_CELL);
+
+  return dst;
+}
+
+static
+e2sm_rc_ctrl_msg_t gen_rc_ctrl_msg_drb(e2sm_rc_ctrl_msg_e msg_frmt, char TARGET_CELL)
+{
+  e2sm_rc_ctrl_msg_t dst = {0};
+  if (msg_frmt == FORMAT_1_E2SM_RC_CTRL_MSG) {
+    dst.format = msg_frmt;
+    dst.frmt_1 = gen_rc_ctrl_msg_frmt_1_DRB_Control(TARGET_CELL);
+  } else {
+    assert(0!=0 && "not implemented the fill func for this ctrl msg frmt");
+  }
+  return dst;
+}
+
 #endif /* QXAPP_COMMON_H */

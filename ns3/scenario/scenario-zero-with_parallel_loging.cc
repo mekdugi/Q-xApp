@@ -779,16 +779,31 @@ main(int argc, char *argv[]) {
 
     ApplicationContainer clientApp;
 
+    // Differentiated traffic per UE for QoS scenario
+    // UE 0,1: high-rate (1200B @ 100us), UE 2,3: low-rate (600B @ 500us)
     for (uint32_t u = 0; u < ueNodes.GetN(); ++u) {
-        // Full traffic
+        // Primary traffic sink (port 1234)
         PacketSinkHelper dlPacketSinkHelper("ns3::UdpSocketFactory",
                                             InetSocketAddress(Ipv4Address::GetAny(), 1234));
         sinkApp.Add(dlPacketSinkHelper.Install(ueNodes.Get(u)));
+
         UdpClientHelper dlClient(ueIpIface.GetAddress(u), 1234);
-        dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(100)));
+        if (u < 2) {
+            // High-rate UEs (UE 0, 1)
+            dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(100)));
+            dlClient.SetAttribute("PacketSize", UintegerValue(1200));
+        } else {
+            // Low-rate UEs (UE 2, 3)
+            dlClient.SetAttribute("Interval", TimeValue(MicroSeconds(500)));
+            dlClient.SetAttribute("PacketSize", UintegerValue(600));
+        }
         dlClient.SetAttribute("MaxPackets", UintegerValue(UINT32_MAX));
-        dlClient.SetAttribute("PacketSize", UintegerValue(1200));
         clientApp.Add(dlClient.Install(remoteHost));
+
+        // Secondary GBR traffic sink (port 2345) - activated by xApp DRB control
+        PacketSinkHelper gbrSinkHelper("ns3::UdpSocketFactory",
+                                       InetSocketAddress(Ipv4Address::GetAny(), 2345));
+        sinkApp.Add(gbrSinkHelper.Install(ueNodes.Get(u)));
     }
 
     // Start applications

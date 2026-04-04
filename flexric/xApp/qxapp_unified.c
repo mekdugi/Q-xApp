@@ -543,6 +543,33 @@ static void output_interpreter(const char *mode,
     usleep(500000);
   }
 
+  /* QoS mode: Send DRB priority control (RC style=1) for each UE */
+  if (strcmp(mode, "qos") == 0) {
+    printf("[Q-xApp QoS] Sending DRB priority control for %d UEs\n", NUM_UE);
+    for (int u = 0; u < NUM_UE; u++) {
+      uint64_t imsi = (uint64_t)(u + 1);
+      /* high-weight UEs get GBR (act_id=1), low-weight UEs get NGBR (act_id=2) */
+      uint16_t drb_act_id = (qos_weights[u] >= 2.0) ? 1 : 2;
+      char target_cell_char = 0 + CELL_IDS[assignment[u]];
+
+      ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+      rc_ctrl_req_data_t rc_ctrl = {0};
+      rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 1, drb_act_id);
+      rc_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
+
+      printf("[Q-xApp QoS] DRB: UE %d (IMSI %lu, weight=%.1f) -> %s (act_id=%d)\n",
+             u, imsi, qos_weights[u],
+             drb_act_id == 1 ? "HIGH/GBR" : "LOW/NGBR", drb_act_id);
+
+      for (size_t i = 1; i < nodes->len; i++) {
+        control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rc_ctrl);
+      }
+
+      free_rc_ctrl_req_data(&rc_ctrl);
+      usleep(200000);
+    }
+  }
+
   /* NES mode: Wake non-sleep cells, then sleep selected cells (RC style=300) */
   if (strcmp(mode, "nes") == 0) {
     /* Wake ALL cells that are NOT sleep targets */
