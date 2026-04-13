@@ -49,6 +49,75 @@ Implemented use cases:
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## E2 Interface and Data Flow
+
+The simulation platform integrates [FlexRIC](https://gitlab.eurecom.fr/mosaic5g/flexric) and [ns-O-RAN](https://github.com/Orange-OpenSource/ns-O-RAN-flexric) to realize a complete O-RAN near-RT control loop.
+
+### Connection Establishment
+1. **E2 Setup**: ns-O-RAN (E2 node) establishes an SCTP connection with the nearRT-RIC by exchanging E2 Setup Request/Response messages (E2AP v1.01). Each mmWave gNB registers its supported RAN functions (KPM, RC) with the RIC.
+2. **E42 Interface**: The RIC connects to the Q-xApp via the E42 interface, a temporary communication link defined in FlexRIC for RIC–xApp integration, as the O-RAN standard interface (E2T) remains under development.
+3. **Subscription**: The Q-xApp initiates a subscription procedure through the RIC. Upon acceptance, ns-O-RAN begins periodically reporting Key Performance Measurements (KPM).
+
+### Closed-Loop Control Cycle (every 5 seconds)
+
+```
+ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
+      │                            │                          │
+      │──── E2 Setup Req/Resp ────→│                          │
+      │                            │←── E42 Connect ──────────│
+      │                            │←── RIC Subscription ─────│
+      │                            │                          │
+      │  ┌─── Control Loop ────────────────────────────────┐  │
+      │  │                                                  │  │
+      │──┼─── RIC INDICATION ─────→│                        │  │
+      │  │   (KPM: SINR, PRB,     │──── KPM Report ───────→│  │
+      │  │    UE position, RETX)   │                        │  │
+      │  │                         │                        │  │
+      │  │                         │    [Use-Case Encoder]  │  │
+      │  │                         │    [Assignment Algo.]  │  │
+      │  │                         │    [Output Interpreter] │  │
+      │  │                         │                        │  │
+      │  │                         │←── RIC CONTROL REQ ────│  │
+      │←─┼─── RIC CONTROL REQ ────│    (E2SM-RC)           │  │
+      │  │   Execute:              │                        │  │
+      │  │   - Handover (style=3)  │                        │  │
+      │  │   - Sleep/Wake (300)    │                        │  │
+      │  │   - DRB Control (1)     │                        │  │
+      │──┼─── RIC CONTROL ACK ───→│──── CONTROL ACK ──────→│  │
+      │  │                                                  │  │
+      │  └──────────────────────────────────────────────────┘  │
+      │                            │                          │
+      │                            │←── RIC Sub Delete ───────│
+```
+
+### E2SM Service Models
+
+| Service Model | Version | Function ID | Purpose |
+|--------------|---------|-------------|---------|
+| **E2SM-KPM** | v3.00 | 2 | Periodic measurement reporting: L3 serving SINR, neighbor SINR, PRB usage, throughput, RETX, UE position |
+| **E2SM-RC** | v1.03 | 3 | RAN control actions via RIC CONTROL REQUEST |
+
+### RC Control Styles (E2SM-RC)
+
+| Style | ID | Actions | Use Case |
+|-------|-----|---------|----------|
+| Radio_Bearer_Control | 1 | DRB priority assignment (act_id 1-4 → scheduler weight) | QoS-RA |
+| Connected_Mode_Mobility | 3 | Handover (act_id=1), Conditional HO (2), DAPS HO (3) | TS, NES, QoS-RA |
+| Energy_state | 300 | Cell sleep (act_id=1, TxPower=0) / wake (act_id=2, TxPower=30) | NES |
+
+### Data Files (ns-3 → InfluxDB → GUI)
+
+| File | Content | Writer | Reader |
+|------|---------|--------|--------|
+| `ue_position.txt` | UE ID, x, y, type, serving cell, simID | ns-3 | Data pusher → InfluxDB |
+| `gnbs.txt` | Cell ID, x, y, ES state, energy | ns-3 | Data pusher → InfluxDB |
+| `cu-cp-cell-{2,3,4}.txt` | Per-UE SINR, neighbor SINR | ns-3 | Data pusher → InfluxDB, Q-xApp |
+| `energyfilecell{2,3,4}.csv` | Time, NetEnergy, DiffEnergy | ns-3 | Q-xApp |
+| `qxapp_result.json` | Assignment, DRB, energy, mode | Q-xApp | GUI |
+| `xapp_mode.txt` | Current use case (ts/nes/qos) | GUI | Q-xApp |
+| `xapp_sleep_config.txt` | Sleep cell ID | GUI | Q-xApp |
+| `xapp_qos_config.txt` | Per-UE QoS weights | GUI | Q-xApp |
+
 ## Supported Use Cases
 
 ### Traffic Steering (TS)
