@@ -32,6 +32,18 @@ ns3/scenario/mmwave-enb-net-device.cc
 # Claude Code
 .claude/
 
+# Removed from repo (kept locally)
+QuEST.c
+QuEST.h
+bs_ue_quest.c
+bs_ue_matching2.py
+quantum_results.json
+network_topology.png
+probability_distribution.png
+quantum_circuit_diagram.png
+visualize_results.py
+scripts/qxapp_verification.csv
+
 # Other
 fig2/
 QuEST/
