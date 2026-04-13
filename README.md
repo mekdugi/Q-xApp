@@ -1,19 +1,15 @@
 # Q-xApp: Quantum-Inspired xApp Framework for O-RAN Near-RT Control
 
-A quantum-inspired xApp framework for near-real-time control in O-RAN networks. Supports multiple use cases (Traffic Steering, Network Energy Saving) through a unified assignment optimization engine. The system runs on **ns-O-RAN + FlexRIC** with a real-time Docker-based GUI.
+A quantum-inspired xApp framework for near-real-time control in O-RAN networks. Supports three use cases through a unified assignment optimization engine based on the paper's Fig. 2 pipeline architecture. Runs on **ns-O-RAN + FlexRIC** with a real-time Docker-based GUI.
 
 ## Overview
 
 Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **inter-entity assignment** structure, enabling a single computational engine to serve multiple use cases without separate decision pipelines.
 
-Currently implemented use cases:
-1. **Traffic Steering (TS)** — UE-to-Cell assignment maximizing total throughput
-2. **Network Energy Saving (NES)** — UE concentration on minimum cells + idle cell sleep
-
-The project consists of:
-1. **Unified xApp Controller** — A C-based xApp with real-time mode switching between TS and NES via GUI
-2. **Quantum Circuit Solver** — Grover's algorithm for optimal assignment search
-3. **Real-time GUI** — Dashboard with campus map, use case switching, energy monitoring, and A1 policy controls
+Implemented use cases:
+1. **Traffic Steering (TS)** — Inter-cell UE-to-Cell assignment maximizing total throughput
+2. **Network Energy Saving (NES)** — UE concentration on minimum cells + idle cell sleep/wake
+3. **QoS-based Resource Allocation (QoS-RA)** — Intra-cell UE-to-DRB matching with 5QI-based priority
 
 ## Architecture
 
@@ -24,9 +20,8 @@ The project consists of:
 │  │ Sim Grid  │  │ Throughput │  │ Cell Power + RETX   │    │
 │  │ (Map+UE+  │  │ (per UE)   │  │ (per Cell / per UE) │    │
 │  │  O-RU)    │  │            │  │                     │    │
-│  └─────┬─────┘  └─────┬──────┘  └──────────┬──────────┘    │
-│        └───────────────┴────────────────────┘               │
-│  Use Case: [TS ▼] / [NES ▼]   Sleep O-RU: ○1 ○2 ●3        │
+│  └───────────┘  └────────────┘  └─────────────────────┘    │
+│  Network Settings | A1 Policy Manager [Use Case ▼]          │
 │                         InfluxDB                             │
 └──────────────────────────┬──────────────────────────────────┘
                            │ KPM data + mode/policy files
@@ -36,127 +31,117 @@ The project consists of:
 │              │  KPM SM    │  │    RC SM       │               │
 │              └──────┬─────┘  └───────┬───────┘               │
 └─────────────────────┼────────────────┼──────────────────────┘
-        SINR reports  │                │ HO + Energy_state cmds
+        SINR reports  │                │ HO + Energy + DRB cmds
 ┌─────────────────────┴────────────────┴──────────────────────┐
-│              ns-3 mmWave Simulation                           │
-│   ┌────────┐  ┌────────┐  ┌────────┐  ┌──────┐             │
-│   │ O-RU 1 │  │ O-RU 2 │  │ O-RU 3 │  │ LTE  │             │
-│   │ Cell 2 │  │ Cell 3 │  │ Cell 4 │  │ Cell1│             │
-│   └────────┘  └────────┘  └────────┘  └──────┘             │
-│   ↕           ↕           ↕           ↕                      │
-│   UE 1        UE 2        UE 3        UE 4                  │
+│              ns-3 mmWave Simulation (simTime: 1800s)         │
+│   O-RU 1 (Cell 2)   O-RU 2 (Cell 3)   O-RU 3 (Cell 4)     │
+│        UE 1    UE 2    UE 3    UE 4    LTE (anchor)         │
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│               Q-xApp Unified Controller                      │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │  Use-Case Encoder → Assignment Algorithm → Interpreter  │ │
-│  │  (SINR→rate matrix)  (greedy/energy)    (RC control)    │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  Mode: TS → greedy_match (max 2 UE/cell)                    │
-│  Mode: NES → energy_aware_match + Energy_state sleep/wake    │
-│  ┌──────────────────┐                                        │
-│  │ Quantum Solver    │  (Grover's algorithm, same circuit    │
-│  │ bs_ue_matching.py │   for all use cases)                  │
-│  └──────────────────┘                                        │
+│           Q-xApp Unified Controller (Fig. 2 Pipeline)        │
+│  ┌─────────────────┐  ┌──────────────┐  ┌────────────────┐ │
+│  │ Use-Case Encoder│→│ Assignment   │→│ Output         │ │
+│  │ (SINR→rate,     │  │ Algorithm    │  │ Interpreter    │ │
+│  │  A1 policy)     │  │ (greedy/NES/ │  │ (RC Control:   │ │
+│  │                 │  │  QoS-DRB)    │  │  HO/Sleep/DRB) │ │
+│  └─────────────────┘  └──────────────┘  └────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Supported Use Cases
 
 ### Traffic Steering (TS)
+- **Assignment**: UE ↔ Cell (inter-cell), max 2 UEs per cell
 - **Objective**: Maximize total Shannon capacity
-- **Assignment**: UE ↔ Cell, max 2 UEs per cell (A1 policy)
-- **Control**: RC handover commands (style=3)
-- **E2 measurements**: Per-UE SINR, neighbor SINR
+- **RC Control**: Connected_Mode_Mobility (style=3) — handover
 
 ### Network Energy Saving (NES)
+- **Assignment**: UE ↔ Cell (inter-cell), concentrate on fewest cells
 - **Objective**: Minimize active cells while maintaining connectivity
-- **Assignment**: Concentrate UEs on fewest cells, sleep idle cells
-- **Control**: RC handover (style=3) + Energy_state sleep/wake (style=300)
-- **GUI controls**: Select which O-RU to sleep, real-time cell power monitoring
-- **ns-3 support**: SetBSTX(power=0) for sleep, SetBSTX(power=30) for wake
+- **RC Control**: style=3 (handover) + Energy_state (style=300, sleep/wake)
+- **GUI**: Select which O-RU to sleep, real-time cell power monitoring
+
+### QoS-based Resource Allocation (QoS-RA)
+- **Assignment**: UE ↔ DRB (intra-cell), 2-UE × 4-DRB matching per cell
+- **DRB Pool**: d1(GBR,5QI=2), d2(GBR,5QI=4), d3(NGBR,5QI=7), d4(NGBR,5QI=9)
+- **Objective**: Maximize weighted utility under GBR PRB constraints
+- **RC Control**: style=3 (handover) + Radio_Bearer_Control (style=1, scheduler weight)
+- **GUI**: Per-UE High/Low priority selection
 
 ## Project Structure
 
 ```
 Q-xApp/
 ├── flexric/xApp/
-│   ├── qxapp_common.h                # Shared code: RC SM messages, CSV parsing, SINR/rate
-│   ├── qxapp_unified.c               # Unified xApp: TS + NES modes, real-time switching
-│   ├── qxapp_greedy_handover.c       # Standalone TS xApp
-│   └── qxapp_energy_saving.c         # Standalone NES xApp
+│   ├── qxapp_common.h              # Shared: RC SM messages, CSV parsing, SINR/rate
+│   ├── qxapp_unified.c             # Unified xApp: TS + NES + QoS-RA (Fig. 2 pipeline)
+│   ├── qxapp_greedy_handover.c     # Standalone TS xApp
+│   └── qxapp_energy_saving.c       # Standalone NES xApp
 ├── ns3/
 │   ├── scenario-zero-with_parallel_loging.cc  # ns-3 simulation scenario
-│   └── mmwave-enb-net-device.cc      # Modified: Energy_state sleep/wake handler
+│   ├── mmwave-enb-net-device.cc    # RC handler: HO + Energy_state + Radio_Bearer_Control
+│   ├── mmwave-flex-tti-pf-mac-scheduler.cc  # PF scheduler with per-UE weight
+│   └── mmwave-flex-tti-pf-mac-scheduler.h
 ├── gui/
-│   ├── templates/chart.html          # Web GUI: grid + charts + use case controls
-│   ├── src/data_controller.py        # FastAPI: data + use case/policy APIs
-│   ├── src/simulation.py             # InfluxDB + txt fallback data manager
-│   ├── static/univmap.png            # Campus map background
-│   └── docker-compose.yml            # Docker Compose configuration
-├── scripts/
-│   ├── collect_qxapp_verification.py # Verification script
-│   └── qxapp_verification.csv        # 100-sample validation results
-├── bs_ue_matching.py                 # Quantum circuit (Qiskit)
-├── bs_ue_quest.c                     # Quantum solver (QuEST C library)
-├── QuEST.c / QuEST.h                # QuEST quantum simulator
-└── visualize_results.py              # Result visualization
+│   ├── templates/chart.html        # Web GUI: grid + charts + A1 policy controls
+│   ├── src/data_controller.py      # FastAPI: data + use case/policy/DRB APIs
+│   ├── src/simulation.py           # InfluxDB + txt fallback data manager
+│   ├── static/univmap.png          # Campus map background
+│   ├── docker-compose.yml          # Docker Compose configuration
+│   ├── Dockerfile                  # Auto-starts data pusher + uvicorn
+│   └── start.sh                    # Entrypoint: pusher (auto-retry) + uvicorn
+├── bs_ue_matching.py               # Quantum circuit (Qiskit)
+├── bs_ue_quest.c                   # Quantum solver (QuEST C library)
+└── visualize_results.py            # Result visualization
 ```
 
 ## How to Run
 
-### Step 1: Start FlexRIC nearRT-RIC
+### Step 1: Start Docker GUI
+```bash
+cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/GUI
+sudo docker compose up -d
+```
+Data pusher auto-starts with retry loop. Navigate to `http://localhost:8000`.
+
+### Step 2: Start FlexRIC nearRT-RIC
 ```bash
 sudo /root/flexric/build/examples/ric/nearRT-RIC
 ```
 
-### Step 2: Start ns-3 Simulation
+### Step 3: Start ns-3 Simulation
 ```bash
 cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
 ./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
 ```
 
-### Step 3: Start Unified Q-xApp
+### Step 4: Start Unified Q-xApp
 ```bash
 sudo /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified
 ```
 
-### Step 4: Open GUI
-```bash
-cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/GUI
-sudo docker compose up -d
-```
-Navigate to `http://localhost:8000`. Use the **A1 Policy Manager** panel to switch between Traffic Steering and Network Energy Saving.
-
-## GUI Features
-
-- **Simulation Grid**: Campus map with O-RU (triangles) and UE (circles), color-coded by assignment. Sleeping O-RUs shown in gray.
-- **Throughput Chart**: Per-UE throughput (Mbps) over time
-- **Cell Power Chart**: Per-cell energy consumption (W), shows sleep effect
-- **RETX Chart**: Per-UE retransmission delta
-- **Use Case Selector**: Switch TS ↔ NES in real-time
-- **Sleep O-RU Control**: Select which O-RU to sleep (NES mode)
-- **A1 Policy**: Max UE per cell configuration
+Switch between use cases in real-time via the **A1 Policy Manager** panel in the GUI.
 
 ## Building from Source
 
-### Unified Q-xApp
 ```bash
+# Unified Q-xApp
 sudo bash -c 'cd /root/flexric/build && cmake .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
+
+# ns-3 Scenario
+cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran && ./ns3 build
 ```
 
-### ns-3 Scenario
-```bash
-cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
-./ns3 build
-```
+## GUI Features
 
-### Quantum Circuit (Qiskit)
-```bash
-pip install qiskit qiskit-aer matplotlib numpy
-python bs_ue_matching.py
-```
+- **Simulation Grid**: Campus map with O-RU (triangles) and UE (circles), color-coded by assignment. Sleeping O-RUs in gray.
+- **Throughput Chart**: Per-UE throughput (Mbps)
+- **Cell Power Chart**: Per-cell energy delta (W)
+- **RETX Chart**: Per-UE retransmission delta
+- **A1 Policy Manager**: Use case switching, Sleep O-RU control (NES), UE priority (QoS-RA), Max UE/Cell (TS)
+- **Network Settings**: O-RU count, UE count, bandwidth, center frequency, ISD
+- **Remaining Sim. Time**: Countdown timer, auto-kills processes on expiry
 
 ## References
 
@@ -164,8 +149,7 @@ python bs_ue_matching.py
 - O-RAN WG3, "Use Cases and Requirements", O-RAN.WG3.TS.UCR-R004-v09.00
 - ns-O-RAN: https://github.com/o-ran-sc/sim-ns3-o-ran-e2
 - FlexRIC: https://gitlab.eurecom.fr/mosaic5g/flexric
-- QuEST: https://github.com/QuEST-Kit/QuEST
 
 ## License
 
-This project builds upon ns-O-RAN and FlexRIC which are licensed under GPL-2.0 and Apache-2.0 respectively. See individual files for specific license headers.
+This project builds upon ns-O-RAN and FlexRIC which are licensed under GPL-2.0 and Apache-2.0 respectively.

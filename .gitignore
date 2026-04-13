@@ -1,3 +1,4 @@
+# Build artifacts
 *.exe
 *.obj
 *.pdb
@@ -7,3 +8,30 @@
 __pycache__/
 .vscode/
 vc140.pdb
+
+# Temporary patch scripts
+fix_*.py
+apply_*.py
+cleanup_*.py
+hide_fields.py
+move_scenario_select.py
+
+# Temporary/duplicate files
+qxapp_unified.c
+qxapp_unified_new.c
+qxapp_unified_refactored.c
+scheduler_edit.cc
+chart_edit.html
+drb_handler_new.txt
+qos_drb_analysis.md
+flexric/qxapp_common.h
+flexric/qxapp_energy_saving.c
+flexric/qxapp_greedy_handover_new.c
+ns3/scenario/mmwave-enb-net-device.cc
+
+# Claude Code
+.claude/
+
+# Other
+fig2/
+QuEST/
