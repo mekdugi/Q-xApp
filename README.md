@@ -147,7 +147,7 @@ Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, 
 
 ### A1 Policy Manager (second bar)
 Switch use cases and configure policies in real-time:
-- **TS mode**: "Max UE/Cell" selector (display, fixed at 2)
+- **TS mode**: "Max UE/Cell" selector
 - **NES mode**: "Sleep O-RU" radio buttons — choose which O-RU to put to sleep
 - **QoS-RA mode**: Per-UE "High/Low" priority selectors
 
