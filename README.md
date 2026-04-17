@@ -1,64 +1,80 @@
 # Q-xApp: Quantum-Inspired xApp Framework for O-RAN Near-RT Control
 
-A quantum-inspired xApp framework for near-real-time control in O-RAN networks. Supports three use cases through a unified assignment optimization engine based on the paper's Fig. 2 pipeline architecture. Runs on **ns-O-RAN + FlexRIC** with a real-time Docker-based GUI.
+A quantum-inspired xApp framework for near-real-time control in O-RAN networks. Supports three use cases through a unified assignment optimization engine. Runs on **ns-O-RAN + FlexRIC** with a real-time Docker-based GUI.
 
-## Overview
+---
 
-Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **inter-entity assignment** structure, enabling a single computational engine to serve multiple use cases without separate decision pipelines.
+## 1. What is Q-xApp?
 
-Implemented use cases:
-1. **Traffic Steering (TS)** — Inter-cell UE-to-Cell assignment maximizing total throughput
-2. **Network Energy Saving (NES)** — UE concentration on minimum cells + idle cell sleep/wake
-3. **QoS-based Resource Allocation (QoS-RA)** — Intra-cell UE-to-DRB matching with 5QI-based priority
+Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **inter-entity assignment** structure. A single xApp handles multiple use cases by switching the assignment algorithm while keeping the same E2 interface pipeline.
 
-## Architecture
+**Three use cases, one xApp:**
+
+| Use Case | Assignment Type | What it does |
+|----------|----------------|-------------|
+| **Traffic Steering (TS)** | UE ↔ Cell (inter-cell) | Assigns UEs to best-SINR cells, max 2 UE/cell |
+| **Network Energy Saving (NES)** | UE ↔ Cell (inter-cell) | Packs UEs into fewer cells, sleeps idle O-RUs |
+| **QoS-based Resource Allocation** | UE ↔ DRB (intra-cell) | Assigns DRB profiles (GBR/NGBR) per UE priority |
+
+Switch between them in real-time from the GUI — no restart needed.
+
+---
+
+## 2. System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Docker GUI (port 8000)                  │
+│                    Docker GUI (localhost:8000)                │
 │  ┌───────────┐  ┌────────────┐  ┌─────────────────────┐    │
 │  │ Sim Grid  │  │ Throughput │  │ Cell Power + RETX   │    │
-│  │ (Map+UE+  │  │ (per UE)   │  │ (per Cell / per UE) │    │
+│  │ (Map+UE+  │  │  (Mbps)    │  │     (W / count)     │    │
 │  │  O-RU)    │  │            │  │                     │    │
 │  └───────────┘  └────────────┘  └─────────────────────┘    │
-│  Network Settings | A1 Policy Manager [Use Case ▼]          │
+│  Network Settings: 3 O-RU, 4 UE, 100MHz, ISD 150m          │
+│  A1 Policy Manager: [Use Case ▼] [Sleep O-RU / Priority]   │
 │                         InfluxDB                             │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ KPM data + mode/policy files
+                           │
 ┌──────────────────────────┴──────────────────────────────────┐
 │                    FlexRIC nearRT-RIC                         │
 │              ┌────────────┐  ┌───────────────┐               │
 │              │  KPM SM    │  │    RC SM       │               │
 │              └──────┬─────┘  └───────┬───────┘               │
 └─────────────────────┼────────────────┼──────────────────────┘
-        SINR reports  │                │ HO + Energy + DRB cmds
+        SINR reports  │                │ Control commands
 ┌─────────────────────┴────────────────┴──────────────────────┐
-│              ns-3 mmWave Simulation (simTime: 1800s)         │
+│              ns-3 mmWave Simulation                           │
 │   O-RU 1 (Cell 2)   O-RU 2 (Cell 3)   O-RU 3 (Cell 4)     │
 │        UE 1    UE 2    UE 3    UE 4    LTE (anchor)         │
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │           Q-xApp Unified Controller (Fig. 2 Pipeline)        │
-│  ┌─────────────────┐  ┌──────────────┐  ┌────────────────┐ │
-│  │ Use-Case Encoder│→│ Assignment   │→│ Output         │ │
-│  │ (SINR→rate,     │  │ Algorithm    │  │ Interpreter    │ │
-│  │  A1 policy)     │  │ (greedy/NES/ │  │ (RC Control:   │ │
-│  │                 │  │  QoS-DRB)    │  │  HO/Sleep/DRB) │ │
-│  └─────────────────┘  └──────────────┘  └────────────────┘ │
+│                                                               │
+│   Stage 1              Stage 2              Stage 3          │
+│  ┌───────────────┐  ┌────────────────┐  ┌────────────────┐  │
+│  │ Use-Case      │  │ Assignment     │  │ Output         │  │
+│  │ Encoder       │→│ Algorithm      │→│ Interpreter    │  │
+│  │               │  │                │  │                │  │
+│  │ Read SINR,    │  │ TS: greedy     │  │ Handover       │  │
+│  │ A1 policy,    │  │ NES: energy    │  │ Sleep/Wake     │  │
+│  │ QoS config    │  │ QoS: DRB match │  │ DRB weight     │  │
+│  └───────────────┘  └────────────────┘  └────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## E2 Interface and Data Flow
+---
 
-The simulation platform integrates [FlexRIC](https://gitlab.eurecom.fr/mosaic5g/flexric) and [ns-O-RAN](https://github.com/Orange-OpenSource/ns-O-RAN-flexric) to realize a complete O-RAN near-RT control loop.
+## 3. How the E2 Interface Works
 
-### Connection Establishment
-1. **E2 Setup**: ns-O-RAN (E2 node) establishes an SCTP connection with the nearRT-RIC by exchanging E2 Setup Request/Response messages (E2AP v1.01). Each mmWave gNB registers its supported RAN functions (KPM, RC) with the RIC.
-2. **E42 Interface**: The RIC connects to the Q-xApp via the E42 interface, a temporary communication link defined in FlexRIC for RIC–xApp integration, as the O-RAN standard interface (E2T) remains under development.
-3. **Subscription**: The Q-xApp initiates a subscription procedure through the RIC. Upon acceptance, ns-O-RAN begins periodically reporting Key Performance Measurements (KPM).
+The Q-xApp communicates with the ns-3 simulator through the O-RAN E2 interface via FlexRIC.
 
-### Closed-Loop Control Cycle (every 5 seconds)
+### Connection Setup
+1. **E2 Setup**: ns-O-RAN establishes an SCTP connection with the nearRT-RIC (E2AP v1.01). Each mmWave gNB registers KPM and RC service models.
+2. **E42 Interface**: The RIC connects to the Q-xApp via E42, a temporary FlexRIC-specific interface for RIC–xApp communication.
+3. **Subscription**: Q-xApp subscribes to KPM reports. ns-O-RAN begins periodically sending SINR, PRB, throughput, and position data.
+
+### Control Loop (every 5 seconds)
 
 ```
 ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
@@ -69,76 +85,152 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
       │                            │                          │
       │  ┌─── Control Loop ────────────────────────────────┐  │
       │  │                                                  │  │
-      │──┼─── RIC INDICATION ─────→│                        │  │
-      │  │   (KPM: SINR, PRB,     │──── KPM Report ───────→│  │
-      │  │    UE position, RETX)   │                        │  │
+      │──┼── RIC INDICATION ──────→│                        │  │
+      │  │  (SINR, PRB, position)  │──── KPM Report ──────→│  │
       │  │                         │                        │  │
-      │  │                         │    [Use-Case Encoder]  │  │
-      │  │                         │    [Assignment Algo.]  │  │
-      │  │                         │    [Output Interpreter] │  │
+      │  │                         │   [Encoder→Algo→Interp]│  │
       │  │                         │                        │  │
       │  │                         │←── RIC CONTROL REQ ────│  │
-      │←─┼─── RIC CONTROL REQ ────│    (E2SM-RC)           │  │
-      │  │   Execute:              │                        │  │
-      │  │   - Handover (style=3)  │                        │  │
-      │  │   - Sleep/Wake (300)    │                        │  │
-      │  │   - DRB Control (1)     │                        │  │
-      │──┼─── RIC CONTROL ACK ───→│──── CONTROL ACK ──────→│  │
+      │←─┼── RIC CONTROL REQ ─────│    (E2SM-RC)           │  │
+      │  │  Execute:               │                        │  │
+      │  │  • Handover (style 3)   │                        │  │
+      │  │  • Sleep/Wake (style 300)│                       │  │
+      │  │  • DRB weight (style 1) │                        │  │
+      │──┼── RIC CONTROL ACK ────→│──── CONTROL ACK ──────→│  │
       │  │                                                  │  │
       │  └──────────────────────────────────────────────────┘  │
-      │                            │                          │
-      │                            │←── RIC Sub Delete ───────│
 ```
 
 ### E2SM Service Models
 
-| Service Model | Version | Function ID | Purpose |
-|--------------|---------|-------------|---------|
-| **E2SM-KPM** | v3.00 | 2 | Periodic measurement reporting: L3 serving SINR, neighbor SINR, PRB usage, throughput, RETX, UE position |
-| **E2SM-RC** | v1.03 | 3 | RAN control actions via RIC CONTROL REQUEST |
+| Service Model | Version | Function ID | What it does |
+|--------------|---------|-------------|-------------|
+| **E2SM-KPM** | v3.00 | 2 | Reports: SINR, neighbor SINR, PRB usage, throughput, RETX, UE position |
+| **E2SM-RC** | v1.03 | 3 | Sends control commands back to ns-3 |
 
-### RC Control Styles (E2SM-RC)
+### RC Control Styles
 
-| Style | ID | Actions | Use Case |
-|-------|-----|---------|----------|
-| Radio_Bearer_Control | 1 | DRB priority assignment (act_id 1-4 → scheduler weight) | QoS-RA |
-| Connected_Mode_Mobility | 3 | Handover (act_id=1), Conditional HO (2), DAPS HO (3) | TS, NES, QoS-RA |
-| Energy_state | 300 | Cell sleep (act_id=1, TxPower=0) / wake (act_id=2, TxPower=30) | NES |
+| Style | ID | What it controls | Used by |
+|-------|-----|-----------------|---------|
+| Radio_Bearer_Control | 1 | Per-UE scheduler weight (DRB priority) | QoS-RA |
+| Connected_Mode_Mobility | 3 | UE handover between cells | TS, NES, QoS-RA |
+| Energy_state | 300 | Cell sleep (TxPower=0) / wake (TxPower=30) | NES |
 
-### Data Files (ns-3 → InfluxDB → GUI)
+---
 
-| File | Content | Writer | Reader |
-|------|---------|--------|--------|
-| `ue_position.txt` | UE ID, x, y, type, serving cell, simID | ns-3 | Data pusher → InfluxDB |
-| `gnbs.txt` | Cell ID, x, y, ES state, energy | ns-3 | Data pusher → InfluxDB |
-| `cu-cp-cell-{2,3,4}.txt` | Per-UE SINR, neighbor SINR | ns-3 | Data pusher → InfluxDB, Q-xApp |
-| `energyfilecell{2,3,4}.csv` | Time, NetEnergy, DiffEnergy | ns-3 | Q-xApp |
-| `qxapp_result.json` | Assignment, DRB, energy, mode | Q-xApp | GUI |
-| `xapp_mode.txt` | Current use case (ts/nes/qos) | GUI | Q-xApp |
-| `xapp_sleep_config.txt` | Sleep cell ID | GUI | Q-xApp |
-| `xapp_qos_config.txt` | Per-UE QoS weights | GUI | Q-xApp |
+## 4. Prerequisites
 
-## Supported Use Cases
+| Component | Repository | Branch |
+|-----------|-----------|--------|
+| **ns-O-RAN** | https://github.com/Orange-OpenSource/ns-O-RAN-flexric | `main` |
+| **FlexRIC** | https://gitlab.eurecom.fr/mosaic5g/flexric | `oie-ric-taap-xapps` |
+| **Docker** | Docker + Docker Compose | — |
 
-### Traffic Steering (TS)
-- **Assignment**: UE ↔ Cell (inter-cell), max 2 UEs per cell
-- **Objective**: Maximize total Shannon capacity
-- **RC Control**: Connected_Mode_Mobility (style=3) — handover
+Install ns-O-RAN and FlexRIC following their respective guides first. Tested on **Ubuntu 24.04 (WSL2)**.
 
-### Network Energy Saving (NES)
-- **Assignment**: UE ↔ Cell (inter-cell), concentrate on fewest cells
-- **Objective**: Minimize active cells while maintaining connectivity
-- **RC Control**: style=3 (handover) + Energy_state (style=300, sleep/wake)
-- **GUI**: Select which O-RU to sleep, real-time cell power monitoring
+---
 
-### QoS-based Resource Allocation (QoS-RA)
-- **Assignment**: UE ↔ DRB (intra-cell), 2-UE × 4-DRB matching per cell
-- **DRB Pool**: d1(GBR,5QI=2), d2(GBR,5QI=4), d3(NGBR,5QI=7), d4(NGBR,5QI=9)
-- **Objective**: Maximize weighted utility under GBR PRB constraints
-- **RC Control**: style=3 (handover) + Radio_Bearer_Control (style=1, scheduler weight)
-- **GUI**: Per-UE High/Low priority selection
+## 5. Installation
 
-## Project Structure
+After the base platform is installed, apply Q-xApp modifications:
+
+```bash
+# 1. Copy ns-3 files
+cp ns3/scenario/scenario-zero-with_parallel_loging.cc  <ns-O-RAN>/scratch/
+cp ns3/mmwave-enb-net-device.cc                        <ns-O-RAN>/src/mmwave/model/
+cp ns3/mmwave-flex-tti-pf-mac-scheduler.cc             <ns-O-RAN>/src/mmwave/model/
+cp ns3/mmwave-flex-tti-pf-mac-scheduler.h              <ns-O-RAN>/src/mmwave/model/
+
+# 2. Copy xApp files
+cp flexric/xApp/qxapp_common.h      <FlexRIC>/examples/xApp/c/ctrl/
+cp flexric/xApp/qxapp_unified.c     <FlexRIC>/examples/xApp/c/ctrl/
+cp flexric/xApp/qxapp_*.c           <FlexRIC>/examples/xApp/c/ctrl/
+
+# 3. Add build target to <FlexRIC>/examples/xApp/c/ctrl/CMakeLists.txt:
+#    add_executable(xapp_qxapp_unified qxapp_unified.c)
+#    target_link_libraries(xapp_qxapp_unified PRIVATE e42_xapp pthread sctp dl m)
+
+# 4. Copy GUI
+cp -r gui/* <ns-O-RAN>/GUI/
+
+# 5. Build
+cd <ns-O-RAN> && ./ns3 build
+sudo bash -c 'cd <FlexRIC>/build && cmake .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
+cd <ns-O-RAN>/GUI && sudo docker compose up -d
+```
+
+### What Each Modified File Does
+
+| File | Copies to | What was changed |
+|------|----------|-----------------|
+| `scenario-zero-with_parallel_loging.cc` | `ns-O-RAN/scratch/` | 3 BS, 4 UE, antenna config, 30min simTime, energy model |
+| `mmwave-enb-net-device.cc` | `ns-O-RAN/src/mmwave/model/` | Added Energy_state sleep/wake + Radio_Bearer_Control handler |
+| `mmwave-flex-tti-pf-mac-scheduler.cc/.h` | `ns-O-RAN/src/mmwave/model/` | Added per-UE scheduling weight for QoS |
+| `qxapp_unified.c` | `FlexRIC/examples/xApp/c/ctrl/` | Unified xApp: 3 use cases with Fig. 2 pipeline |
+| `qxapp_common.h` | `FlexRIC/examples/xApp/c/ctrl/` | Shared code: RC messages, CSV parsing, rate computation |
+| `GUI/*` | `ns-O-RAN/GUI/` | Web dashboard, Docker config, auto-start data pusher |
+
+---
+
+## 6. Running the Simulation
+
+Open three terminals:
+
+```bash
+# Terminal 1: Start the nearRT-RIC
+sudo <FlexRIC>/build/examples/ric/nearRT-RIC
+
+# Terminal 2: Start ns-3 network simulation
+cd <ns-O-RAN> && ./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
+
+# Terminal 3: Start Q-xApp controller
+sudo <FlexRIC>/build/examples/xApp/c/ctrl/xapp_qxapp_unified
+```
+
+Then open **http://localhost:8000** in your browser.
+
+The GUI data pusher starts automatically with Docker (auto-retries on InfluxDB connection failure).
+
+---
+
+## 7. Using the GUI
+
+### Network Settings (top bar)
+Shows fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, ISD.
+
+### A1 Policy Manager (second bar)
+- **Use Case dropdown**: Switch between TS / NES / QoS-RA in real-time
+- **TS mode**: Shows "Max UE/Cell" selector
+- **NES mode**: Shows "Sleep O-RU" radio buttons — select which O-RU to put to sleep
+- **QoS-RA mode**: Shows per-UE "High/Low" priority selectors
+
+### Charts
+- **Simulation Grid**: Campus map with O-RU positions (triangles) and moving UEs (circles). Colors indicate cell assignment. Sleeping O-RUs turn gray.
+- **Throughput**: Per-UE throughput in Mbps over time
+- **Cell Power**: Per-cell energy consumption in Watts
+- **RETX**: Per-UE retransmission count (delta per interval)
+
+### Remaining Sim. Time
+Countdown from 30 minutes. When time expires, all simulation processes are automatically terminated.
+
+---
+
+## 8. Data Flow Between Components
+
+| File | Written by | Read by | Content |
+|------|-----------|---------|---------|
+| `ue_position.txt` | ns-3 | Data pusher → InfluxDB | UE positions, serving cell |
+| `gnbs.txt` | ns-3 | Data pusher → InfluxDB | Cell positions, energy state |
+| `cu-cp-cell-{2,3,4}.txt` | ns-3 | Data pusher + Q-xApp | Per-UE SINR measurements |
+| `energyfilecell{2,3,4}.csv` | ns-3 | Q-xApp | Cell energy consumption |
+| `qxapp_result.json` | Q-xApp | GUI | Assignment results, DRB info, mode |
+| `xapp_mode.txt` | GUI | Q-xApp | Current use case (ts/nes/qos) |
+| `xapp_sleep_config.txt` | GUI | Q-xApp | Which O-RU to sleep (NES) |
+| `xapp_qos_config.txt` | GUI | Q-xApp | Per-UE priority weights (QoS) |
+
+---
+
+## 9. Project Structure
 
 ```
 Q-xApp/
@@ -148,120 +240,31 @@ Q-xApp/
 │   ├── qxapp_greedy_handover.c     # Standalone TS xApp
 │   └── qxapp_energy_saving.c       # Standalone NES xApp
 ├── ns3/
-│   ├── scenario-zero-with_parallel_loging.cc  # ns-3 simulation scenario
-│   ├── mmwave-enb-net-device.cc    # RC handler: HO + Energy_state + Radio_Bearer_Control
-│   ├── mmwave-flex-tti-pf-mac-scheduler.cc  # PF scheduler with per-UE weight
+│   ├── scenario/scenario-zero-with_parallel_loging.cc
+│   ├── mmwave-enb-net-device.cc
+│   ├── mmwave-flex-tti-pf-mac-scheduler.cc
 │   └── mmwave-flex-tti-pf-mac-scheduler.h
 ├── gui/
-│   ├── templates/chart.html        # Web GUI: grid + charts + A1 policy controls
-│   ├── src/data_controller.py      # FastAPI: data + use case/policy/DRB APIs
-│   ├── src/simulation.py           # InfluxDB + txt fallback data manager
-│   ├── static/univmap.png          # Campus map background
-│   ├── docker-compose.yml          # Docker Compose configuration
-│   ├── Dockerfile                  # Auto-starts data pusher + uvicorn
-│   └── start.sh                    # Entrypoint: pusher (auto-retry) + uvicorn
+│   ├── templates/chart.html
+│   ├── src/data_controller.py
+│   ├── src/simulation.py
+│   ├── static/univmap.png
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   └── start.sh
 ├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future integration
-└── scripts/
-    └── collect_qxapp_verification.py  # Verification script
+├── scripts/collect_qxapp_verification.py
+├── CLAUDE.md
+└── README.md
 ```
 
-## Prerequisites and Installation
+---
 
-### Base Platform
-
-This project requires two external repositories as the simulation base:
-
-| Component | Repository | Branch | Role |
-|-----------|-----------|--------|------|
-| **ns-O-RAN** | https://github.com/Orange-OpenSource/ns-O-RAN-flexric | `main` | ns-3 mmWave simulator with E2 interface |
-| **FlexRIC** | https://gitlab.eurecom.fr/mosaic5g/flexric | `oie-ric-taap-xapps` | nearRT-RIC with E2AP/E2SM support |
-
-Follow the installation guides in each repository first. Tested on Ubuntu 24.04 (WSL2).
-
-### Applying Q-xApp Modifications
-
-After installing ns-O-RAN and FlexRIC, copy the modified files from this repo:
-
-```bash
-# ns-3 scenario
-cp ns3/scenario/scenario-zero-with_parallel_loging.cc \
-   <ns-O-RAN>/scratch/
-
-# ns-3 mmWave model modifications
-cp ns3/mmwave-enb-net-device.cc \
-   <ns-O-RAN>/src/mmwave/model/
-cp ns3/mmwave-flex-tti-pf-mac-scheduler.cc \
-   ns3/mmwave-flex-tti-pf-mac-scheduler.h \
-   <ns-O-RAN>/src/mmwave/model/
-
-# Q-xApp source
-cp flexric/xApp/qxapp_common.h \
-   flexric/xApp/qxapp_unified.c \
-   flexric/xApp/qxapp_greedy_handover.c \
-   flexric/xApp/qxapp_energy_saving.c \
-   <FlexRIC>/examples/xApp/c/ctrl/
-
-# Add build target to FlexRIC CMakeLists.txt
-# (add xapp_qxapp_unified target similar to existing xApp targets)
-
-# GUI
-cp -r gui/* <ns-O-RAN>/GUI/
-```
-
-### Modified Files Summary
-
-| File | Location in Base Repo | Modification |
-|------|----------------------|-------------|
-| `scenario-zero-with_parallel_loging.cc` | `ns-O-RAN/scratch/` | 3 BS + 4 UE, antenna params, simTime 1800s, energy model |
-| `mmwave-enb-net-device.cc` | `ns-O-RAN/src/mmwave/model/` | RC handler: Energy_state sleep/wake, Radio_Bearer_Control DRB weight |
-| `mmwave-flex-tti-pf-mac-scheduler.cc/.h` | `ns-O-RAN/src/mmwave/model/` | Per-UE scheduling weight (SetUeSchedulingWeight) |
-| `qxapp_unified.c` | `FlexRIC/examples/xApp/c/ctrl/` | Unified xApp with 3 use cases (Fig. 2 pipeline) |
-| `qxapp_common.h` | `FlexRIC/examples/xApp/c/ctrl/` | Shared RC SM message generation, CSV parsing |
-| `GUI/*` | `ns-O-RAN/GUI/` | Web dashboard, data controller, Docker config |
-
-### Building
-
-```bash
-# 1. Build ns-3 (after copying modified files)
-cd <ns-O-RAN> && ./ns3 build
-
-# 2. Build Q-xApp (after copying xApp files + adding CMake target)
-sudo bash -c 'cd <FlexRIC>/build && cmake .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
-
-# 3. Start Docker GUI
-cd <ns-O-RAN>/GUI && sudo docker compose up -d
-```
-
-## How to Run
-
-```bash
-# Terminal 1: nearRT-RIC
-sudo <FlexRIC>/build/examples/ric/nearRT-RIC
-
-# Terminal 2: ns-3 Simulation
-cd <ns-O-RAN> && ./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
-
-# Terminal 3: Unified Q-xApp
-sudo <FlexRIC>/build/examples/xApp/c/ctrl/xapp_qxapp_unified
-```
-
-Navigate to `http://localhost:8000`. Switch between use cases via the **A1 Policy Manager** panel.
-
-## GUI Features
-
-- **Simulation Grid**: Campus map with O-RU (triangles) and UE (circles), color-coded by assignment. Sleeping O-RUs in gray.
-- **Throughput Chart**: Per-UE throughput (Mbps)
-- **Cell Power Chart**: Per-cell energy delta (W)
-- **RETX Chart**: Per-UE retransmission delta
-- **A1 Policy Manager**: Use case switching, Sleep O-RU control (NES), UE priority (QoS-RA), Max UE/Cell (TS)
-- **Network Settings**: O-RU count, UE count, bandwidth, center frequency, ISD
-- **Remaining Sim. Time**: Countdown timer, auto-kills processes on expiry
-
-## References
+## 10. References
 
 - O-RAN Alliance, "O-RAN Architecture Description", O-RAN.WG1.O-RAN-Architecture-Description
 - O-RAN WG3, "Use Cases and Requirements", O-RAN.WG3.TS.UCR-R004-v09.00
-- ns-O-RAN: https://github.com/o-ran-sc/sim-ns3-o-ran-e2
+- Orange-OpenSource ns-O-RAN: https://github.com/Orange-OpenSource/ns-O-RAN-flexric
 - FlexRIC: https://gitlab.eurecom.fr/mosaic5g/flexric
 
 ## License
