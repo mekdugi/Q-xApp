@@ -65,29 +65,7 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ---
 
-## 3. Supported Use Cases
-
-### Traffic Steering (TS)
-- **Assignment**: UE ↔ Cell (inter-cell), max 2 UEs per cell (A1 policy)
-- **Objective**: Maximize total Shannon capacity
-- **RC Control**: Connected_Mode_Mobility (style=3) — handover
-
-### Network Energy Saving (NES)
-- **Assignment**: UE ↔ Cell (inter-cell), concentrate on fewest cells
-- **Objective**: Minimize active cells while maintaining connectivity
-- **RC Control**: style=3 (handover) + Energy_state (style=300, sleep/wake)
-- **GUI**: Select which O-RU to sleep, real-time cell power monitoring
-
-### QoS-based Resource Allocation (QoS-RA)
-- **Assignment**: UE ↔ DRB (intra-cell), 2-UE × 4-DRB matching per cell
-- **DRB Pool**: d1(GBR, 5QI=2), d2(GBR, 5QI=4), d3(NGBR, 5QI=7), d4(NGBR, 5QI=9)
-- **Objective**: Maximize weighted utility under GBR PRB constraints
-- **RC Control**: style=3 (handover) + Radio_Bearer_Control (style=1, scheduler weight)
-- **GUI**: Per-UE High/Low priority selection
-
----
-
-## 4. Prerequisites
+## 3. Prerequisites
 
 | Component | Repository | Branch |
 |-----------|-----------|--------|
@@ -99,7 +77,7 @@ Install ns-O-RAN and FlexRIC following their respective guides first. Tested on 
 
 ---
 
-## 5. Installation
+## 4. Installation
 
 After the base platform is installed, apply Q-xApp modifications:
 
@@ -141,7 +119,7 @@ cd <ns-O-RAN>/GUI && sudo docker compose up -d
 
 ---
 
-## 6. Running the Simulation
+## 5. Running the Simulation
 
 Open **three terminals** and run in order:
 
@@ -162,7 +140,7 @@ Simulation runs for **30 minutes**. When time expires, all processes are termina
 
 ---
 
-## 7. Using the GUI
+## 6. Using the GUI
 
 ### Network Settings (top bar)
 Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, inter-site distance.
@@ -186,7 +164,25 @@ Countdown from 30 minutes. Turns red and auto-kills all processes when expired.
 
 ---
 
-## 8. Technical Details: E2 Interface and Data Flow
+## 7. Technical Details
+
+### Use Case Details
+
+**Traffic Steering (TS)**
+- Assignment: UE ↔ Cell (inter-cell), max 2 UEs per cell (A1 policy)
+- Objective: Maximize total Shannon capacity `C = Σ log₂(1 + SINR)`
+- RC Control: Connected_Mode_Mobility (style=3) — handover
+
+**Network Energy Saving (NES)**
+- Assignment: UE ↔ Cell (inter-cell), concentrate on fewest cells
+- Objective: Minimize active cells while maintaining connectivity
+- RC Control: style=3 (handover) + Energy_state (style=300, sleep/wake)
+
+**QoS-based Resource Allocation (QoS-RA)**
+- Assignment: UE ↔ DRB (intra-cell), 2-UE × 4-DRB matching per cell
+- DRB Pool: d1(GBR, 5QI=2, PRB 0.4), d2(GBR, 5QI=4, PRB 0.2), d3(NGBR, 5QI=7), d4(NGBR, 5QI=9)
+- Objective: Maximize weighted utility under GBR PRB constraints (≤ 0.6)
+- RC Control: style=3 (handover) + Radio_Bearer_Control (style=1, scheduler weight)
 
 ### E2 Connection and Control Loop
 
@@ -244,7 +240,7 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
 
 ---
 
-## 9. Project Structure
+## 8. Project Structure
 
 ```
 Q-xApp/
@@ -274,7 +270,7 @@ Q-xApp/
 
 ---
 
-## 10. References
+## 9. References
 
 - O-RAN Alliance, "O-RAN Architecture Description", O-RAN.WG1.O-RAN-Architecture-Description
 - O-RAN WG3, "Use Cases and Requirements", O-RAN.WG3.TS.UCR-R004-v09.00
