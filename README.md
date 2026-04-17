@@ -160,47 +160,92 @@ Q-xApp/
 │   ├── docker-compose.yml          # Docker Compose configuration
 │   ├── Dockerfile                  # Auto-starts data pusher + uvicorn
 │   └── start.sh                    # Entrypoint: pusher (auto-retry) + uvicorn
-├── bs_ue_matching.py               # Quantum circuit (Qiskit)
-├── bs_ue_quest.c                   # Quantum solver (QuEST C library)
-└── visualize_results.py            # Result visualization
+├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future integration
+└── scripts/
+    └── collect_qxapp_verification.py  # Verification script
+```
+
+## Prerequisites and Installation
+
+### Base Platform
+
+This project requires two external repositories as the simulation base:
+
+| Component | Repository | Branch | Role |
+|-----------|-----------|--------|------|
+| **ns-O-RAN** | https://github.com/Orange-OpenSource/ns-O-RAN-flexric | `main` | ns-3 mmWave simulator with E2 interface |
+| **FlexRIC** | https://gitlab.eurecom.fr/mosaic5g/flexric | `oie-ric-taap-xapps` | nearRT-RIC with E2AP/E2SM support |
+
+Follow the installation guides in each repository first. Tested on Ubuntu 24.04 (WSL2).
+
+### Applying Q-xApp Modifications
+
+After installing ns-O-RAN and FlexRIC, copy the modified files from this repo:
+
+```bash
+# ns-3 scenario
+cp ns3/scenario/scenario-zero-with_parallel_loging.cc \
+   <ns-O-RAN>/scratch/
+
+# ns-3 mmWave model modifications
+cp ns3/mmwave-enb-net-device.cc \
+   <ns-O-RAN>/src/mmwave/model/
+cp ns3/mmwave-flex-tti-pf-mac-scheduler.cc \
+   ns3/mmwave-flex-tti-pf-mac-scheduler.h \
+   <ns-O-RAN>/src/mmwave/model/
+
+# Q-xApp source
+cp flexric/xApp/qxapp_common.h \
+   flexric/xApp/qxapp_unified.c \
+   flexric/xApp/qxapp_greedy_handover.c \
+   flexric/xApp/qxapp_energy_saving.c \
+   <FlexRIC>/examples/xApp/c/ctrl/
+
+# Add build target to FlexRIC CMakeLists.txt
+# (add xapp_qxapp_unified target similar to existing xApp targets)
+
+# GUI
+cp -r gui/* <ns-O-RAN>/GUI/
+```
+
+### Modified Files Summary
+
+| File | Location in Base Repo | Modification |
+|------|----------------------|-------------|
+| `scenario-zero-with_parallel_loging.cc` | `ns-O-RAN/scratch/` | 3 BS + 4 UE, antenna params, simTime 1800s, energy model |
+| `mmwave-enb-net-device.cc` | `ns-O-RAN/src/mmwave/model/` | RC handler: Energy_state sleep/wake, Radio_Bearer_Control DRB weight |
+| `mmwave-flex-tti-pf-mac-scheduler.cc/.h` | `ns-O-RAN/src/mmwave/model/` | Per-UE scheduling weight (SetUeSchedulingWeight) |
+| `qxapp_unified.c` | `FlexRIC/examples/xApp/c/ctrl/` | Unified xApp with 3 use cases (Fig. 2 pipeline) |
+| `qxapp_common.h` | `FlexRIC/examples/xApp/c/ctrl/` | Shared RC SM message generation, CSV parsing |
+| `GUI/*` | `ns-O-RAN/GUI/` | Web dashboard, data controller, Docker config |
+
+### Building
+
+```bash
+# 1. Build ns-3 (after copying modified files)
+cd <ns-O-RAN> && ./ns3 build
+
+# 2. Build Q-xApp (after copying xApp files + adding CMake target)
+sudo bash -c 'cd <FlexRIC>/build && cmake .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
+
+# 3. Start Docker GUI
+cd <ns-O-RAN>/GUI && sudo docker compose up -d
 ```
 
 ## How to Run
 
-### Step 1: Start Docker GUI
 ```bash
-cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/GUI
-sudo docker compose up -d
-```
-Data pusher auto-starts with retry loop. Navigate to `http://localhost:8000`.
+# Terminal 1: nearRT-RIC
+sudo <FlexRIC>/build/examples/ric/nearRT-RIC
 
-### Step 2: Start FlexRIC nearRT-RIC
-```bash
-sudo /root/flexric/build/examples/ric/nearRT-RIC
-```
+# Terminal 2: ns-3 Simulation
+cd <ns-O-RAN> && ./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
 
-### Step 3: Start ns-3 Simulation
-```bash
-cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
-./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
+# Terminal 3: Unified Q-xApp
+sudo <FlexRIC>/build/examples/xApp/c/ctrl/xapp_qxapp_unified
 ```
 
-### Step 4: Start Unified Q-xApp
-```bash
-sudo /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified
-```
-
-Switch between use cases in real-time via the **A1 Policy Manager** panel in the GUI.
-
-## Building from Source
-
-```bash
-# Unified Q-xApp
-sudo bash -c 'cd /root/flexric/build && cmake .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
-
-# ns-3 Scenario
-cd /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran && ./ns3 build
-```
+Navigate to `http://localhost:8000`. Switch between use cases via the **A1 Policy Manager** panel.
 
 ## GUI Features
 
