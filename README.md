@@ -65,7 +65,36 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ---
 
-## 3. Prerequisites
+## 3. Project Structure
+
+```
+Q-xApp/
+├── flexric/xApp/
+│   ├── qxapp_common.h              # Shared: RC SM messages, CSV parsing, SINR/rate
+│   ├── qxapp_unified.c             # Unified xApp: TS + NES + QoS-RA (Fig. 2 pipeline)
+│   ├── qxapp_greedy_handover.c     # Standalone TS xApp
+│   └── qxapp_energy_saving.c       # Standalone NES xApp
+├── ns3/
+│   ├── scenario/scenario-zero-with_parallel_loging.cc
+│   ├── mmwave-enb-net-device.cc
+│   ├── mmwave-flex-tti-pf-mac-scheduler.cc
+│   └── mmwave-flex-tti-pf-mac-scheduler.h
+├── gui/
+│   ├── templates/chart.html
+│   ├── src/data_controller.py
+│   ├── src/simulation.py
+│   ├── static/univmap.png
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   └── start.sh
+├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future integration
+├── scripts/collect_qxapp_verification.py
+└── README.md
+```
+
+---
+
+## 4. Prerequisites
 
 | Component | Repository | Branch |
 |-----------|-----------|--------|
@@ -77,7 +106,7 @@ Install ns-O-RAN and FlexRIC following their respective guides first. Tested on 
 
 ---
 
-## 4. Installation
+## 5. Installation
 
 After the base platform is installed, apply Q-xApp modifications:
 
@@ -119,7 +148,7 @@ cd <ns-O-RAN>/GUI && sudo docker compose up -d
 
 ---
 
-## 5. Running the Simulation
+## 6. Running the Simulation
 
 Open **three terminals** and run in order:
 
@@ -140,7 +169,7 @@ Simulation runs for **30 minutes**. When time expires, all processes are termina
 
 ---
 
-## 6. Using the GUI
+## 7. Using the GUI
 
 ### Network Settings (top bar)
 Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, inter-site distance.
@@ -164,7 +193,7 @@ Countdown from 30 minutes. Turns red and auto-kills all processes when expired.
 
 ---
 
-## 7. Technical Details
+## 8. Technical Details
 
 ### Use Case Details
 
@@ -237,36 +266,6 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
 | `xapp_mode.txt` | GUI | Q-xApp | Current use case (ts/nes/qos) |
 | `xapp_sleep_config.txt` | GUI | Q-xApp | Which O-RU to sleep |
 | `xapp_qos_config.txt` | GUI | Q-xApp | Per-UE priority weights |
-
----
-
-## 8. Project Structure
-
-```
-Q-xApp/
-├── flexric/xApp/
-│   ├── qxapp_common.h              # Shared: RC SM messages, CSV parsing, SINR/rate
-│   ├── qxapp_unified.c             # Unified xApp: TS + NES + QoS-RA (Fig. 2 pipeline)
-│   ├── qxapp_greedy_handover.c     # Standalone TS xApp
-│   └── qxapp_energy_saving.c       # Standalone NES xApp
-├── ns3/
-│   ├── scenario/scenario-zero-with_parallel_loging.cc
-│   ├── mmwave-enb-net-device.cc
-│   ├── mmwave-flex-tti-pf-mac-scheduler.cc
-│   └── mmwave-flex-tti-pf-mac-scheduler.h
-├── gui/
-│   ├── templates/chart.html
-│   ├── src/data_controller.py
-│   ├── src/simulation.py
-│   ├── static/univmap.png
-│   ├── docker-compose.yml
-│   ├── Dockerfile
-│   └── start.sh
-├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future integration
-├── scripts/collect_qxapp_verification.py
-├── CLAUDE.md
-└── README.md
-```
 
 ---
 
