@@ -270,8 +270,9 @@ void gen_Target_Primary_Cell_ID(seq_ran_param_t* Target_Primary_Cell_ID, char TA
   NR_CGI->ran_param_val.flag_false = calloc(1, sizeof(ran_parameter_value_t));
   assert(NR_CGI->ran_param_val.flag_false != NULL && "Memory exhausted");
   NR_CGI->ran_param_val.flag_false->type = BIT_STRING_RAN_PARAMETER_VALUE;
-  char nr_cgi_str[1];
+  char nr_cgi_str[2];
   nr_cgi_str[0] = TARGET_CELL;
+  nr_cgi_str[1] = '\0';
   byte_array_t nr_cgi = cp_str_to_ba(nr_cgi_str);
   NR_CGI->ran_param_val.flag_false->octet_str_ran.len = nr_cgi.len;
   NR_CGI->ran_param_val.flag_false->octet_str_ran.buf = nr_cgi.buf;
@@ -310,7 +311,7 @@ void gen_List_of_PDU_sessions_for_handover(seq_ran_param_t* List_PDU_sessions_ho
   List_PDU_sessions_ho->ran_param_val.lst->lst_ran_param = calloc(num_PDU_session, sizeof(lst_ran_param_t));
   assert(List_PDU_sessions_ho->ran_param_val.lst->lst_ran_param != NULL && "Memory exhausted");
 
-  lst_ran_param_t* PDU_session_item = &List_PDU_sessions_ho->ran_param_val.strct->ran_param_struct[0];
+  lst_ran_param_t* PDU_session_item = &List_PDU_sessions_ho->ran_param_val.lst->lst_ran_param[0];
   PDU_session_item->ran_param_struct.sz_ran_param_struct = 2;
   PDU_session_item->ran_param_struct.ran_param_struct = calloc(2, sizeof(seq_ran_param_t));
   assert(PDU_session_item->ran_param_struct.ran_param_struct != NULL && "Memory exhausted");
@@ -364,7 +365,7 @@ void gen_List_of_DRBs_for_handover(seq_ran_param_t* List_DRBs_ho)
   List_DRBs_ho->ran_param_val.lst->lst_ran_param = calloc(num_DRBs, sizeof(lst_ran_param_t));
   assert(List_DRBs_ho->ran_param_val.lst->lst_ran_param != NULL && "Memory exhausted");
 
-  lst_ran_param_t* DRB_item_ho = &List_DRBs_ho->ran_param_val.strct->ran_param_struct[0];
+  lst_ran_param_t* DRB_item_ho = &List_DRBs_ho->ran_param_val.lst->lst_ran_param[0];
   DRB_item_ho->ran_param_struct.sz_ran_param_struct = 2;
   DRB_item_ho->ran_param_struct.ran_param_struct = calloc(2, sizeof(seq_ran_param_t));
   assert(DRB_item_ho->ran_param_struct.ran_param_struct != NULL && "Memory exhausted");
@@ -418,7 +419,7 @@ void gen_List_of_Secondary_cells_to_be_setup(seq_ran_param_t* List_num_2ndCells)
   List_num_2ndCells->ran_param_val.lst->lst_ran_param = calloc(num_2ndCells, sizeof(lst_ran_param_t));
   assert(List_num_2ndCells->ran_param_val.lst->lst_ran_param != NULL && "Memory exhausted");
 
-  lst_ran_param_t* secCell_item = &List_num_2ndCells->ran_param_val.strct->ran_param_struct[0];
+  lst_ran_param_t* secCell_item = &List_num_2ndCells->ran_param_val.lst->lst_ran_param[0];
   secCell_item->ran_param_struct.sz_ran_param_struct = 1;
   secCell_item->ran_param_struct.ran_param_struct = calloc(1, sizeof(seq_ran_param_t));
   assert(secCell_item->ran_param_struct.ran_param_struct != NULL && "Memory exhausted");

@@ -145,7 +145,7 @@
             <div><label for="N_MmWaveEnbNodes">N_MmWaveEnbNodes:</label><input type="number" id="N_MmWaveEnbNodes" name="N_MmWaveEnbNodes" value="3"></div>
             <div><label for="N_Ues">N_Ues:</label><input type="number" id="N_Ues" name="N_Ues" value="4"></div>
             <div><label for="CenterFrequency">CenterFrequency (Hz):</label><input type="number" id="CenterFrequency" name="CenterFrequency" value="3.5e9"></div>
-            <div><label for="Bandwidth">Bandwidth (Hz):</label><input type="number" id="Bandwidth" name="Bandwidth" value="20e6"></div>
+            <div><label for="Bandwidth">Bandwidth (Hz):</label><input type="number" id="Bandwidth" name="Bandwidth" value="100e6"></div>
             <div><label for="IntersideDistanceUEs">IntersideDistanceUEs (m):</label><input type="number" id="IntersideDistanceUEs" name="IntersideDistanceUEs" value="150"></div>
             <div><label for="IntersideDistanceCells">IntersideDistanceCells (m):</label><input type="number" id="IntersideDistanceCells" name="IntersideDistanceCells" value="150"></div>
             <div style="display:none">
@@ -224,7 +224,7 @@
                     <option value="qos">QoS-based Resource Allocation</option>
                 </select>
             </label>
-            <label id="ts-maxue-bar">Max UE/Cell: <select id="maxue-select" style="font-size:12px;"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
+            <label id="ts-maxue-bar">Max UE/Cell: <select id="maxue-select" onchange="updateA1Policy()" style="font-size:12px;"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
             <span id="sleep-oru-bar" style="display:none;">
                 Sleep O-RU:
                 <label><input type="radio" name="sleep-oru-bar" value="2" onchange="updateSleepConfig()"> O-RU 1</label>
@@ -311,11 +311,11 @@
         var qosBar = document.getElementById("qos-config-bar");
         if (qosBar) qosBar.style.display = (mode === 'qos') ? 'inline' : 'none';
         var sleepPanel = document.getElementById('sleep-oru-panel');
-        if (sleepPanel) sleepPanel.style.display = (mode === 'nes') ? 'flex' : 'none';
+        if (sleepPanel) sleepPanel.style.display = 'none';
         var a1Panel = document.getElementById('a1-policy-panel');
-        if (a1Panel) a1Panel.style.display = (mode === 'nes' || mode === 'qos') ? 'none' : 'flex';
+        if (a1Panel) a1Panel.style.display = 'none';
         var qosPanel = document.getElementById('qos-config-panel');
-        if (qosPanel) qosPanel.style.display = (mode === 'qos') ? 'flex' : 'none';
+        if (qosPanel) qosPanel.style.display = 'none';
         fetch("/switch_usecase", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -330,7 +330,9 @@
     }
 
     function updateA1Policy() {
-        var val = document.getElementById('max-ue-per-cell').value;
+        var val = (document.getElementById('maxue-select') || document.getElementById('max-ue-per-cell')).value;
+        document.getElementById('max-ue-per-cell').value = val;
+        document.getElementById('maxue-select').value = val;
         fetch('/set_a1_policy', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -339,7 +341,7 @@
     }
 
     function updateSleepConfig() {
-        var selected = document.querySelector('input[name="sleep-oru"]:checked') || document.querySelector('input[name="sleep-oru-bar"]:checked');
+        var selected = document.querySelector('input[name="sleep-oru-bar"]:checked') || document.querySelector('input[name="sleep-oru"]:checked');
         var sleepCells = selected ? [parseInt(selected.value)] : [];
         fetch('/set_sleep_config', {
             method: 'POST',

@@ -98,7 +98,7 @@ static void greedy_match(int assignment[NUM_UE])
     int u = tuples[i].ue;
     int c = tuples[i].cell;
     if (assigned[u]) continue;
-    if (cell_load[c] >= MAX_UE_PER_CELL) continue;
+    if (cell_load[c] >= a1_max_ue_per_cell) continue;
     assignment[u] = c;
     assigned[u] = 1;
     cell_load[c]++;
@@ -108,7 +108,7 @@ static void greedy_match(int assignment[NUM_UE])
     if (assignment[u] >= 0) continue;
     int best = -1;
     for (int c = 0; c < NUM_CELL; c++) {
-      if (cell_load[c] >= MAX_UE_PER_CELL) continue;
+      if (cell_load[c] >= a1_max_ue_per_cell) continue;
       if (best < 0 || cell_load[c] < cell_load[best]) best = c;
     }
     if (best < 0) best = 0;
@@ -160,15 +160,17 @@ static void qos_drb_match(int assignment[NUM_UE])
       double sr = sinr_rate_arr[i];
       printf("  UE %d:  ", u);
       for (int d = 0; d < NUM_DRB; d++) {
+        double base_util;
         if (drb_pool[d].is_gbr) {
           /* GBR DRB: utility = gbr_kbps * min(1.0, sinr_rate / 15.0) */
           double sinr_eff = sr / 15.0;
           if (sinr_eff > 1.0) sinr_eff = 1.0;
-          utility[i][d] = drb_pool[d].gbr_kbps * sinr_eff;
+          base_util = drb_pool[d].gbr_kbps * sinr_eff;
         } else {
           /* NGBR DRB: utility = priority * sinr_rate */
-          utility[i][d] = drb_pool[d].priority * sr;
+          base_util = drb_pool[d].priority * sr;
         }
+        utility[i][d] = qos_weights[u] * base_util;
         printf("%-9.1f", utility[i][d]);
       }
       printf("\n");
@@ -297,7 +299,7 @@ static void energy_aware_match(int assignment[NUM_UE],
           candidates[i] = candidates[j];
           candidates[j] = tmp;
         }
-    for (int i = 0; i < nc && cell_load[c] < MAX_UE_PER_CELL; i++) {
+    for (int i = 0; i < nc && cell_load[c] < a1_max_ue_per_cell; i++) {
       int u = candidates[i].ue;
       assignment[u] = c;
       assigned[u] = 1;
@@ -309,7 +311,7 @@ static void energy_aware_match(int assignment[NUM_UE],
     if (assignment[u] >= 0) continue;
     int best = -1;
     for (int c = 0; c < NUM_CELL; c++) {
-      if (cell_load[c] >= MAX_UE_PER_CELL) continue;
+      if (cell_load[c] >= a1_max_ue_per_cell) continue;
       if (best < 0 || cell_load[c] < cell_load[best]) best = c;
     }
     if (best < 0) best = 0;

@@ -91,7 +91,7 @@ async def start_simulation(request: Request):
     remote_host = os.getenv('NS3_HOST')
     if not remote_host:
         print("NS3_HOST environment variable is not set.")
-        return
+        return JSONResponse({"status": "error", "message": "NS3_HOST not set"}, status_code=500)
     fields = [
         "e2TermIp",
         "hoSinrDifference",
@@ -111,7 +111,7 @@ async def start_simulation(request: Request):
     ]
     scenario = form_data.get('scenario')
     if not scenario:
-        return
+        return JSONResponse({"status": "error", "message": "No scenario specified"}, status_code=400)
     flags = False
     if form_data.get('flags') == 'true':
         flags = True
@@ -139,12 +139,14 @@ async def start_simulation(request: Request):
         SimulationManager.start_simulation(scenario)
     except Exception as e:
         print(f"An error occurred: {e}")
+        return JSONResponse({"status": "error", "message": str(e)})
     number_of_ues = int(form_data.get('N_Ues', 2))
     number_of_cells = int(form_data.get('N_LteEnbNodes', 1)) + int(form_data.get('N_MmWaveEnbNodes', 4))
     if not flags:
         number_of_ues = 0
         number_of_cells = 0
     SimulationManager._simulation = Simulation(number_of_ues, number_of_cells)
+    return {"status": "started", "scenario": scenario}
 
 
 
