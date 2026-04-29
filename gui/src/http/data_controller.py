@@ -215,6 +215,42 @@ async def qxapp_result():
 
 
 
+@influx_data_router.get("/ue_trajectories")
+async def ue_trajectories():
+    """Read ue_position.txt directly for real-time UE trajectory display."""
+    pos_file = "/host_data/ue_position.txt"
+    try:
+        with open(pos_file, "r") as f:
+            lines = f.readlines()
+    except Exception:
+        return {"trajectories": {}}
+    if len(lines) <= 1:
+        return {"trajectories": {}}
+    # Parse all rows, keep last N positions per UE
+    max_trail = 30
+    ue_positions = {}
+    for line in lines[1:]:
+        parts = line.strip().split(",")
+        if len(parts) < 6:
+            continue
+        try:
+            t = int(float(parts[0]))
+            uid = int(float(parts[1]))
+            x = float(parts[2])
+            y = float(parts[3])
+            cell = int(float(parts[5]))
+        except (ValueError, IndexError):
+            continue
+        if uid not in ue_positions:
+            ue_positions[uid] = []
+        ue_positions[uid].append({"t": t, "x": x, "y": y, "cell": cell})
+    # Keep only last max_trail points
+    result = {}
+    for uid, positions in ue_positions.items():
+        result[str(uid)] = positions[-max_trail:]
+    return {"trajectories": result}
+
+
 @influx_data_router.post("/kill_simulation")
 async def kill_simulation():
     """Kill all simulation processes (RIC, ns-3, xApp)"""

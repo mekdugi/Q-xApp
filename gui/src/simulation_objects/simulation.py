@@ -331,8 +331,33 @@ class Simulation:
         values = {}
         values.update(self._load_ue_position_fallback())
         values.update(self._load_gnbs_fallback())
+        values.update(self._load_enbs_fallback())
         values.update(self._load_sinr_fallback())
         self.text_fallback_values = values
+
+    def _load_enbs_fallback(self):
+        path = os.path.join(self.host_data_dir, "enbs.txt")
+        lines = self._safe_read_lines(path)
+        if len(lines) <= 1:
+            return {}
+        rows = [line.split(",") for line in lines[1:] if len(line.split(",")) >= 4]
+        if not rows:
+            return {}
+        latest_cells = {}
+        for row in rows:
+            cell_id = int(float(row[1]))
+            latest_cells[cell_id] = row
+        lte_cells = [c for c in latest_cells if c != 0]
+        values = {"enbs_count": len(lte_cells)}
+        for cell_id, row in latest_cells.items():
+            if cell_id == 0:
+                continue
+            values[f"enbs_x_{cell_id}"] = float(row[2])
+            values[f"enbs_y_{cell_id}"] = float(row[3])
+            if len(row) >= 7:
+                values[f"enbs_esstate_{cell_id}"] = int(float(row[5]))
+                values[f"enbs_espower_{cell_id}"] = float(row[6])
+        return values
 
     def _load_ue_position_fallback(self):
         path = os.path.join(self.host_data_dir, "ue_position.txt")

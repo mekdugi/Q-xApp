@@ -427,6 +427,7 @@
         },
         options: {
             responsive: true, maintainAspectRatio: true, aspectRatio: 1,
+            animation: false,
             scales: {
                 x: { type: 'linear', position: 'bottom', min: 0, max: 500,
                     grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333' }
@@ -610,11 +611,24 @@
             cellData.push({ x: fp.x, y: fp.y, cell_id: cid, bs_label: bsLabel, type: 'mmwave' });
             cellBg.push(isSleep ? '#bbb' : (cellColors[cid] || '#999'));
         });
+        if (data.ues) {
+            data.ues.forEach(function(ue, i) {
+                var ux = ue.x_position || ue.x || 0;
+                var uy = ue.y_position || ue.y || 0;
+                var uid = ue.ue_id || i+1;
+                if (ux == 0 && uy == 0) { ux = 250 + uid * 20; uy = 250 + uid * 15; }
+                var connCell = (uid in qxappAssign) ? qxappAssign[uid] : (ue.MMWave_Cell || 0);
+                if (connCell === 1) connCell = 2;
+                var isUnassigned = (connCell === -1);
+                ueData.push({ x: ux, y: uy, ue_id: uid, type: isUnassigned ? 'unassigned' : (ue.type || ''), MMWave_Cell: connCell });
+                ueBg.push(isUnassigned ? '#ccc' : (cellColors[connCell] || '#999'));
+            });
+        }
+
         myChart.data.datasets[0].data = ueData;
         myChart.data.datasets[0].backgroundColor = ueBg;
         myChart.data.datasets[1].data = cellData;
         myChart.data.datasets[1].backgroundColor = cellBg;
-        myChart.update();
     }
 
     function updateKPIs(data) {
@@ -629,7 +643,7 @@
             data.cells.forEach(function(cell, i) {
                 var cid = cell.cell_id || (i + 1);
                 if (cid >= 2 && cid <= 4) {
-                    var cellEnergy = (qxappData && qxappData.cell_energy && qxappData.cell_energy[cid]) ? qxappData.cell_energy[cid] : 0;
+                    var cellEnergy = (qxappData && qxappData.cell_energy && (qxappData.cell_energy[cid] || qxappData.cell_energy[String(cid)])) || 0;
                     pushHistory(energyHistory, cid, cellEnergy);
                 }
             });
