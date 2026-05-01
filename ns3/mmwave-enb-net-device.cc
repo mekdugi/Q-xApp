@@ -36,6 +36,7 @@
 */
 
 #include "ns3/mmwave-helper.h"
+#include <fstream>
 #include <ns3/llc-snap-header.h>
 #include <ns3/simulator.h>
 #include <ns3/callback.h>
@@ -756,6 +757,7 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
   NS_LOG_INFO ("After RicControlMessage::RicControlMessage constructor");
   NS_LOG_INFO ("Request ID " << controlMessage->m_ricRequestId.ricRequestorID);
   NS_LOG_INFO ("Request type " << controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type);
+  printf("## RC DEBUG: ric_Style_Type=%ld, cell=%u\n", (long)controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type, m_cellId);
 
   switch (controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type)
     {
@@ -788,6 +790,15 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
                 uint16_t rntiDrb = ue.first;
                 printf ("## RC-DRB: UE IMSI=%lu RNTI=%u in cell %u, setting weight=%.1f\n",
                         (unsigned long)imsiDrb, rntiDrb, m_cellId, schedWeight);
+                // Log to CSV for verification
+                {
+                  static bool csvHeader = false;
+                  std::ofstream csv("drb_control_log.csv", std::ios_base::app);
+                  if (!csvHeader) { csv << "simTime,cellId,imsi,rnti,drbIndex,weight,reason" << std::endl; csvHeader = true; }
+                  std::string reason = (ctrlActionDrb == 4 && schedWeight == 1.0) ? "reset" : "qos_assign";
+                  csv << Simulator::Now().GetSeconds() << "," << m_cellId << "," << imsiDrb << "," << rntiDrb << "," << ctrlActionDrb << "," << schedWeight << "," << reason << std::endl;
+                  csv.close();
+                }
                 // Get scheduler and set weight
                 auto ccEnb = DynamicCast<MmWaveComponentCarrierEnb> (m_ccMap.at (0));
                 if (ccEnb)

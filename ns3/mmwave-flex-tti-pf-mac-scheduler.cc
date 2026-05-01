@@ -6,6 +6,7 @@
  */
 
 #include "mmwave-flex-tti-pf-mac-scheduler.h"
+#include <fstream>
 
 #include "mmwave-mac-pdu-header.h"
 #include "mmwave-mac-pdu-tag.h"
@@ -197,6 +198,16 @@ MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight(uint16_t rnti, double weight)
 {
     m_ueSchedulingWeight[rnti] = weight;
     NS_LOG_UNCOND("[Scheduler] Set weight for RNTI=" << rnti << " to " << weight);
+
+    // Log to CSV for verification
+    static bool headerWritten = false;
+    std::ofstream csv("scheduler_weights.csv", std::ios_base::app);
+    if (!headerWritten) {
+      csv << "simTime,rnti,weight" << std::endl;
+      headerWritten = true;
+    }
+    csv << Simulator::Now().GetSeconds() << "," << rnti << "," << weight << std::endl;
+    csv.close();
 }
 
 void

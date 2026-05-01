@@ -35,9 +35,9 @@ static drb_profile_t drb_pool[NUM_DRB] = {
 
 /* Cell-specific DRB availability: each cell offers 3 of 4 DRBs */
 static int cell_drb_avail[NUM_CELL][NUM_DRB] = {
-    {1, 1, 1, 0},  /* O-RU 1: DRB 1(5QI=2), DRB 2(5QI=4), DRB 3(5QI=7) */
+    {1, 0, 1, 1},  /* O-RU 1: DRB 1(5QI=2), DRB 3(5QI=7), DRB 4(5QI=9) */
     {0, 1, 1, 1},  /* O-RU 2: DRB 2(5QI=4), DRB 3(5QI=7), DRB 4(5QI=9) */
-    {1, 0, 1, 1},  /* O-RU 3: DRB 1(5QI=2), DRB 3(5QI=7), DRB 4(5QI=9) */
+    {1, 1, 1, 0},  /* O-RU 3: DRB 1(5QI=2), DRB 2(5QI=4), DRB 3(5QI=7) */
 };
 
 static int ue_drb_assignment[NUM_UE]; /* each UE assigned DRB index (0-3), -1=unassigned */
@@ -459,9 +459,27 @@ static void read_mode(char *mode_buf, size_t buf_sz)
     mode_buf[--len] = '\0';
   }
   /* default to ts if unrecognized */
-  if (strcmp(mode_buf, "ts") != 0 && strcmp(mode_buf, "nes") != 0 && strcmp(mode_buf, "qos") != 0) {
+  if (strcmp(mode_buf, "ts") != 0 && strcmp(mode_buf, "nes") != 0
+      && strcmp(mode_buf, "qos") != 0 && strcmp(mode_buf, "auto") != 0) {
     strncpy(mode_buf, "ts", buf_sz);
   }
+}
+
+/* Auto mode: round-based TS → QoS-RA → NES cycling */
+#define AUTO_TS_ROUNDS   10
+#define AUTO_QOS_ROUNDS  30
+#define AUTO_NES_ROUNDS  20
+#define AUTO_TOTAL_ROUNDS (AUTO_TS_ROUNDS + AUTO_QOS_ROUNDS + AUTO_NES_ROUNDS)
+
+static void auto_resolve_mode(int round, char *effective, size_t sz)
+{
+  int r = ((round - 1) % AUTO_TOTAL_ROUNDS) + 1;
+  if (r <= AUTO_TS_ROUNDS)
+    strncpy(effective, "ts", sz);
+  else if (r <= AUTO_TS_ROUNDS + AUTO_QOS_ROUNDS)
+    strncpy(effective, "qos", sz);
+  else
+    strncpy(effective, "nes", sz);
 }
 
 /* =========================================================================
@@ -746,6 +764,13 @@ int main(int argc, char *argv[])
     char mode[32];
     read_mode(mode, sizeof(mode));
 
+    /* Auto mode: resolve effective mode from round number */
+    int is_auto = (strcmp(mode, "auto") == 0);
+    if (is_auto) {
+      auto_resolve_mode(round, mode, sizeof(mode));
+      printf("[Q-xApp AUTO] Round %d -> effective mode: %s\n", round, mode);
+    }
+
     /* Handle mode transitions */
     if (strcmp(mode, prev_mode) != 0) {
       if (strcmp(mode, "nes") == 0) {
@@ -820,6 +845,12 @@ int main(int argc, char *argv[])
     int n_sleep = 0;
 
     use_case_encoder(mode);                                                        /* Stage 1 */
+    /* Auto NES: override sleep target to cell 3 (O-RU 2) after encoder reads config */
+    if (is_auto && strcmp(mode, "nes") == 0) {
+      n_forced_sleep = 1;
+      forced_sleep_cells[0] = 3;
+      printf("[Q-xApp AUTO] NES: forced sleep target = cell 3 (O-RU 2)\n");
+    }
     assignment_algorithm(mode, assignment, &active_cells, sleep_cells, &n_sleep);  /* Stage 2 */
     output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
 
