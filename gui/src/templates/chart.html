@@ -179,11 +179,11 @@
                 <label style="margin-left:8px"><input type="radio" name="sleep-oru" value="4" onchange="updateSleepConfig()" checked> O-RU 3</label>
             </div>
             <div id="qos-config-panel" style="display:none; flex-direction:row; align-items:center; gap:8px;">
-                <label>UE Priority:</label>
-                <label>UE1:<select id="qos-ue-1" onchange="updateQosConfig()"><option value="high" selected>High</option><option value="low">Low</option></select></label>
-                <label>UE2:<select id="qos-ue-2" onchange="updateQosConfig()"><option value="high" selected>High</option><option value="low">Low</option></select></label>
-                <label>UE3:<select id="qos-ue-3" onchange="updateQosConfig()"><option value="high">High</option><option value="low" selected>Low</option></select></label>
-                <label>UE4:<select id="qos-ue-4" onchange="updateQosConfig()"><option value="high">High</option><option value="low" selected>Low</option></select></label>
+                <label>5QI:</label>
+                <label>UE1:<select id="qos-ue-1"><option value="2" selected>2</option><option value="4">4</option><option value="7">7</option><option value="9">9</option></select></label>
+                <label>UE2:<select id="qos-ue-2"><option value="2">2</option><option value="4" selected>4</option><option value="7">7</option><option value="9">9</option></select></label>
+                <label>UE3:<select id="qos-ue-3"><option value="2">2</option><option value="4">4</option><option value="7" selected>7</option><option value="9">9</option></select></label>
+                <label>UE4:<select id="qos-ue-4"><option value="2">2</option><option value="4">4</option><option value="7">7</option><option value="9" selected>9</option></select></label>
             </div>
             <div style="grid-column: 1 / -1; display: flex; gap: 8px;">
                 <button type="button" onclick="sendForm('/start_simulation')" id="start_button">Start</button>
@@ -213,7 +213,6 @@
             <span>Center Freq: 3.5 GHz</span>
             <span>ISD (UE): 150 m</span>
             <span>ISD (Cell): 150 m</span>
-            <span id="sim-timer" style="margin-left:auto; font-weight:600; color:#8B0000;"></span>
         </div>
         <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
             <span style="font-weight:700; color:white; background:#8B0000; padding:3px 10px; border-radius:4px;">A1 Policy Manager</span>
@@ -232,11 +231,11 @@
                 <label><input type="radio" name="sleep-oru-bar" value="4" onchange="updateSleepConfig()" checked> O-RU 3</label>
             </span>
             <span id="qos-config-bar" style="display:none;">
-                UE Priority:
-                <label>UE1:<select id="qos-ue-bar-1" onchange="updateQosConfig()" style="font-size:12px;"><option value="high" selected>High</option><option value="low">Low</option></select></label>
-                <label>UE2:<select id="qos-ue-bar-2" onchange="updateQosConfig()" style="font-size:12px;"><option value="high" selected>High</option><option value="low">Low</option></select></label>
-                <label>UE3:<select id="qos-ue-bar-3" onchange="updateQosConfig()" style="font-size:12px;"><option value="high">High</option><option value="low" selected>Low</option></select></label>
-                <label>UE4:<select id="qos-ue-bar-4" onchange="updateQosConfig()" style="font-size:12px;"><option value="high">High</option><option value="low" selected>Low</option></select></label>
+                5QI:
+                <label>UE1:<select id="qos-ue-bar-1" onchange="updateQosConfig()" style="font-size:12px;"><option value="2" selected>2</option><option value="4">4</option><option value="7">7</option><option value="9">9</option></select></label>
+                <label>UE2:<select id="qos-ue-bar-2" onchange="updateQosConfig()" style="font-size:12px;"><option value="2">2</option><option value="4" selected>4</option><option value="7">7</option><option value="9">9</option></select></label>
+                <label>UE3:<select id="qos-ue-bar-3" onchange="updateQosConfig()" style="font-size:12px;"><option value="2">2</option><option value="4">4</option><option value="7" selected>7</option><option value="9">9</option></select></label>
+                <label>UE4:<select id="qos-ue-bar-4" onchange="updateQosConfig()" style="font-size:12px;"><option value="2">2</option><option value="4">4</option><option value="7">7</option><option value="9" selected>9</option></select></label>
             </span>
         </div>
     </div>
@@ -272,7 +271,6 @@
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box"><canvas id="energy-chart"></canvas></div>
-                <div class="kpi-chart-box"><canvas id="retx-chart"></canvas></div>
             </div>
         </div>
 
@@ -352,15 +350,26 @@
     }
 
     function updateQosConfig() {
-        var weights = [];
+        var fiveqi = [];
         for (var i = 1; i <= 4; i++) {
             var sel = document.getElementById('qos-ue-bar-' + i) || document.getElementById('qos-ue-' + i);
-            weights.push(sel.value === 'high' ? 2.0 : 1.0);
+            fiveqi.push(parseInt(sel.value));
+        }
+        /* Enforce no duplicates: revert to previous if conflict */
+        var unique = new Set(fiveqi);
+        if (unique.size < 4) {
+            alert('Each UE must have a unique 5QI value.');
+            var defaults = [2, 4, 7, 9];
+            for (var i = 1; i <= 4; i++) {
+                var sel = document.getElementById('qos-ue-bar-' + i) || document.getElementById('qos-ue-' + i);
+                sel.value = String(defaults[i - 1]);
+            }
+            fiveqi = defaults;
         }
         fetch('/set_qos_config', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({weights: weights})
+            body: JSON.stringify({fiveqi: fiveqi})
         });
     }
 
@@ -403,11 +412,7 @@
                             if (currentScenario === 'qos' && qxappData && qxappData.drb_assignment) {
                                 var idx = (value.ue_id || 1) - 1;
                                 var da = qxappData.drb_assignment.find(function(x){ return x.ue === idx; });
-                                if (da && da.drb > 0) label += ' (d' + da.drb + ':' + da.type + ')';
-                            } else if (currentScenario === 'qos' && qxappData && qxappData.qos_weights) {
-                                var idx2 = (value.ue_id || 1) - 1;
-                                var w = qxappData.qos_weights[idx2];
-                                label += w >= 2.0 ? ' (H)' : ' (L)';
+                                if (da && da.drb > 0) label += ' (5QI=' + da.fiveqi + ')';
                             }
                             return label;
                         }, offset: 6
@@ -498,19 +503,9 @@
         { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 2, fill: false, pointRadius: 0 },
         { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 2, fill: false, pointRadius: 0 }
     ]);
-    var retxChart = createLineChart('retx-chart', 'RETX', 'Error Count', [
-        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
-    ]);
-
-    // Bar chart
-
     // History
     var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
     var energyHistory = { 2: [], 3: [], 4: [] };
-    var retxHistory = { 1: [], 2: [], 3: [], 4: [] };
     var MAX_HISTORY = 51;
 
     function pushHistory(histObj, id, value) {
@@ -540,29 +535,6 @@
             if (!data) return;
             updateGrid(data);
             updateKPIs(data);
-            /* Update sim timer */
-            var timerEl = document.getElementById('sim-timer');
-            if (timerEl) {
-                if (!window._simStartTime && data.ues && data.ues.length > 0 && data.ues[0].x_position) {
-                    window._simStartTime = Date.now() / 1000;
-                }
-                if (window._simStartTime) {
-                    var simMaxSec = 1800;
-                    var elapsed = Math.floor(Date.now() / 1000 - window._simStartTime);
-                    var remain = Math.max(0, simMaxSec - elapsed);
-                    var mm = Math.floor(remain / 60);
-                    var ss = remain % 60;
-                    timerEl.textContent = 'Remaining Sim. Time: ' + mm + 'm ' + (ss < 10 ? '0' : '') + ss + 's';
-                    if (remain <= 0) {
-                        timerEl.style.color = '#cc0000';
-                        timerEl.textContent = 'Simulation ended';
-                        if (!window._simEnded) {
-                            window._simEnded = true;
-                            fetch('/kill_simulation', {method: 'POST'}).catch(function(){});
-                        }
-                    }
-                }
-            }
         }).catch(function(e) { console.log('Fetch error:', e); });
     }
 
@@ -611,24 +583,11 @@
             cellData.push({ x: fp.x, y: fp.y, cell_id: cid, bs_label: bsLabel, type: 'mmwave' });
             cellBg.push(isSleep ? '#bbb' : (cellColors[cid] || '#999'));
         });
-        if (data.ues) {
-            data.ues.forEach(function(ue, i) {
-                var ux = ue.x_position || ue.x || 0;
-                var uy = ue.y_position || ue.y || 0;
-                var uid = ue.ue_id || i+1;
-                if (ux == 0 && uy == 0) { ux = 250 + uid * 20; uy = 250 + uid * 15; }
-                var connCell = (uid in qxappAssign) ? qxappAssign[uid] : (ue.MMWave_Cell || 0);
-                if (connCell === 1) connCell = 2;
-                var isUnassigned = (connCell === -1);
-                ueData.push({ x: ux, y: uy, ue_id: uid, type: isUnassigned ? 'unassigned' : (ue.type || ''), MMWave_Cell: connCell });
-                ueBg.push(isUnassigned ? '#ccc' : (cellColors[connCell] || '#999'));
-            });
-        }
-
         myChart.data.datasets[0].data = ueData;
         myChart.data.datasets[0].backgroundColor = ueBg;
         myChart.data.datasets[1].data = cellData;
         myChart.data.datasets[1].backgroundColor = cellBg;
+        myChart.update();
     }
 
     function updateKPIs(data) {
@@ -636,7 +595,6 @@
             data.ues.forEach(function(ue, i) {
                 var uid = ue.ue_id || (i + 1);
                 pushHistory(sinrHistory, uid, (ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0);
-                pushDeltaHistory(retxHistory, uid, ue.ErrTotalNbrDl || 0);
             });
         }
         if (data.cells) {
@@ -652,7 +610,6 @@
         // Update SINR chart (per UE)
         [1,2,3,4].forEach(function(uid, idx) {
             sinrChart.data.datasets[idx].data = sinrHistory[uid] || [];
-            retxChart.data.datasets[idx].data = (retxHistory[uid] || []).map(function(point) { return typeof point === 'object' ? point.value : point; });
         });
 
         // Update PRB chart (per Cell, mmWave only)
@@ -664,7 +621,6 @@
         var labels = Array.from({length: maxLen}, function(_, i) { return i; });
         sinrChart.data.labels = labels; sinrChart.update();
         energyChart.data.labels = labels; energyChart.update();
-        retxChart.data.labels = labels; retxChart.update();
     }
 
 
@@ -717,7 +673,7 @@
             document.getElementById('status_label').textContent = 'off';
             document.getElementById('start_button').disabled = false;
             document.getElementById('stop_button').disabled = true;
-            [sinrHistory, energyHistory, retxHistory].forEach(function(h) {
+            [sinrHistory, energyHistory].forEach(function(h) {
                 Object.keys(h).forEach(function(k) { h[k] = []; });
             });
         } catch (e) { console.log('Reset error:', e); }

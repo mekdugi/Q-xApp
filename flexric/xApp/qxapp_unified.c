@@ -16,38 +16,40 @@ static int a1_max_ue_per_cell = 2;
 #define A1_POLICY_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_a1_policy.txt"
 #define QOS_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_qos_config.txt"
 
-static double qos_weights[NUM_UE] = {2.0, 2.0, 1.0, 1.0};
-
-/* == DRB pool definition for QoS-based Resource Allocation ================ */
+/* == QoS-based Resource Allocation ========================================= */
 #define NUM_DRB 4
-#define MAX_GBR_PRB_RATIO 0.6
 
 typedef struct {
     int drb_id;
     int fiveqi;
-    int is_gbr;
-    double prb_reserve;
-    double priority;
-    double gbr_kbps;
+    double weight;   /* scheduler weight sent to ns-3 */
 } drb_profile_t;
 
+/* Global DRB pool (drb_id, 5QI, scheduler weight) */
 static drb_profile_t drb_pool[NUM_DRB] = {
-    {1, 2, 1, 0.4, 4.0, 50000},
-    {2, 4, 1, 0.2, 3.0, 30000},
-    {3, 7, 0, 0.0, 2.0, 0},
-    {4, 9, 0, 0.0, 1.0, 0},
+    {1, 2, 4.0},
+    {2, 4, 3.0},
+    {3, 7, 2.0},
+    {4, 9, 1.0},
+};
+
+/* Cell-specific DRB availability: each cell offers 3 of 4 DRBs */
+static int cell_drb_avail[NUM_CELL][NUM_DRB] = {
+    {1, 1, 1, 0},  /* O-RU 1: DRB 1(5QI=2), DRB 2(5QI=4), DRB 3(5QI=7) */
+    {0, 1, 1, 1},  /* O-RU 2: DRB 2(5QI=4), DRB 3(5QI=7), DRB 4(5QI=9) */
+    {1, 0, 1, 1},  /* O-RU 3: DRB 1(5QI=2), DRB 3(5QI=7), DRB 4(5QI=9) */
 };
 
 static int ue_drb_assignment[NUM_UE]; /* each UE assigned DRB index (0-3), -1=unassigned */
+static int ue_fiveqi[NUM_UE] = {2, 4, 7, 9}; /* per-UE 5QI requirement (from GUI) */
 
-/* read QoS weight config from file */
+/* read QoS config: per-UE 5QI values from file */
 static void read_qos_config(void)
 {
   FILE *fp = fopen(QOS_CONFIG_FILE, "r");
   if (!fp) {
-    printf("[Q-xApp QoS-RA] Config file not found, using defaults\n");
-    qos_weights[0] = 2.0; qos_weights[1] = 2.0;
-    qos_weights[2] = 1.0; qos_weights[3] = 1.0;
+    printf("[Q-xApp QoS-RA] Config file not found, using defaults (2,4,7,9)\n");
+    ue_fiveqi[0] = 2; ue_fiveqi[1] = 4; ue_fiveqi[2] = 7; ue_fiveqi[3] = 9;
     return;
   }
   char buf[256];
@@ -55,15 +57,15 @@ static void read_qos_config(void)
     int idx = 0;
     char *p = buf;
     while (*p && idx < NUM_UE) {
-      qos_weights[idx++] = atof(p);
+      ue_fiveqi[idx++] = atoi(p);
       char *comma = strchr(p, ',');
       if (!comma) break;
       p = comma + 1;
     }
   }
   fclose(fp);
-  printf("[Q-xApp QoS-RA] Loaded weights:");
-  for (int u = 0; u < NUM_UE; u++) printf(" %.1f", qos_weights[u]);
+  printf("[Q-xApp QoS-RA] Loaded 5QI:");
+  for (int u = 0; u < NUM_UE; u++) printf(" UE%d=5QI%d", u, ue_fiveqi[u]);
   printf("\n");
 }
 
@@ -117,124 +119,93 @@ static void greedy_match(int assignment[NUM_UE])
   }
 }
 
-/* QoS-based Resource Allocation: DRB matching per cell
- * Step 1: greedy_match() for UE-Cell assignment
- * Step 2: intra-cell DRB matching with 2x4 utility matrix */
-static void qos_drb_match(int assignment[NUM_UE])
+/* QoS-based Resource Allocation: UE-DRB matching (independent from UE-Cell)
+ * Runs as a separate xApp alongside TS (greedy_match).
+ * Each UE has a 5QI requirement; each cell offers a subset of DRBs.
+ * Utility = match quality between UE 5QI and DRB 5QI × SINR. */
+static void drb_match(int assignment[NUM_UE])
 {
-  /* Step 1: UE-Cell assignment using greedy */
-  greedy_match(assignment);
-
-  /* Initialize DRB assignments to unassigned */
   for (int u = 0; u < NUM_UE; u++)
     ue_drb_assignment[u] = -1;
 
-  /* Step 2: For each cell, do intra-cell DRB matching */
-  for (int c = 0; c < NUM_CELL; c++) {
-    /* Find UEs assigned to this cell */
-    int cell_ues[NUM_UE];
-    int n_cell_ues = 0;
-    for (int u = 0; u < NUM_UE; u++) {
-      if (assignment[u] == c)
-        cell_ues[n_cell_ues++] = u;
+  /* For each UE, find best available DRB in its assigned cell */
+  /* Build utility matrix: NUM_UE x NUM_DRB, then greedy match */
+  double utility[NUM_UE][NUM_DRB];
+  memset(utility, 0, sizeof(utility));
+
+  printf("[Q-xApp QoS-RA] UE-DRB utility matrix:\n");
+  printf("         ");
+  for (int d = 0; d < NUM_DRB; d++) printf("DRB%d(5QI=%d) ", drb_pool[d].drb_id, drb_pool[d].fiveqi);
+  printf("\n");
+
+  for (int u = 0; u < NUM_UE; u++) {
+    int c = assignment[u];
+    double sr = (c >= 0) ? sinr_matrix[u][c] : 1.0;
+    printf("  UE %d (5QI=%d, %s): ", u, ue_fiveqi[u], (c >= 0) ? ORU_NAMES[c] : "?");
+    for (int d = 0; d < NUM_DRB; d++) {
+      if (c < 0 || !cell_drb_avail[c][d]) {
+        utility[u][d] = -1.0; /* DRB not available in this cell */
+        printf("  N/A     ");
+        continue;
+      }
+      /* 5QI match: exact match gets highest utility, mismatch penalized */
+      int fiveqi_diff = abs(ue_fiveqi[u] - drb_pool[d].fiveqi);
+      double match_score = 1.0 / (1.0 + fiveqi_diff);
+      utility[u][d] = match_score * drb_pool[d].weight * sr;
+      printf("  %-8.1f", utility[u][d]);
     }
-    if (n_cell_ues == 0) continue;
-
-    /* Compute utility matrix: n_cell_ues x NUM_DRB */
-    double utility[NUM_UE][NUM_DRB];
-    memset(utility, 0, sizeof(utility));
-
-    double sinr_rate_arr[NUM_UE];
-    for (int i = 0; i < n_cell_ues; i++) {
-      int u = cell_ues[i];
-      sinr_rate_arr[i] = sinr_matrix[u][c];
-    }
-
-    printf("[Q-xApp QoS-RA] Cell %s: %d UEs, utility matrix:\n", ORU_NAMES[c], n_cell_ues);
-    printf("         ");
-    for (int d = 0; d < NUM_DRB; d++) printf("DRB%-6d", drb_pool[d].drb_id);
     printf("\n");
+  }
 
-    for (int i = 0; i < n_cell_ues; i++) {
-      int u = cell_ues[i];
-      double sr = sinr_rate_arr[i];
-      printf("  UE %d:  ", u);
-      for (int d = 0; d < NUM_DRB; d++) {
-        double base_util;
-        if (drb_pool[d].is_gbr) {
-          /* GBR DRB: utility = gbr_kbps * min(1.0, sinr_rate / 15.0) */
-          double sinr_eff = sr / 15.0;
-          if (sinr_eff > 1.0) sinr_eff = 1.0;
-          base_util = drb_pool[d].gbr_kbps * sinr_eff;
-        } else {
-          /* NGBR DRB: utility = priority * sinr_rate */
-          base_util = drb_pool[d].priority * sr;
-        }
-        utility[i][d] = qos_weights[u] * base_util;
-        printf("%-9.1f", utility[i][d]);
-      }
-      printf("\n");
+  /* Greedy matching: sort all (UE, DRB) pairs by utility descending */
+  typedef struct { double util; int ue; int drb; } pair_t;
+  pair_t pairs[NUM_UE * NUM_DRB];
+  int np = 0;
+  for (int u = 0; u < NUM_UE; u++)
+    for (int d = 0; d < NUM_DRB; d++) {
+      if (utility[u][d] < 0) continue; /* skip unavailable */
+      pairs[np].util = utility[u][d];
+      pairs[np].ue = u;
+      pairs[np].drb = d;
+      np++;
     }
 
-    /* Greedy matching: sort all (UE, DRB) pairs by utility descending */
-    typedef struct { double util; int ue_local; int drb; } pair_t;
-    pair_t pairs[NUM_UE * NUM_DRB];
-    int np = 0;
-    for (int i = 0; i < n_cell_ues; i++)
-      for (int d = 0; d < NUM_DRB; d++) {
-        pairs[np].util = utility[i][d];
-        pairs[np].ue_local = i;
-        pairs[np].drb = d;
-        np++;
+  for (int i = 0; i < np - 1; i++)
+    for (int j = i + 1; j < np; j++)
+      if (pairs[j].util > pairs[i].util) {
+        pair_t tmp = pairs[i]; pairs[i] = pairs[j]; pairs[j] = tmp;
       }
 
-    for (int i = 0; i < np - 1; i++)
-      for (int j = i + 1; j < np; j++)
-        if (pairs[j].util > pairs[i].util) {
-          pair_t tmp = pairs[i]; pairs[i] = pairs[j]; pairs[j] = tmp;
-        }
+  int ue_assigned[NUM_UE];
+  memset(ue_assigned, 0, sizeof(ue_assigned));
+  int drb_assigned[NUM_DRB];
+  memset(drb_assigned, 0, sizeof(drb_assigned));
 
-    /* Assign: each DRB to at most 1 UE, GBR PRB sum <= MAX_GBR_PRB_RATIO */
-    int ue_assigned[NUM_UE];
-    memset(ue_assigned, 0, sizeof(ue_assigned));
-    int drb_assigned[NUM_DRB];
-    memset(drb_assigned, 0, sizeof(drb_assigned));
-    double gbr_prb_sum = 0.0;
+  for (int k = 0; k < np; k++) {
+    int u = pairs[k].ue;
+    int d = pairs[k].drb;
+    if (ue_assigned[u] || drb_assigned[d]) continue;
+    ue_drb_assignment[u] = d;
+    ue_assigned[u] = 1;
+    drb_assigned[d] = 1;
+    printf("[Q-xApp QoS-RA]   UE %d (5QI=%d) -> DRB %d (5QI=%d, weight=%.1f, util=%.1f)\n",
+           u, ue_fiveqi[u], drb_pool[d].drb_id, drb_pool[d].fiveqi,
+           drb_pool[d].weight, pairs[k].util);
+  }
 
-    for (int k = 0; k < np; k++) {
-      int i = pairs[k].ue_local;
-      int d = pairs[k].drb;
-      if (ue_assigned[i] || drb_assigned[d]) continue;
-      /* Check GBR PRB constraint */
-      if (drb_pool[d].is_gbr) {
-        if (gbr_prb_sum + drb_pool[d].prb_reserve > MAX_GBR_PRB_RATIO)
-          continue;
-        gbr_prb_sum += drb_pool[d].prb_reserve;
-      }
-      int u = cell_ues[i];
+  /* Fallback: unassigned UE gets any available DRB */
+  for (int u = 0; u < NUM_UE; u++) {
+    if (ue_assigned[u]) continue;
+    int c = assignment[u];
+    for (int d = 0; d < NUM_DRB; d++) {
+      if (drb_assigned[d]) continue;
+      if (c >= 0 && !cell_drb_avail[c][d]) continue;
       ue_drb_assignment[u] = d;
-      ue_assigned[i] = 1;
+      ue_assigned[u] = 1;
       drb_assigned[d] = 1;
-      printf("[Q-xApp QoS-RA]   UE %d -> DRB %d (5QI=%d, %s, util=%.1f)\n",
-             u, drb_pool[d].drb_id, drb_pool[d].fiveqi,
-             drb_pool[d].is_gbr ? "GBR" : "NGBR", pairs[k].util);
-    }
-
-    /* Fallback: any unassigned UE gets first available DRB */
-    for (int i = 0; i < n_cell_ues; i++) {
-      if (ue_assigned[i]) continue;
-      for (int d = 0; d < NUM_DRB; d++) {
-        if (drb_assigned[d]) continue;
-        if (drb_pool[d].is_gbr && gbr_prb_sum + drb_pool[d].prb_reserve > MAX_GBR_PRB_RATIO)
-          continue;
-        int u = cell_ues[i];
-        ue_drb_assignment[u] = d;
-        ue_assigned[i] = 1;
-        drb_assigned[d] = 1;
-        if (drb_pool[d].is_gbr) gbr_prb_sum += drb_pool[d].prb_reserve;
-        printf("[Q-xApp QoS-RA]   UE %d -> DRB %d (fallback)\n", u, drb_pool[d].drb_id);
-        break;
-      }
+      printf("[Q-xApp QoS-RA]   UE %d (5QI=%d) -> DRB %d (fallback)\n",
+             u, ue_fiveqi[u], drb_pool[d].drb_id);
+      break;
     }
   }
 }
@@ -432,21 +403,20 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
     fprintf(fp, "],\n");
   }
   if (strcmp(mode, "qos") == 0) {
-    fprintf(fp, "  \"qos_weights\": [");
+    fprintf(fp, "  \"ue_fiveqi\": [");
     for (int u = 0; u < NUM_UE; u++)
-      fprintf(fp, "%.1f%s", qos_weights[u], u < NUM_UE - 1 ? ", " : "");
+      fprintf(fp, "%d%s", ue_fiveqi[u], u < NUM_UE - 1 ? ", " : "");
     fprintf(fp, "],\n");
     fprintf(fp, "  \"drb_assignment\": [\n");
     for (int u = 0; u < NUM_UE; u++) {
       int d = ue_drb_assignment[u];
       if (d >= 0 && d < NUM_DRB) {
-        fprintf(fp, "    {\"ue\": %d, \"drb\": %d, \"fiveqi\": %d, \"type\": \"%s\", \"gbr_kbps\": %.0f}%s\n",
+        fprintf(fp, "    {\"ue\": %d, \"drb\": %d, \"fiveqi\": %d, \"weight\": %.1f}%s\n",
                 u, drb_pool[d].drb_id, drb_pool[d].fiveqi,
-                drb_pool[d].is_gbr ? "GBR" : "NGBR",
-                drb_pool[d].gbr_kbps,
+                drb_pool[d].weight,
                 u < NUM_UE - 1 ? "," : "");
       } else {
-        fprintf(fp, "    {\"ue\": %d, \"drb\": -1, \"fiveqi\": 0, \"type\": \"NONE\", \"gbr_kbps\": 0}%s\n",
+        fprintf(fp, "    {\"ue\": %d, \"drb\": -1, \"fiveqi\": 0, \"weight\": 0.0}%s\n",
                 u, u < NUM_UE - 1 ? "," : "");
       }
     }
@@ -541,8 +511,8 @@ static void use_case_encoder(const char *mode)
   } else if (strcmp(mode, "qos") == 0) {
     read_qos_config();
     read_a1_policy();
-    printf("[Q-xApp QoS-RA] Weights:");
-    for (int u = 0; u < NUM_UE; u++) printf(" UE%d=%.1f", u, qos_weights[u]);
+    printf("[Q-xApp QoS-RA] 5QI config:");
+    for (int u = 0; u < NUM_UE; u++) printf(" UE%d=5QI%d", u, ue_fiveqi[u]);
     printf(", max_ue_per_cell=%d\n", a1_max_ue_per_cell);
   } else {
     read_sleep_config();
@@ -567,7 +537,10 @@ static void assignment_algorithm(const char *mode,
   if (strcmp(mode, "nes") == 0) {
     energy_aware_match(assignment, active_cells, sleep_cells, n_sleep);
   } else if (strcmp(mode, "qos") == 0) {
-    qos_drb_match(assignment);
+    /* TS xApp: UE-Cell assignment */
+    greedy_match(assignment);
+    /* QoS-RA xApp: UE-DRB assignment (runs in parallel with TS) */
+    drb_match(assignment);
     *active_cells = NUM_CELL;
     *n_sleep = 0;
   } else {
@@ -593,10 +566,9 @@ static void assignment_algorithm(const char *mode,
   for (int u = 0; u < NUM_UE; u++) {
     if (strcmp(mode, "qos") == 0 && ue_drb_assignment[u] >= 0) {
       int d = ue_drb_assignment[u];
-      printf("  UE %d -> %s (rate=%.4f bps/Hz, DRB=%d, 5QI=%d, %s)\n",
+      printf("  UE %d -> %s (rate=%.4f bps/Hz, DRB=%d, 5QI=%d, w=%.1f)\n",
              u, ORU_NAMES[assignment[u]], sinr_matrix[u][assignment[u]],
-             drb_pool[d].drb_id, drb_pool[d].fiveqi,
-             drb_pool[d].is_gbr ? "GBR" : "NGBR");
+             drb_pool[d].drb_id, drb_pool[d].fiveqi, drb_pool[d].weight);
     } else {
       printf("  UE %d -> %s (rate=%.4f bps/Hz)\n",
              u, ORU_NAMES[assignment[u]], sinr_matrix[u][assignment[u]]);
@@ -664,9 +636,9 @@ static void output_interpreter(const char *mode,
       rc_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
 
       if (d >= 0) {
-        printf("[Q-xApp QoS-RA] DRB: UE %d (IMSI %lu) -> DRB %d (5QI=%d, %s, act_id=%d)\n",
+        printf("[Q-xApp QoS-RA] DRB: UE %d (IMSI %lu) -> DRB %d (5QI=%d, w=%.1f, act_id=%d)\n",
                u, imsi, drb_pool[d].drb_id, drb_pool[d].fiveqi,
-               drb_pool[d].is_gbr ? "GBR" : "NGBR", drb_act_id);
+               drb_pool[d].weight, drb_act_id);
       } else {
         printf("[Q-xApp QoS-RA] DRB: UE %d (IMSI %lu) -> unassigned (act_id=%d)\n",
                u, imsi, drb_act_id);

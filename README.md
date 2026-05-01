@@ -12,9 +12,9 @@ Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **in
 
 | Use Case | Assignment Type | What it does |
 |----------|----------------|-------------|
-| **Traffic Steering (TS)** | UE ↔ Cell (inter-cell) | Assigns UEs to best-SINR cells, max 2 UE/cell |
-| **Network Energy Saving (NES)** | UE ↔ Cell (inter-cell) | Packs UEs into fewer cells, sleeps idle O-RUs |
-| **QoS-based Resource Allocation** | UE ↔ DRB (intra-cell) | Assigns DRB profiles (GBR/NGBR) per UE priority |
+| **Traffic Steering (TS)** | UE ↔ Cell | Assigns UEs to best-SINR cells via greedy matching |
+| **Network Energy Saving (NES)** | UE ↔ Cell | Packs UEs into fewer cells, sleeps idle O-RUs |
+| **QoS-based Resource Allocation** | UE ↔ DRB | Assigns DRBs by per-UE 5QI requirement. Runs alongside TS |
 
 Switch between them in real-time from the GUI — no restart needed.
 
@@ -26,12 +26,12 @@ Switch between them in real-time from the GUI — no restart needed.
 ┌─────────────────────────────────────────────────────────────┐
 │                    Docker GUI (localhost:8000)                │
 │  ┌───────────┐  ┌────────────┐  ┌─────────────────────┐    │
-│  │ Sim Grid  │  │ Throughput │  │ Cell Power + RETX   │    │
-│  │ (Map+UE+  │  │  (Mbps)    │  │     (W / count)     │    │
+│  │ Sim Grid  │  │ Throughput │  │ Cell Power          │    │
+│  │ (Map+UE+  │  │  (Mbps)    │  │     (W)             │    │
 │  │  O-RU)    │  │            │  │                     │    │
 │  └───────────┘  └────────────┘  └─────────────────────┘    │
 │  Network Settings: 3 O-RU, 4 UE, 100MHz, ISD 150m          │
-│  A1 Policy Manager: [Use Case ▼] [Sleep O-RU / Priority]   │
+│  A1 Policy Manager: [Use Case ▼] [Sleep O-RU / 5QI]        │
 │                         InfluxDB                             │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -136,7 +136,7 @@ sudo <FlexRIC>/build/examples/xApp/c/ctrl/xapp_qxapp_unified
 
 Then open **http://localhost:8000** in your browser. The Docker GUI and data pusher start automatically.
 
-Simulation runs for **30 minutes**. When time expires, all processes are terminated automatically.
+Switch use cases from the GUI at any time. The default mode is Traffic Steering.
 
 ---
 
@@ -149,18 +149,14 @@ Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, 
 Switch use cases and configure policies in real-time:
 - **TS mode**: "Max UE/Cell" selector
 - **NES mode**: "Sleep O-RU" radio buttons — choose which O-RU to put to sleep
-- **QoS-RA mode**: Per-UE "High/Low" priority selectors
+- **QoS-RA mode**: Per-UE 5QI selector (2, 4, 7, 9 — each unique)
 
 ### Charts
 | Chart | What it shows |
 |-------|--------------|
 | **Simulation Grid** | Campus map with O-RU (triangles, colored) and UE (circles, colored by serving cell). Sleeping O-RUs turn gray. |
 | **Throughput** | Per-UE throughput in Mbps over time |
-| **Cell Power** | Per-cell energy consumption in Watts (sleep cells show near-zero) |
-| **RETX** | Per-UE retransmission count (delta per interval) |
-
-### Remaining Sim. Time
-Countdown from 30 minutes. Turns red and auto-kills all processes when expired.
+| **Cell Power** | Per-cell energy consumption in Watts (sleep cells drop to zero) |
 
 ---
 
@@ -179,9 +175,11 @@ Countdown from 30 minutes. Turns red and auto-kills all processes when expired.
 - RC Control: style=3 (handover) + Energy_state (style=300, sleep/wake)
 
 **QoS-based Resource Allocation (QoS-RA)**
-- Assignment: UE ↔ DRB (intra-cell), 2-UE × 4-DRB matching per cell
-- DRB Pool: d1(GBR, 5QI=2, PRB 0.4), d2(GBR, 5QI=4, PRB 0.2), d3(NGBR, 5QI=7), d4(NGBR, 5QI=9)
-- Objective: Maximize weighted utility under GBR PRB constraints (≤ 0.6)
+- Runs alongside TS: TS handles UE-Cell, QoS-RA handles UE-DRB
+- Each UE has a 5QI requirement (2, 4, 7, 9). Each cell offers a subset of DRBs
+- DRB Pool: DRB 1 (5QI=2, w=4.0), DRB 2 (5QI=4, w=3.0), DRB 3 (5QI=7, w=2.0), DRB 4 (5QI=9, w=1.0)
+- Cell DRB availability: O-RU 1 → DRB 1,2,3 / O-RU 2 → DRB 2,3,4 / O-RU 3 → DRB 1,3,4
+- Utility: 5QI match score × DRB weight × SINR
 - RC Control: style=3 (handover) + Radio_Bearer_Control (style=1, scheduler weight)
 
 ### E2 Connection and Control Loop
@@ -236,7 +234,7 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
 | `qxapp_result.json` | Q-xApp | GUI | Assignment, DRB, energy, mode |
 | `xapp_mode.txt` | GUI | Q-xApp | Current use case (ts/nes/qos) |
 | `xapp_sleep_config.txt` | GUI | Q-xApp | Which O-RU to sleep |
-| `xapp_qos_config.txt` | GUI | Q-xApp | Per-UE priority weights |
+| `xapp_qos_config.txt` | GUI | Q-xApp | Per-UE 5QI values (e.g. 2,4,7,9) |
 
 ---
 
@@ -255,13 +253,18 @@ Q-xApp/
 │   ├── mmwave-flex-tti-pf-mac-scheduler.cc
 │   └── mmwave-flex-tti-pf-mac-scheduler.h
 ├── gui/
-│   ├── templates/chart.html
-│   ├── src/data_controller.py
-│   ├── src/simulation.py
-│   ├── static/univmap.png
+│   ├── main.py                           # FastAPI entrypoint
+│   ├── requirements.txt
+│   ├── configuration.env
 │   ├── docker-compose.yml
 │   ├── Dockerfile
-│   └── start.sh
+│   ├── start.sh
+│   ├── templates/chart.html              # Dashboard template
+│   ├── static/univmap.png
+│   └── src/
+│       ├── http/data_controller.py       # API routes
+│       ├── copy_sim_data_pusher.py       # InfluxDB data pusher
+│       └── simulation_objects/           # Simulation state management
 ├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future integration
 ├── scripts/collect_qxapp_verification.py
 └── README.md

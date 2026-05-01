@@ -289,8 +289,11 @@ async def set_sleep_config(request: Request):
 @influx_data_router.post("/set_qos_config")
 async def set_qos_config(request: Request):
     body = await request.json()
-    weights = body.get("weights", [2.0, 2.0, 1.0, 1.0])
+    fiveqi = body.get("fiveqi", [2, 4, 7, 9])
+    valid = {2, 4, 7, 9}
+    if set(fiveqi) != valid or len(fiveqi) != 4:
+        return JSONResponse({"status": "error", "message": "fiveqi must be a permutation of [2,4,7,9]"}, status_code=400)
     config_file = "/host_data/xapp_qos_config.txt"
     with open(config_file, "w") as f:
-        f.write(",".join(str(w) for w in weights))
-    return {"status": "ok", "weights": weights}
+        f.write(",".join(str(q) for q in fiveqi))
+    return {"status": "ok", "fiveqi": fiveqi}
