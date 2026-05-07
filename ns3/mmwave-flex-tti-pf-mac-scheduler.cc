@@ -34,6 +34,7 @@ NS_OBJECT_ENSURE_REGISTERED(MmWaveFlexTtiPfMacScheduler);
 
 // Phase 3: static handover-pending RNTI set (per cell)
 std::map<uint16_t, std::set<uint16_t>> MmWaveFlexTtiPfMacScheduler::s_handoverPendingRntis;
+/* s_ueWeightsForComparator removed — weight now in UeSchedInfo::m_qosWeight */
 
 void
 MmWaveFlexTtiPfMacScheduler::MarkUeHandoverPending(uint16_t cellId, uint16_t rnti)
@@ -231,6 +232,10 @@ MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight(uint16_t rnti, double weight)
     auto prevIt = m_ueSchedulingWeight.find(rnti);
     double prevWeight = (prevIt != m_ueSchedulingWeight.end()) ? prevIt->second : 1.0;
     m_ueSchedulingWeight[rnti] = weight;
+    /* Update instance-local UeSchedInfo weight */
+    { auto it = m_ueSchedInfoMap.find(rnti);
+      if (it != m_ueSchedInfoMap.end()) it->second.m_qosWeight = weight; }
+
     NS_LOG_UNCOND("[Scheduler] Set weight for RNTI=" << rnti << " to " << weight);
 
     /* Reset PF average throughput only on actual mode transition (weight changing from non-1.0 to 1.0) */
@@ -1326,12 +1331,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                     m_amc->CalculateTbSize(ueInfo->m_dlMcs, 1) * 8; // Bytes -> Bits
                 ueInfo->m_currTputDl = std::min(ueInfo->m_totBufDl, tbSizeMax) /
                                        (m_phyMacConfig->GetSlotPeriod().GetSeconds());
-                // Apply xApp scheduling weight
-                {
-                    auto wit = m_ueSchedulingWeight.find(ueInfo->m_rnti);
-                    if (wit != m_ueSchedulingWeight.end())
-                        ueInfo->m_currTputDl *= wit->second;
-                }
+                /* Weight applied in CompareUeWeightsPf via m_qosWeight, not here */
                 m_ueStatHeap.push_back(ueInfo);
                 itUeAllocMap = ueAllocMap.find(ueInfo->m_rnti);
                 if (itUeAllocMap == ueAllocMap.end())
@@ -1411,6 +1411,12 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
     // allocate each slot to UE with highest PF metric, then update PF metrics
     while (symAvail > 0)
     {
+        /* Copy instance-local weights to UeSchedInfo before sort */
+        for (auto* ue : m_ueStatHeap) {
+            auto wit = m_ueSchedulingWeight.find(ue->m_rnti);
+            if (wit != m_ueSchedulingWeight.end()) ue->m_qosWeight = wit->second;
+            else ue->m_qosWeight = 1.0;
+        }
         std::sort(m_ueStatHeap.begin(),
                   m_ueStatHeap.end(),
                   MmWaveFlexTtiPfMacScheduler::CompareUeWeightsPf);

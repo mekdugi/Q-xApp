@@ -509,7 +509,7 @@
     // History
     var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
     var energyHistory = { 2: [], 3: [], 4: [] };
-    var MAX_HISTORY = 301;
+    var MAX_HISTORY = 100; /* ~15 rounds × ~7s/round at 1s poll */
 
     function pushHistory(histObj, id, value) {
         if (!histObj[id]) histObj[id] = [];
@@ -593,52 +593,20 @@
         myChart.update();
     }
 
-    /* Gate: don't start recording throughput until ALL UEs have non-zero data */
-    var _allUeReady = false;
-
     function updateKPIs(data) {
-        if (data.ues && !_allUeReady) {
-            var allNonZero = data.ues.length >= 4;
-            data.ues.forEach(function(ue) {
-                if (((ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0) < 0.1) allNonZero = false;
-            });
-            if (allNonZero) _allUeReady = true;
-        }
         if (data.ues) {
             data.ues.forEach(function(ue, i) {
                 var uid = ue.ue_id || (i + 1);
                 var tput = (ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0;
-                if (!_allUeReady) return; /* skip recording until all UEs have data */
-                if (tput === 0 && sinrHistory[uid] && sinrHistory[uid].length > 0) {
-                    /* Check if UE's serving cell is sleeping (NES) */
-                    var servCell = (uid in qxappAssign) ? qxappAssign[uid] : (ue.MMWave_Cell || 0);
-                    var cellSleeping = qxappData && qxappData.cell_energy &&
-                        (qxappData.cell_energy[servCell] === 0 || qxappData.cell_energy[String(servCell)] === 0);
-                    if (cellSleeping) {
-                        /* Cell is sleeping: show 0 immediately */
-                    } else {
-                        /* KPM timing artifact: hold previous value for 1 poll */
-                        if (!window._zeroCount) window._zeroCount = {};
-                        window._zeroCount[uid] = (window._zeroCount[uid] || 0) + 1;
-                        if (window._zeroCount[uid] < 2) {
-                            tput = sinrHistory[uid][sinrHistory[uid].length - 1];
-                        }
-                    }
-                } else {
-                    if (window._zeroCount) window._zeroCount[uid] = 0;
-                }
                 pushHistory(sinrHistory, uid, tput);
             });
         }
-        if (data.cells) {
-            data.cells.forEach(function(cell, i) {
-                var cid = cell.cell_id || (i + 1);
-                if (cid >= 2 && cid <= 4) {
-                    var cellEnergy = (qxappData && qxappData.cell_energy && (qxappData.cell_energy[cid] || qxappData.cell_energy[String(cid)])) || 0;
-                    pushHistory(energyHistory, cid, cellEnergy);
-                }
-            });
-        }
+        /* Push energy from qxappData directly for fixed cell IDs */
+        [2, 3, 4].forEach(function(cid) {
+            var cellEnergy = (qxappData && qxappData.cell_energy && (qxappData.cell_energy[cid] || qxappData.cell_energy[String(cid)])) || 0;
+            if (cellEnergy > 300) cellEnergy = 300; /* clamp initial spike from delta calculation */
+            pushHistory(energyHistory, cid, cellEnergy);
+        });
 
         // Update SINR chart (per UE)
         [1,2,3,4].forEach(function(uid, idx) {
@@ -650,7 +618,10 @@
             energyChart.data.datasets[idx].data = energyHistory[cid] || [];
         });
 
-        var maxLen = Math.max.apply(null, Object.keys(sinrHistory).map(function(k) { return sinrHistory[k].length; }).concat([1]));
+        var maxLen = Math.max.apply(null,
+            Object.keys(sinrHistory).map(function(k) { return sinrHistory[k].length; })
+            .concat(Object.keys(energyHistory).map(function(k) { return energyHistory[k].length; }))
+            .concat([1]));
         var labels = Array.from({length: maxLen}, function(_, i) { return i; });
         sinrChart.data.labels = labels; sinrChart.update();
         energyChart.data.labels = labels; energyChart.update();

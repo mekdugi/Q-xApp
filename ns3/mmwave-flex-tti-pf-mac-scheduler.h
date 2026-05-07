@@ -35,6 +35,8 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
     static void ClearUeHandoverPending(uint16_t cellId, uint16_t rnti);
     static bool IsUeHandoverPending(uint16_t cellId, uint16_t rnti);
     static std::map<uint16_t, std::set<uint16_t>> s_handoverPendingRntis;
+    /* s_ueWeightsForComparator removed: RNTI is per-cell, static map causes cross-cell collision.
+       Weight is now stored in UeSchedInfo::m_qosWeight (instance-local). */
     typedef std::vector<uint8_t> DlHarqProcessesStatus_t;
     typedef std::vector<uint8_t> DlHarqProcessesTimer_t;
     typedef std::vector<DciInfoElementTdma> DlHarqProcessesDciInfoList_t;
@@ -155,7 +157,8 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
               m_currTputUl(0.0),
               m_totBufDl(0),
               m_totBufUl(0),
-              m_allocUlLast(false)
+              m_allocUlLast(false),
+              m_qosWeight(1.0)
         {
         }
 
@@ -183,7 +186,8 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
               m_currTputUl(0.0),
               m_totBufDl(0),
               m_totBufUl(0),
-              m_allocUlLast(false)
+              m_allocUlLast(false),
+              m_qosWeight(1.0)
         {
         }
 
@@ -214,14 +218,15 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
         uint32_t m_totBufDl;
         uint32_t m_totBufUl;
         bool m_allocUlLast;
+        double m_qosWeight; // xApp scheduling weight for PF comparator
     };
 
     static bool CompareUeWeightsPf(UeSchedInfo* lue, UeSchedInfo* rue)
     {
-        double lPfMetric = std::max(lue->m_currTputDl, lue->m_currTputUl) /
-                           std::max(1E-9, (lue->m_avgTputDl + lue->m_avgTputDl));
-        double rPfMetric = std::max(rue->m_currTputDl, rue->m_currTputUl) /
-                           std::max(1E-9, (rue->m_avgTputDl + rue->m_avgTputDl));
+        double lPfMetric = lue->m_qosWeight * std::max(lue->m_currTputDl, lue->m_currTputUl) /
+                           std::max(1E-9, (lue->m_avgTputDl + lue->m_avgTputUl));
+        double rPfMetric = rue->m_qosWeight * std::max(rue->m_currTputDl, rue->m_currTputUl) /
+                           std::max(1E-9, (rue->m_avgTputDl + rue->m_avgTputUl));
         return (lPfMetric > rPfMetric);
     }
 
