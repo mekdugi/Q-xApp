@@ -466,17 +466,21 @@ static void read_mode(char *mode_buf, size_t buf_sz)
 }
 
 /* Auto mode: round-based TS → QoS-RA → NES cycling */
-#define AUTO_TS_ROUNDS   10
-#define AUTO_QOS_ROUNDS  30
-#define AUTO_NES_ROUNDS  20
+#define AUTO_TS_ROUNDS   3
+#define AUTO_QOS_ROUNDS  7
+#define AUTO_NES_ROUNDS  10
 #define AUTO_TOTAL_ROUNDS (AUTO_TS_ROUNDS + AUTO_QOS_ROUNDS + AUTO_NES_ROUNDS)
 
 static void auto_resolve_mode(int round, char *effective, size_t sz)
 {
-  int r = ((round - 1) % AUTO_TOTAL_ROUNDS) + 1;
-  if (r <= AUTO_TS_ROUNDS)
+  /* Single cycle: TS -> QoS -> NES -> stay on TS (no repeat) */
+  if (round > AUTO_TOTAL_ROUNDS) {
     strncpy(effective, "ts", sz);
-  else if (r <= AUTO_TS_ROUNDS + AUTO_QOS_ROUNDS)
+    return;
+  }
+  if (round <= AUTO_TS_ROUNDS)
+    strncpy(effective, "ts", sz);
+  else if (round <= AUTO_TS_ROUNDS + AUTO_QOS_ROUNDS)
     strncpy(effective, "qos", sz);
   else
     strncpy(effective, "nes", sz);
@@ -607,9 +611,29 @@ static void output_interpreter(const char *mode,
 {
   printf("[Q-xApp] --- Stage 3: Output Interpreter ---\n");
 
-  /* Send handover commands (RC style=3) for changed UEs */
+  static int ho_sent[NUM_UE] = {0};
+  static int sleep_sent = 0; /* Phase 5: only send sleep once per NES cycle */
+  /* RC HO only in NES mode, only for UEs on sleeping cells */
+  if (strcmp(mode, "nes") != 0) {
+    printf("[Q-xApp] Skipping RC HO (not NES mode)\n");
+    for (int i=0;i<NUM_UE;i++) ho_sent[i]=0;
+    sleep_sent = 0;
+    goto skip_ho;
+  }
   for (int u = 0; u < NUM_UE; u++) {
     int new_cell_idx = assignment[u];
+    /* NES: only send HO for UEs currently on a sleeping cell */
+    int ue_on_sleep = 0;
+    for (int s = 0; s < n_sleep; s++) {
+      if (prev_assignment[u] >= 0 && CELL_IDS[prev_assignment[u]] == sleep_cells[s]) {
+        ue_on_sleep = 1; break;
+      }
+    }
+    if (!ue_on_sleep) {
+      printf("[Q-xApp] UE %d not on sleeping cell, skip HO\n", u);
+      continue;
+    }
+    if (ho_sent[u]) { printf("[Q-xApp] UE %d HO already sent, skip\n", u); continue; }
     if (new_cell_idx == prev_assignment[u]) {
       printf("[Q-xApp] UE %d already on %s, skip handover.\n", u, ORU_NAMES[new_cell_idx]);
       continue;
@@ -628,13 +652,48 @@ static void output_interpreter(const char *mode,
     printf("[Q-xApp] HO: UE %d (IMSI %lu) -> %s (char '%c')\n",
            u, imsi, ORU_NAMES[new_cell_idx], target_cell_char);
 
-    for (size_t i = 1; i < nodes->len; i++) {
-      printf("[Q-xApp]   Sending HO to node[%zu] nb_id=%u\n", i, nodes->n[i].id.nb_id.nb_id);
-      control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rc_ctrl);
+    /* Send HO only to LTE anchor (smallest nb_id = Cell 1) */
+    {
+      size_t lte_idx = 0;
+      uint32_t min_id = UINT32_MAX;
+      for (size_t ii = 0; ii < nodes->len; ii++) {
+        if (nodes->n[ii].id.nb_id.nb_id < min_id) {
+          min_id = nodes->n[ii].id.nb_id.nb_id;
+          lte_idx = ii;
+        }
+      }
+      printf("[Q-xApp]   Sending HO to LTE node[%zu] nb_id=%u\n", lte_idx, min_id);
+      control_sm_xapp_api(&nodes->n[lte_idx].id, SM_RC_ID, &rc_ctrl);
+      usleep(100000);
     }
 
     printf("[Q-xApp] HO latency for UE %d: %ld us\n", u, time_now_us() - st);
     free_rc_ctrl_req_data(&rc_ctrl);
+    ho_sent[u] = 1;
+    usleep(500000);
+  }
+skip_ho:
+
+  /* Phase 5: Wait for HO completion before sleep. Skip sleep if HO still pending. */
+  if (strcmp(mode, "nes") == 0) {
+    int ho_pending = 0;
+    for (int u = 0; u < NUM_UE; u++) {
+      /* Check if any UE on a sleeping cell has HO sent but not yet confirmed */
+      int on_sleep = 0;
+      for (int s = 0; s < n_sleep; s++) {
+        if (prev_assignment[u] >= 0 && CELL_IDS[prev_assignment[u]] == sleep_cells[s])
+          on_sleep = 1;
+      }
+      if (on_sleep && !ho_sent[u]) {
+        /* HO needed but not yet sent (shouldn't happen with gate, but safety) */
+        ho_pending = 1;
+      }
+    }
+    if (ho_pending) {
+      printf("[Q-xApp NES] HO still pending, defer sleep to next round\n");
+      goto skip_sleep;
+    }
+    /* HO either completed or not needed — brief wait for ns-3 to process */
     usleep(500000);
   }
 
@@ -662,8 +721,9 @@ static void output_interpreter(const char *mode,
                u, imsi, drb_act_id);
       }
 
-      for (size_t i = 1; i < nodes->len; i++) {
+      for (size_t i = 0; i < nodes->len; i++) {
         control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rc_ctrl);
+        usleep(100000);
       }
 
       free_rc_ctrl_req_data(&rc_ctrl);
@@ -672,7 +732,10 @@ static void output_interpreter(const char *mode,
   }
 
   /* NES mode: Wake non-sleep cells, then sleep selected cells (RC style=300) */
-  if (strcmp(mode, "nes") == 0) {
+  if (strcmp(mode, "nes") == 0 && sleep_sent) {
+    printf("[Q-xApp NES] Sleep already sent this cycle, skip\n");
+
+  } else if (strcmp(mode, "nes") == 0 && !sleep_sent) {
     /* Wake ALL cells that are NOT sleep targets */
     for (int c = 0; c < NUM_CELL; c++) {
       char wake_char = '0' + CELL_IDS[c];
@@ -684,8 +747,10 @@ static void output_interpreter(const char *mode,
       rc_ctrl_req_data_t wctrl = {0};
       wctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wid, 300, 2);
       wctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_char);
-      for (size_t i = 1; i < nodes->len; i++)
+      for (size_t i = 0; i < nodes->len; i++) {
         control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &wctrl);
+        usleep(100000);
+      }
       free_rc_ctrl_req_data(&wctrl);
     }
     /* Sleep selected cells */
@@ -702,19 +767,28 @@ static void output_interpreter(const char *mode,
       rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 300, 1);
       rc_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
 
-      for (size_t i = 1; i < nodes->len; i++) {
+      for (size_t i = 0; i < nodes->len; i++) {
         printf("[Q-xApp NES]   Sending Energy_state to node[%zu] nb_id=%u\n", i, nodes->n[i].id.nb_id.nb_id);
         control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rc_ctrl);
+        usleep(100000);
       }
 
       free_rc_ctrl_req_data(&rc_ctrl);
       usleep(200000);
     }
+    sleep_sent = 1;
+    printf("[Q-xApp NES] Sleep commands sent (will not repeat)\n");
   }
+skip_sleep:
 
-  /* Update prev_assignment */
-  for (int u = 0; u < NUM_UE; u++)
-    prev_assignment[u] = assignment[u];
+  /*
+   * In NES, keep retrying changed handovers until the next mode transition.
+   * The xApp only knows intended assignment here, not measured serving cell.
+   */
+  if (strcmp(mode, "nes") != 0) {
+    for (int u = 0; u < NUM_UE; u++)
+      prev_assignment[u] = assignment[u];
+  }
 }
 
 /* =========================================================================
@@ -739,7 +813,7 @@ int main(int argc, char *argv[])
     nodes = e2_nodes_xapp_api();
     if (nodes.len > 0) break;
     printf("[Q-xApp] Waiting for E2 nodes... (%d/30)\n", retry+1);
-    sleep(2);
+    sleep(3);
   }
   if (nodes.len == 0) { printf("[Q-xApp] No E2 nodes.\n"); return 1; }
   printf("[Q-xApp] Connected E2 nodes = %d\n", nodes.len);
@@ -748,6 +822,18 @@ int main(int argc, char *argv[])
     printf("[Q-xApp]   node[%zu] id.type=%d nb_id=%u\n",
            i, nodes.n[i].id.type, nodes.n[i].id.nb_id.nb_id);
   }
+
+  /* Find LTE anchor node (smallest nb_id = Cell 1) for HO commands */
+  size_t lte_node_idx = 0;
+  uint32_t min_nb_id = UINT32_MAX;
+  for (size_t ii = 0; ii < nodes.len; ii++) {
+    if (nodes.n[ii].id.nb_id.nb_id < min_nb_id) {
+      min_nb_id = nodes.n[ii].id.nb_id.nb_id;
+      lte_node_idx = ii;
+    }
+  }
+  printf("[Q-xApp] LTE anchor: node[%zu] nb_id=%u\n", lte_node_idx, min_nb_id);
+
 
   int prev_assignment[NUM_UE];
   for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
@@ -769,6 +855,30 @@ int main(int argc, char *argv[])
     if (is_auto) {
       auto_resolve_mode(round, mode, sizeof(mode));
       printf("[Q-xApp AUTO] Round %d -> effective mode: %s\n", round, mode);
+      /* After single cycle completes, wake sleeping cells once then idle */
+      if (round > AUTO_TOTAL_ROUNDS) {
+        static int wake_sent = 0;
+        if (!wake_sent) {
+          printf("[Q-xApp AUTO] Cycle complete. Sending wake for all cells...\n");
+          for (int c = 0; c < NUM_CELL; c++) {
+            char wake_char = '0' + CELL_IDS[c];
+            ue_id_e2sm_t wid = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
+            rc_ctrl_req_data_t wctrl = {0};
+            wctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wid, 300, 2);
+            wctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_char);
+            for (size_t ii = 0; ii < nodes.len; ii++) {
+              control_sm_xapp_api(&nodes.n[ii].id, SM_RC_ID, &wctrl);
+              usleep(100000);
+            }
+            free_rc_ctrl_req_data(&wctrl);
+          }
+          wake_sent = 1;
+          printf("[Q-xApp AUTO] Wake commands sent. Entering idle.\n");
+        }
+        printf("[Q-xApp AUTO] Idle (no RC messages).\n");
+        sleep(10);
+        continue;
+      }
     }
 
     /* Handle mode transitions */
@@ -782,8 +892,10 @@ int main(int argc, char *argv[])
         rc_ctrl_req_data_t rst_ctrl = {0};
         rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
         rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
-        for (size_t i = 1; i < nodes.len; i++)
+        for (size_t i = 0; i < nodes.len; i++) {
           control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rst_ctrl);
+          usleep(100000);
+        }
         free_rc_ctrl_req_data(&rst_ctrl);
       }
       } else if (strcmp(mode, "qos") == 0) {
@@ -796,8 +908,9 @@ int main(int argc, char *argv[])
           rc_ctrl_req_data_t wake_ctrl = {0};
           wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
           wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
-          for (size_t i = 1; i < nodes.len; i++) {
+          for (size_t i = 0; i < nodes.len; i++) {
             control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
+            usleep(100000);
           }
           free_rc_ctrl_req_data(&wake_ctrl);
           printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
@@ -812,8 +925,10 @@ int main(int argc, char *argv[])
           rc_ctrl_req_data_t rst_ctrl = {0};
           rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
           rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
-          for (size_t i = 1; i < nodes.len; i++)
+          for (size_t i = 0; i < nodes.len; i++) {
             control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rst_ctrl);
+            usleep(100000);
+          }
           free_rc_ctrl_req_data(&rst_ctrl);
         }
         /* Wake up ALL cells when switching to TS */
@@ -824,16 +939,23 @@ int main(int argc, char *argv[])
           rc_ctrl_req_data_t wake_ctrl = {0};
           wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
           wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
-          for (size_t i = 1; i < nodes.len; i++) {
+          for (size_t i = 0; i < nodes.len; i++) {
             control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
+            usleep(100000);
           }
           free_rc_ctrl_req_data(&wake_ctrl);
           printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
         }
       }
       strncpy(prev_mode, mode, sizeof(prev_mode));
-      /* Reset prev_assignment on mode change to force re-evaluation */
-      for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
+      /*
+       * Keep the previous TS/QoS serving assignment when entering NES.
+       * NES HO uses prev_assignment to identify UEs that are currently on
+       * the cell that will sleep; resetting it here makes every NES HO skip.
+       */
+      if (strcmp(mode, "nes") != 0) {
+        for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
+      }
     }
 
     printf("===== Q-xApp Round %d [mode=%s] =====\n", round, mode);
@@ -855,7 +977,7 @@ int main(int argc, char *argv[])
     output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
 
     printf("[Q-xApp] Round %d complete. [mode=%s]\n", round, mode);
-    sleep(5);
+    sleep(3);
   } /* end while loop */
 
   return 0;

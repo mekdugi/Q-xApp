@@ -32,6 +32,38 @@ namespace mmwave
 
 NS_OBJECT_ENSURE_REGISTERED(MmWaveFlexTtiPfMacScheduler);
 
+// Phase 3: static handover-pending RNTI set (per cell)
+std::map<uint16_t, std::set<uint16_t>> MmWaveFlexTtiPfMacScheduler::s_handoverPendingRntis;
+
+void
+MmWaveFlexTtiPfMacScheduler::MarkUeHandoverPending(uint16_t cellId, uint16_t rnti)
+{
+    s_handoverPendingRntis[cellId].insert(rnti);
+    NS_LOG_UNCOND("## SCHED-HO: MarkPending cellId=" << cellId << " rnti=" << rnti);
+}
+
+void
+MmWaveFlexTtiPfMacScheduler::ClearUeHandoverPending(uint16_t cellId, uint16_t rnti)
+{
+    auto it = s_handoverPendingRntis.find(cellId);
+    if (it != s_handoverPendingRntis.end())
+    {
+        it->second.erase(rnti);
+    }
+    NS_LOG_UNCOND("## SCHED-HO: ClearPending cellId=" << cellId << " rnti=" << rnti);
+}
+
+bool
+MmWaveFlexTtiPfMacScheduler::IsUeHandoverPending(uint16_t cellId, uint16_t rnti)
+{
+    auto it = s_handoverPendingRntis.find(cellId);
+    if (it != s_handoverPendingRntis.end())
+    {
+        return it->second.count(rnti) > 0;
+    }
+    return false;
+}
+
 class MmWaveFlexTtiPfMacCschedSapProvider : public MmWaveMacCschedSapProvider
 {
   public:
@@ -196,8 +228,24 @@ MmWaveFlexTtiPfMacScheduler::~MmWaveFlexTtiPfMacScheduler()
 void
 MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight(uint16_t rnti, double weight)
 {
+    auto prevIt = m_ueSchedulingWeight.find(rnti);
+    double prevWeight = (prevIt != m_ueSchedulingWeight.end()) ? prevIt->second : 1.0;
     m_ueSchedulingWeight[rnti] = weight;
     NS_LOG_UNCOND("[Scheduler] Set weight for RNTI=" << rnti << " to " << weight);
+
+    /* Reset PF average throughput only on actual mode transition (weight changing from non-1.0 to 1.0) */
+    {
+      if (weight == 1.0 && prevWeight != 1.0) {
+        auto it = m_ueSchedInfoMap.find(rnti);
+        if (it != m_ueSchedInfoMap.end()) {
+          it->second.m_avgTputDl = 0;
+          it->second.m_avgTputUl = 0;
+          it->second.m_lastAvgTputDl = 0;
+          it->second.m_lastAvgTputUl = 0;
+          NS_LOG_UNCOND("[Scheduler] Reset PF avg throughput for RNTI=" << rnti << " (prev weight=" << prevWeight << ")");
+        }
+      }
+    }
 
     // Log to CSV for verification
     static bool headerWritten = false;
@@ -614,6 +662,15 @@ MmWaveFlexTtiPfMacScheduler::RefreshHarqProcesses()
     for (itTimers = m_dlHarqProcessesTimer.begin(); itTimers != m_dlHarqProcessesTimer.end();
          itTimers++)
     {
+        // Phase 3: skip handover-pending RNTI in HARQ timer refresh
+        {
+            bool pending = false;
+            for (auto &kv : s_handoverPendingRntis)
+            {
+                if (kv.second.count((*itTimers).first) > 0) { pending = true; break; }
+            }
+            if (pending) continue;
+        }
         for (uint16_t i = 0; i < m_phyMacConfig->GetNumHarqProcess(); i++)
         {
             if ((*itTimers).second.at(i) == m_phyMacConfig->GetHarqTimeout())
@@ -623,8 +680,8 @@ MmWaveFlexTtiPfMacScheduler::RefreshHarqProcesses()
                     m_dlHarqProcessesStatus.find((*itTimers).first);
                 if (itStat == m_dlHarqProcessesStatus.end())
                 {
-                    NS_FATAL_ERROR("No Process Id Status found for this RNTI "
-                                   << (*itTimers).first);
+                    NS_LOG_UNCOND("## HARQ-DL-timer: missing state for RNTI " << (*itTimers).first << ", skip reset");
+                    continue;
                 }
                 (*itStat).second.at(i) = 0;
                 (*itTimers).second.at(i) = 0;
@@ -649,8 +706,8 @@ MmWaveFlexTtiPfMacScheduler::RefreshHarqProcesses()
                     m_ulHarqProcessesStatus.find((*itTimers2).first);
                 if (itStat == m_ulHarqProcessesStatus.end())
                 {
-                    NS_FATAL_ERROR("No Process Id Status found for this RNTI "
-                                   << (*itTimers2).first);
+                    NS_LOG_UNCOND("## HARQ-UL-timer: missing state for RNTI " << (*itTimers2).first << ", skip reset");
+                    continue;
                 }
                 (*itStat).second.at(i) = 0;
                 (*itTimers2).second.at(i) = 0;
@@ -684,7 +741,25 @@ MmWaveFlexTtiPfMacScheduler::UpdateDlHarqProcessId(uint16_t rnti)
         m_dlHarqProcessesStatus.find(rnti);
     if (itStat == m_dlHarqProcessesStatus.end())
     {
-        NS_FATAL_ERROR("No Process Id Statusfound for this RNTI " << rnti);
+        /* HO transient: HARQ state missing, initialize on the fly */
+        NS_LOG_UNCOND("## HARQ: auto-init missing state for RNTI " << rnti);
+        DlHarqProcessesStatus_t dlHarqPrcStatus;
+        dlHarqPrcStatus.resize(m_phyMacConfig->GetNumHarqProcess(), 0);
+        m_dlHarqProcessesStatus.insert(
+            std::pair<uint16_t, DlHarqProcessesStatus_t>(rnti, dlHarqPrcStatus));
+        DlHarqProcessesTimer_t dlHarqProcessesTimer;
+        dlHarqProcessesTimer.resize(m_phyMacConfig->GetNumHarqProcess(), 0);
+        m_dlHarqProcessesTimer.insert(
+            std::pair<uint16_t, DlHarqProcessesTimer_t>(rnti, dlHarqProcessesTimer));
+        DlHarqProcessesDciInfoList_t dlHarqTbInfoList;
+        dlHarqTbInfoList.resize(m_phyMacConfig->GetNumHarqProcess());
+        m_dlHarqProcessesDciInfoMap.insert(
+            std::pair<uint16_t, DlHarqProcessesDciInfoList_t>(rnti, dlHarqTbInfoList));
+        DlHarqRlcPduList_t dlHarqRlcPduList;
+        dlHarqRlcPduList.resize(m_phyMacConfig->GetNumHarqProcess());
+        m_dlHarqProcessesRlcPduMap.insert(
+            std::pair<uint16_t, DlHarqRlcPduList_t>(rnti, dlHarqRlcPduList));
+        itStat = m_dlHarqProcessesStatus.find(rnti);
     }
 
     // search for available process ID, if none available return numHarqProcess
@@ -740,7 +815,20 @@ MmWaveFlexTtiPfMacScheduler::UpdateUlHarqProcessId(uint16_t rnti)
         m_ulHarqProcessesStatus.find(rnti);
     if (itStat == m_ulHarqProcessesStatus.end())
     {
-        NS_FATAL_ERROR("No Process Id Statusfound for this RNTI " << rnti);
+        NS_LOG_UNCOND("## HARQ-UL: auto-init missing state for RNTI " << rnti);
+        UlHarqProcessesStatus_t ulHarqPrcStatus;
+        ulHarqPrcStatus.resize(m_phyMacConfig->GetNumHarqProcess(), 0);
+        m_ulHarqProcessesStatus.insert(
+            std::pair<uint16_t, UlHarqProcessesStatus_t>(rnti, ulHarqPrcStatus));
+        UlHarqProcessesTimer_t ulHarqProcessesTimer;
+        ulHarqProcessesTimer.resize(m_phyMacConfig->GetNumHarqProcess(), 0);
+        m_ulHarqProcessesTimer.insert(
+            std::pair<uint16_t, UlHarqProcessesTimer_t>(rnti, ulHarqProcessesTimer));
+        UlHarqProcessesDciInfoList_t ulHarqTbInfoList;
+        ulHarqTbInfoList.resize(m_phyMacConfig->GetNumHarqProcess());
+        m_ulHarqProcessesDciInfoMap.insert(
+            std::pair<uint16_t, UlHarqProcessesDciInfoList_t>(rnti, ulHarqTbInfoList));
+        itStat = m_ulHarqProcessesStatus.find(rnti);
     }
 
     // search for available process ID, if none available return numHarqProcess+1
@@ -907,13 +995,31 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
             }
             uint8_t harqId = m_dlHarqInfoList.at(i).m_harqProcessId;
             uint16_t rnti = m_dlHarqInfoList.at(i).m_rnti;
+            // Phase 3: skip handover-pending RNTI in DL HARQ retx
+            {
+                bool pending = false;
+                for (auto &kv : s_handoverPendingRntis)
+                {
+                    if (kv.second.count(rnti) > 0) { pending = true; break; }
+                }
+                if (pending)
+                {
+                    NS_LOG_UNCOND("## SCHED-HO: skip DL HARQ retx for pending rnti=" << rnti);
+                    continue;
+                }
+            }
             itUeSchedInfoMap = m_ueSchedInfoMap.find(rnti);
-            NS_ASSERT(itUeSchedInfoMap != m_ueSchedInfoMap.end());
+            if (itUeSchedInfoMap == m_ueSchedInfoMap.end())
+            {
+                NS_LOG_UNCOND("## SCHED-HO: skip DL HARQ retx, rnti=" << rnti << " not in ueSchedInfoMap");
+                continue;
+            }
             std::map<uint16_t, UlHarqProcessesStatus_t>::iterator itStat =
                 m_dlHarqProcessesStatus.find(rnti);
             if (itStat == m_dlHarqProcessesStatus.end())
             {
-                NS_FATAL_ERROR("No HARQ status info found for UE " << rnti);
+                NS_LOG_UNCOND("## SCHED-HO: skip DL HARQ retx, no status for rnti=" << rnti);
+                continue;
             }
             std::map<uint16_t, DlHarqRlcPduList_t>::iterator itRlcPdu =
                 m_dlHarqProcessesRlcPduMap.find(rnti);
@@ -1032,8 +1138,25 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
             UlHarqInfo harqInfo = m_ulHarqInfoList.at(i);
             uint8_t harqId = harqInfo.m_harqProcessId;
             uint16_t rnti = harqInfo.m_rnti;
+            // Phase 3: skip handover-pending RNTI in UL HARQ retx
+            {
+                bool pending = false;
+                for (auto &kv : s_handoverPendingRntis)
+                {
+                    if (kv.second.count(rnti) > 0) { pending = true; break; }
+                }
+                if (pending)
+                {
+                    NS_LOG_UNCOND("## SCHED-HO: skip UL HARQ retx for pending rnti=" << rnti);
+                    continue;
+                }
+            }
             itUeSchedInfoMap = m_ueSchedInfoMap.find(rnti);
-            NS_ASSERT(itUeSchedInfoMap != m_ueSchedInfoMap.end());
+            if (itUeSchedInfoMap == m_ueSchedInfoMap.end())
+            {
+                NS_LOG_UNCOND("## SCHED-HO: skip UL HARQ retx, rnti=" << rnti << " not in ueSchedInfoMap");
+                continue;
+            }
             std::map<uint16_t, UlHarqProcessesStatus_t>::iterator itStat =
                 m_ulHarqProcessesStatus.find(rnti);
             if (itStat == m_ulHarqProcessesStatus.end())
@@ -1154,6 +1277,18 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
          ueIt != m_ueSchedInfoMap.end();
          ueIt++)
     {
+        // Phase 3: skip handover-pending RNTI in new-data scheduling
+        {
+            bool pending = false;
+            for (auto &kv : s_handoverPendingRntis)
+            {
+                if (kv.second.count(ueIt->first) > 0) { pending = true; break; }
+            }
+            if (pending)
+            {
+                continue;
+            }
+        }
         UeSchedInfo* ueInfo = &ueIt->second;
 
         // get DL-CQI and compute DL rate per symbol
@@ -2025,6 +2160,12 @@ MmWaveFlexTtiPfMacScheduler::DoCschedUeReleaseReq(
     const struct MmWaveMacCschedSapProvider::CschedUeReleaseReqParameters& params)
 {
     NS_LOG_FUNCTION(this << " Release RNTI " << params.m_rnti);
+
+    // Phase 3: clear handover-pending state on release
+    for (auto &kv : s_handoverPendingRntis)
+    {
+        kv.second.erase(params.m_rnti);
+    }
 
     // m_dlHarqCurrentProcessId.erase (params.m_rnti);
     m_dlHarqProcessesStatus.erase(params.m_rnti);

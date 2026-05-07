@@ -29,6 +29,12 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
 {
   public:
     void SetUeSchedulingWeight(uint16_t rnti, double weight);
+
+    // Phase 3: Handover-pending RNTI management (static, accessible from RRC)
+    static void MarkUeHandoverPending(uint16_t cellId, uint16_t rnti);
+    static void ClearUeHandoverPending(uint16_t cellId, uint16_t rnti);
+    static bool IsUeHandoverPending(uint16_t cellId, uint16_t rnti);
+    static std::map<uint16_t, std::set<uint16_t>> s_handoverPendingRntis;
     typedef std::vector<uint8_t> DlHarqProcessesStatus_t;
     typedef std::vector<uint8_t> DlHarqProcessesTimer_t;
     typedef std::vector<DciInfoElementTdma> DlHarqProcessesDciInfoList_t;
