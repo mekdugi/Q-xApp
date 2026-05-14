@@ -384,6 +384,7 @@ static void read_cell_energy(void)
   energy_initialized = 1;
 }
 
+static int g_current_round = 0;
 /* write result JSON with mode info */
 static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
                                       const char *mode,
@@ -394,6 +395,7 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
   fprintf(fp, "{\n");
   fprintf(fp, "  \"mode\": \"%s\",\n", mode);
   fprintf(fp, "  \"timestamp\": %ld,\n", (long)time(NULL));
+  fprintf(fp, "  \"round\": %d,\n", g_current_round);
   fprintf(fp, "  \"total_rate_bps_hz\": %.4f,\n", total_rate);
   if (strcmp(mode, "nes") == 0) {
     fprintf(fp, "  \"active_cells\": %d,\n", active_cells);
@@ -847,14 +849,16 @@ int main(int argc, char *argv[])
 
   int prev_assignment[NUM_UE];
   for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
-  int round = 0;
+  
   char prev_mode[32] = "";
 
   /* Initialize DRB assignments */
   for (int u = 0; u < NUM_UE; u++) ue_drb_assignment[u] = -1;
 
+  int round = 0;
   while (1) {
     round++;
+    g_current_round = round;
 
     /* Read current mode */
     char mode[32];
@@ -899,47 +903,9 @@ int main(int argc, char *argv[])
           int no_sleep[1] = {0};
           write_result_json_unified(idle_assignment, 0.0, "ts", NUM_CELL, no_sleep, 0);
         }
-        /* Reset round and gates for next cycle */
-        round = 0;
-        for (int i = 0; i < NUM_UE; i++) ho_sent[i] = 0;
-        sleep_sent = 0;
-        qos_sent = 0;
-        /* Reset all scheduler weights to 1.0 */
-        printf("[Q-xApp AUTO] Resetting scheduler weights for new cycle...\n");
-        for (int u = 0; u < NUM_UE; u++) {
-          uint64_t imsi = (uint64_t)(u + 1);
-          ue_id_e2sm_t rst_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
-          rc_ctrl_req_data_t rst_ctrl = {0};
-          rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
-          rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
-          for (size_t ii = 0; ii < nodes.len; ii++) {
-            control_sm_xapp_api(&nodes.n[ii].id, SM_RC_ID, &rst_ctrl);
-            usleep(100000);
-          }
-          free_rc_ctrl_req_data(&rst_ctrl);
-        }
-        /* Return UE2 (IMSI2) to O-RU 2 (Cell 3) after wake */
-        printf("[Q-xApp AUTO] Sending return HO for IMSI2 -> Cell 3...\n");
-        {
-          ue_id_e2sm_t ho_ue = gen_rc_ue_id(GNB_UE_ID_E2SM, 2);
-          rc_ctrl_req_data_t ho_ctrl = {0};
-          ho_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ho_ue, 3, HANDOVER_CONTROL_7_6_4_1);
-          ho_ctrl.msg = gen_rc_ctrl_msg(FORMAT_1_E2SM_RC_CTRL_MSG, '3');
-          /* Send to LTE anchor (smallest nb_id) */
-          size_t lte_idx = 0;
-          uint32_t min_id = UINT32_MAX;
-          for (size_t ii = 0; ii < nodes.len; ii++) {
-            if (nodes.n[ii].id.nb_id.nb_id < min_id) { min_id = nodes.n[ii].id.nb_id.nb_id; lte_idx = ii; }
-          }
-          control_sm_xapp_api(&nodes.n[lte_idx].id, SM_RC_ID, &ho_ctrl);
-          usleep(100000);
-          free_rc_ctrl_req_data(&ho_ctrl);
-        }
-        sleep(3); /* wait for HO to complete */
-
-        /* Force prev_mode to empty so first TS round doesn't trigger transition */
-        prev_mode[0] = '\0';
-        printf("[Q-xApp AUTO] Restarting cycle from TS.\n");
+        /* Cycle complete — stay idle, don't repeat */
+        printf("[Q-xApp AUTO] Cycle complete. Charts frozen.\n");
+        sleep(10);
         continue;
       }
     }

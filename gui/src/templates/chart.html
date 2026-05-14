@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Q-xApp Simulation</title>
+    <title>Q-xApp Simulator</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
@@ -38,12 +38,12 @@
         .header-btn {
             background: #8B0000; color: white;
             padding: 6px 16px; border: none; border-radius: 4px;
-            cursor: pointer; font-size: 12px; font-weight: 600;
+            cursor: pointer; font-size: 15px; font-weight: 600;
         }
         .header-btn:hover { background: #a00000; }
         #header-right { display: flex; align-items: center; gap: 15px; }
         #header-right .logo-text {
-            font-size: 12px; font-weight: bold; color: #003366;
+            font-size: 15px; font-weight: bold; color: #003366;
             text-align: right; line-height: 1.2;
         }
         #form-container {
@@ -74,7 +74,7 @@
             display: flex; gap: 10px; align-items: flex-start;
         }
         #grid-panel {
-            width: 580px; display: flex; flex-direction: column;
+            width: 460px; display: flex; flex-direction: column;
             border: 1px solid #ddd; border-radius: 8px;
             padding: 10px; background: #fff; flex-shrink: 0;
         }
@@ -82,11 +82,20 @@
         #grid-chart-container { position: relative; width: 100%; margin: 0 auto; }
         #grid-chart-container canvas { }
         .grid-legend {
-            display: flex; justify-content: center; gap: 15px;
-            padding: 5px; font-size: 12px; flex-wrap: wrap;
+            display: flex; justify-content: center; gap: 8px;
+            padding: 1px 6px; font-size: 18px; font-weight: normal; flex-wrap: wrap;
+            border: 1px solid #bbb; border-radius: 4px; background: #fafafa;
+            width: fit-content; margin: 3px auto 0;
         }
-        .grid-legend-item { display: flex; align-items: center; gap: 4px; }
+        .grid-legend-item { display: flex; align-items: center; gap: 3px; }
         .grid-legend-color { width: 14px; height: 14px; display: inline-block; }
+        .chart-header {
+            display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 3px;
+        }
+        .chart-title { font-size: 20px; font-weight: 700; color: #333; }
+        .chart-legend ul { display: flex; align-items: center; gap: 10px; margin: 0; padding: 3px 10px; list-style: none;
+            border: 1.5px solid #bbb; border-radius: 5px; background: #fafafa; }
+        .chart-legend li { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 18px; }
         #kpi-panel {
             flex: 1; display: flex; flex-direction: column; gap: 8px;
         }
@@ -112,7 +121,7 @@
             <img src="/static/korea_univ.png" alt="Korea University" style="height: 50px;">
         </div>
         <div id="header-center">
-            <h1>Q-xApp Simulation</h1>
+            <h1>Q-xApp Simulator</h1>
             <div class="header-buttons">
 
 
@@ -206,7 +215,7 @@
 
     <div id="sim-info-bar" style="display:flex; flex-direction:column; padding:8px 20px; font-size:13px; color:#333; border-bottom:2px solid #8B0000; gap:6px;">
         <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
-            <span style="font-weight:700; color:#333;">Network Settings</span>
+            <span style="font-weight:700; color:#333; font-size:18px;">Network Settings</span>
             <span style="color:#999;">|</span>
             <span>O-RU: 3 (mmWave)</span>
             <span>UE: 4</span>
@@ -216,7 +225,7 @@
             <span>ISD (Cell): 150 m</span>
         </div>
         <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
-            <span style="font-weight:700; color:white; background:#8B0000; padding:3px 10px; border-radius:4px;">A1 Policy Manager</span>
+            <span style="font-weight:700; color:white; background:#8B0000; padding:5px 12px; border-radius:4px; font-size:18px;">A1 Policy Manager</span>
             <label style="font-weight:600;">Use Case:
                 <select id="scenario-mode-bar" onchange="switchScenario(this.value)" style="font-size:13px; padding:3px 6px; margin-left:4px;">
                     <option value="ts">Traffic Steering</option>
@@ -225,7 +234,7 @@
                     <option value="auto">Auto (TS → QoS → NES)</option>
                 </select>
             </label>
-            <label id="ts-maxue-bar">Max UE/Cell: <select id="maxue-select" onchange="updateA1Policy()" style="font-size:12px;"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
+            <label id="ts-maxue-bar">Max UE/Cell: <select id="maxue-select" onchange="updateA1Policy()" style="font-size:15px;"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option></select></label>
             <span id="sleep-oru-bar" style="display:none;">
                 Sleep O-RU:
                 <label><input type="radio" name="sleep-oru-bar" value="2" onchange="updateSleepConfig()"> O-RU 1</label>
@@ -234,10 +243,10 @@
             </span>
             <span id="qos-config-bar" style="display:none;">
                 5QI:
-                <label>UE1:<select id="qos-ue-bar-1" onchange="updateQosConfig()" style="font-size:12px;"><option value="2" selected>2</option><option value="4">4</option><option value="7">7</option><option value="9">9</option></select></label>
-                <label>UE2:<select id="qos-ue-bar-2" onchange="updateQosConfig()" style="font-size:12px;"><option value="2">2</option><option value="4" selected>4</option><option value="7">7</option><option value="9">9</option></select></label>
-                <label>UE3:<select id="qos-ue-bar-3" onchange="updateQosConfig()" style="font-size:12px;"><option value="2">2</option><option value="4">4</option><option value="7" selected>7</option><option value="9">9</option></select></label>
-                <label>UE4:<select id="qos-ue-bar-4" onchange="updateQosConfig()" style="font-size:12px;"><option value="2">2</option><option value="4">4</option><option value="7">7</option><option value="9" selected>9</option></select></label>
+                <label>UE1:<select id="qos-ue-bar-1" onchange="updateQosConfig()" style="font-size:15px;"><option value="2" selected>2</option><option value="4">4</option><option value="7">7</option><option value="9">9</option></select></label>
+                <label>UE2:<select id="qos-ue-bar-2" onchange="updateQosConfig()" style="font-size:15px;"><option value="2">2</option><option value="4" selected>4</option><option value="7">7</option><option value="9">9</option></select></label>
+                <label>UE3:<select id="qos-ue-bar-3" onchange="updateQosConfig()" style="font-size:15px;"><option value="2">2</option><option value="4">4</option><option value="7" selected>7</option><option value="9">9</option></select></label>
+                <label>UE4:<select id="qos-ue-bar-4" onchange="updateQosConfig()" style="font-size:15px;"><option value="2">2</option><option value="4">4</option><option value="7">7</option><option value="9" selected>9</option></select></label>
             </span>
         </div>
     </div>
@@ -269,10 +278,16 @@
 
         <div id="kpi-panel">
             <div class="kpi-row">
-                <div class="kpi-chart-box"><canvas id="sinr-chart"></canvas></div>
+                <div class="kpi-chart-box">
+                    <div class="chart-header"><span class="chart-title">Throughput</span><div id="sinr-legend" class="chart-legend"></div></div>
+                    <canvas id="sinr-chart"></canvas>
+                </div>
             </div>
             <div class="kpi-row">
-                <div class="kpi-chart-box"><canvas id="energy-chart"></canvas></div>
+                <div class="kpi-chart-box">
+                    <div class="chart-header"><span class="chart-title">Cell Power</span><div id="energy-legend" class="chart-legend"></div></div>
+                    <canvas id="energy-chart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -407,9 +422,9 @@
             datasets: [
                 {
                     label: 'UEs', data: [], backgroundColor: [],
-                    borderWidth: 1, pointRadius: 6, pointStyle: 'circle',
+                    borderWidth: 2, pointRadius: 8, pointStyle: 'circle',
                     datalabels: {
-                        align: 'top', color: '#333', font: { size: 10 },
+                        align: 'top', color: '#333', font: { size: 14 },
                         formatter: function(value) {
                             var label = 'UE ' + (value.ue_id || '');
                             if (currentScenario === 'qos' && qxappData && qxappData.drb_assignment) {
@@ -423,9 +438,9 @@
                 },
                 {
                     label: 'Cells', data: [], backgroundColor: [],
-                    borderWidth: 1, pointRadius: 18, pointStyle: 'triangle',
+                    borderWidth: 2, pointRadius: 22, pointStyle: 'triangle',
                     datalabels: {
-                        align: 'top', color: '#8B0000', font: { size: 10, weight: 'bold' },
+                        align: 'top', color: '#333', font: { size: 14 },
                         formatter: function(value) {
                             return value.bs_label || 'O-RU';
                         }, offset: 12
@@ -438,15 +453,15 @@
             animation: false,
             scales: {
                 x: { type: 'linear', position: 'bottom', min: 0, max: 500,
-                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333' }
+                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333', font: { size: 13 } }
                 },
                 y: { min: 0, max: 500,
-                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333' }
+                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333', font: { size: 13 } }
                 }
             },
             plugins: {
                 legend: { display: false },
-                title: { display: true, text: 'Simulation Grid', color: '#333', font: { size: 16 } },
+                title: { display: true, text: 'Simulation Grid', color: '#333', font: { size: 20, weight: 'bold' } },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -467,49 +482,84 @@
     });
 
     // KPI chart factory
-    function createLineChart(canvasId, title, yLabel, datasets) {
+    /* HTML Legend Plugin */
+    function getOrCreateLegendList(id) {
+        var c = document.getElementById(id);
+        var ul = c.querySelector('ul');
+        if (!ul) { ul = document.createElement('ul'); c.appendChild(ul); }
+        return ul;
+    }
+    var htmlLegendPlugin = {
+        id: 'htmlLegend',
+        afterUpdate: function(chart, args, options) {
+            if (!options.containerID) return;
+            var ul = getOrCreateLegendList(options.containerID);
+            while (ul.firstChild) ul.firstChild.remove();
+            var items = chart.options.plugins.legend.labels.generateLabels(chart);
+            items.forEach(function(item) {
+                var li = document.createElement('li');
+                li.onclick = function() { chart.setDatasetVisibility(item.datasetIndex, !chart.isDatasetVisible(item.datasetIndex)); chart.update(); };
+                var ds = chart.data.datasets[item.datasetIndex];
+                var ps = ds.pointStyle || 'circle';
+                var color = item.strokeStyle || item.fillStyle;
+                var box = document.createElement('span');
+                box.style.cssText = 'display:inline-block;width:8px;height:8px;background:'+color+';border-radius:50%;';
+                if (ps === 'rect') box.style.borderRadius = '1px';
+                else if (ps === 'triangle') { box.style.cssText = 'display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid '+color+';background:transparent;'; }
+                else if (ps === 'star') { box.style.cssText = 'display:inline-block;width:8px;height:8px;background:'+color+';clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);'; }
+                var txt = document.createElement('span');
+                txt.textContent = item.text;
+                txt.style.textDecoration = item.hidden ? 'line-through' : '';
+                li.appendChild(box); li.appendChild(txt); ul.appendChild(li);
+            });
+        }
+    };
+
+    function createLineChart(canvasId, title, yLabel, datasets, legendContainerId) {
         var c = document.getElementById(canvasId).getContext('2d');
         return new Chart(c, {
             type: 'line',
-            data: { labels: Array.from({length: 51}, function(_, i) { return -50 + i; }), datasets: datasets || [] },
+            data: { labels: [], datasets: datasets || [] },
             options: {
-                responsive: true, maintainAspectRatio: false, animation: false,
+                responsive: true, maintainAspectRatio: false, animation: false, spanGaps: false,
                 scales: {
                     x: {
-                        title: { display: true, text: 'Timeline', color: '#666', font: { size: 11 } },
-                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#666', font: { size: 9 }, maxTicksLimit: 10, autoSkip: true }
+                        title: { display: true, text: 'Timeline', color: '#444', font: { size: 16, weight: 'bold' } },
+                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#444', font: { size: 14 }, maxTicksLimit: 5, autoSkip: true }
                     },
                     y: {
-                        title: { display: true, text: yLabel, color: '#666', font: { size: 11 } },
+                        title: { display: true, text: yLabel, color: '#444', font: { size: 16, weight: 'bold' } },
                         beginAtZero: true,
-                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#666', font: { size: 9 } }
+                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#444', font: { size: 14 } }
                     }
                 },
                 plugins: {
-                    legend: { display: true, position: 'top', labels: { color: '#333', font: { size: 10 }, usePointStyle: true, boxWidth: 8 } },
-                    title: { display: true, text: title, color: '#333', font: { size: 14 } },
+                    legend: { display: false },
+                    title: { display: false },
+                    htmlLegend: { containerID: legendContainerId },
                     datalabels: { display: false }
                 }
             },
-            plugins: [ChartDataLabels]
+            plugins: [ChartDataLabels, htmlLegendPlugin]
         });
     }
 
     var sinrChart = createLineChart('sinr-chart', 'Throughput', 'Mbps', [
-        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 2, fill: false, pointRadius: 0 }
-    ]);
-    var energyChart = createLineChart('energy-chart', 'Cell Power (W)', 'Power (W)', [
-        { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 2, fill: false, pointRadius: 0 },
-        { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 2, fill: false, pointRadius: 0 }
-    ]);
+        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'circle', borderDash: [] },
+        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'rect', borderDash: [8, 4] },
+        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'triangle', borderDash: [2, 3] },
+        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'star', borderDash: [10, 3, 2, 3] }
+    ], 'sinr-legend');
+    var energyChart = createLineChart('energy-chart', 'Cell Power', 'W', [
+        { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 3, fill: false, pointRadius: 0 },
+        { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 3, fill: false, pointRadius: 0 },
+        { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 3, fill: false, pointRadius: 0 }
+    ], 'energy-legend');
     // History
     var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
     var energyHistory = { 2: [], 3: [], 4: [] };
-    var MAX_HISTORY = 100; /* ~15 rounds × ~7s/round at 1s poll */
+    var MAX_HISTORY = 999; /* no cap — reset on cycle restart */
+    var _prevRound = -1;
 
     function pushHistory(histObj, id, value) {
         if (!histObj[id]) histObj[id] = [];
@@ -536,8 +586,21 @@
             var data = results[0];
             qxappData = results[1];
             if (!data) return;
+            /* Cycle management */
+            if (qxappData && qxappData.round !== undefined) {
+                /* Reset history on cycle restart (round drops) */
+                if (_prevRound > 0 && qxappData.round < _prevRound) {
+                    sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
+                    energyHistory = { 2: [], 3: [], 4: [] };
+                }
+                _prevRound = qxappData.round;
+            }
             updateGrid(data);
-            updateKPIs(data);
+            /* Freeze charts after cycle ends (mode=ts + round > total rounds) */
+            var cycleEnded = qxappData && qxappData.mode === 'ts' && qxappData.round > 18 && _prevRound > 18;
+            if (!cycleEnded) {
+                updateKPIs(data);
+            }
         }).catch(function(e) { console.log('Fetch error:', e); });
     }
 
@@ -612,19 +675,20 @@
         [1,2,3,4].forEach(function(uid, idx) {
             sinrChart.data.datasets[idx].data = sinrHistory[uid] || [];
         });
-
-        // Update PRB chart (per Cell, mmWave only)
+        // Update energy chart (per Cell)
         [2,3,4].forEach(function(cid, idx) {
             energyChart.data.datasets[idx].data = energyHistory[cid] || [];
         });
-
+        // Labels match data length
         var maxLen = Math.max.apply(null,
             Object.keys(sinrHistory).map(function(k) { return sinrHistory[k].length; })
             .concat(Object.keys(energyHistory).map(function(k) { return energyHistory[k].length; }))
             .concat([1]));
         var labels = Array.from({length: maxLen}, function(_, i) { return i; });
-        sinrChart.data.labels = labels; sinrChart.update();
-        energyChart.data.labels = labels; energyChart.update();
+        sinrChart.data.labels = labels;
+        energyChart.data.labels = labels;
+        sinrChart.update();
+        energyChart.update();
     }
 
 
@@ -712,7 +776,7 @@
         currentScenario = d.mode;
         switchScenario(d.mode);
     });
-    setInterval(fetchData, 1000);
+    setInterval(fetchData, 3000);
 </script>
 </body>
 </html>
