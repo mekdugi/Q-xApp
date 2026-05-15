@@ -14,6 +14,7 @@
 #include "mmwave-mac-scheduler.h"
 #include "string"
 
+#include <cmath>
 #include <functional>
 #include <queue>
 #include <set>
@@ -158,7 +159,8 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
               m_totBufDl(0),
               m_totBufUl(0),
               m_allocUlLast(false),
-              m_qosWeight(1.0)
+              m_qosWeight(1.0),
+              m_qosDlCredit(0.0)
         {
         }
 
@@ -187,7 +189,8 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
               m_totBufDl(0),
               m_totBufUl(0),
               m_allocUlLast(false),
-              m_qosWeight(1.0)
+              m_qosWeight(1.0),
+              m_qosDlCredit(0.0)
         {
         }
 
@@ -219,13 +222,26 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
         uint32_t m_totBufUl;
         bool m_allocUlLast;
         double m_qosWeight; // xApp scheduling weight for PF comparator
+        double m_qosDlCredit; // multi-slot deficit credit
     };
 
     static bool CompareUeWeightsPf(UeSchedInfo* lue, UeSchedInfo* rue)
     {
-        double lPfMetric = lue->m_qosWeight * std::max(lue->m_currTputDl, lue->m_currTputUl) /
+        // When QoS credit is active, credit is the primary ordering signal
+        bool qosCreditActive =
+            (lue->m_qosWeight != 1.0 || rue->m_qosWeight != 1.0 ||
+             std::abs(lue->m_qosDlCredit) > 1e-6 ||
+             std::abs(rue->m_qosDlCredit) > 1e-6);
+
+        if (qosCreditActive &&
+            std::abs(lue->m_qosDlCredit - rue->m_qosDlCredit) > 1e-6) {
+            return lue->m_qosDlCredit > rue->m_qosDlCredit;
+        }
+
+        // Tie-breaker: unweighted PF metric (credit already encodes QoS weight)
+        double lPfMetric = std::max(lue->m_currTputDl, lue->m_currTputUl) /
                            std::max(1E-9, (lue->m_avgTputDl + lue->m_avgTputUl));
-        double rPfMetric = rue->m_qosWeight * std::max(rue->m_currTputDl, rue->m_currTputUl) /
+        double rPfMetric = std::max(rue->m_currTputDl, rue->m_currTputUl) /
                            std::max(1E-9, (rue->m_avgTputDl + rue->m_avgTputUl));
         return (lPfMetric > rPfMetric);
     }

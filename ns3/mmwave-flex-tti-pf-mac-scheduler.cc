@@ -247,7 +247,8 @@ MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight(uint16_t rnti, double weight)
           it->second.m_avgTputUl = 0;
           it->second.m_lastAvgTputDl = 0;
           it->second.m_lastAvgTputUl = 0;
-          NS_LOG_UNCOND("[Scheduler] Reset PF avg throughput for RNTI=" << rnti << " (prev weight=" << prevWeight << ")");
+          it->second.m_qosDlCredit = 0.0; // Reset credit on QoS exit
+          NS_LOG_UNCOND("[Scheduler] Reset PF avg throughput + credit for RNTI=" << rnti << " (prev weight=" << prevWeight << ")");
         }
       }
     }
@@ -1381,12 +1382,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                     m_amc->CalculateTbSize(ueInfo->m_ulMcs, 1) * 8; // Bytes -> Bits
                 ueInfo->m_currTputUl = std::min(ueInfo->m_totBufUl, tbSizeMax) /
                                        (m_phyMacConfig->GetSlotPeriod().GetSeconds());
-                // Apply xApp scheduling weight to UL
-                {
-                    auto wit = m_ueSchedulingWeight.find(ueInfo->m_rnti);
-                    if (wit != m_ueSchedulingWeight.end())
-                        ueInfo->m_currTputUl *= wit->second;
-                }
+                /* UL weight removed — applied in comparator via m_qosWeight */
                 if (!dlAdded)
                 {
                     m_ueStatHeap.push_back(ueInfo);
@@ -1408,15 +1404,44 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
     //<< std::endl;
     //  }
 
+    // Copy weights + accumulate multi-slot deficit credit ONCE before allocation loop
+    bool applyWeightedDlCredit = false;
+    {
+        for (auto* ue : m_ueStatHeap) {
+            ue->m_maxDlSymbols = 255; // unlimited (no per-slot cap)
+            auto wit = m_ueSchedulingWeight.find(ue->m_rnti);
+            if (wit != m_ueSchedulingWeight.end()) {
+                ue->m_qosWeight = wit->second;
+                if (wit->second != 1.0) applyWeightedDlCredit = true;
+            } else {
+                ue->m_qosWeight = 1.0;
+            }
+        }
+        // Accumulate credit for DL-backlogged UEs with non-default weight
+        if (!applyWeightedDlCredit) {
+            // All weights are 1.0: reset all credits to prevent leak into TS/NES
+            for (auto* ue : m_ueStatHeap) {
+                ue->m_qosDlCredit = 0.0;
+            }
+        }
+        if (applyWeightedDlCredit) {
+            for (auto* ue : m_ueStatHeap) {
+                if (ue->m_totBufDl > 0) {
+                    // Raw weight credit: w=4 adds 4, w=1 adds 1
+                    // DL symbol cost is 1.0 uniformly → natural 4:1 share
+                    ue->m_qosDlCredit += ue->m_qosWeight;
+                    if (ue->m_qosDlCredit > ue->m_qosWeight * 3.0)
+                        ue->m_qosDlCredit = ue->m_qosWeight * 3.0; // cap
+                } else {
+                    ue->m_qosDlCredit *= 0.9;
+                }
+            }
+        }
+    }
+
     // allocate each slot to UE with highest PF metric, then update PF metrics
     while (symAvail > 0)
     {
-        /* Copy instance-local weights to UeSchedInfo before sort */
-        for (auto* ue : m_ueStatHeap) {
-            auto wit = m_ueSchedulingWeight.find(ue->m_rnti);
-            if (wit != m_ueSchedulingWeight.end()) ue->m_qosWeight = wit->second;
-            else ue->m_qosWeight = 1.0;
-        }
         std::sort(m_ueStatHeap.begin(),
                   m_ueStatHeap.end(),
                   MmWaveFlexTtiPfMacScheduler::CompareUeWeightsPf);
@@ -1451,7 +1476,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 ueInfo->m_ulSymbols++;
                 symAvail--;
                 ueInfo->m_ulTbSize = m_amc->CalculateTbSize(ueInfo->m_ulMcs, ueInfo->m_ulSymbols);
-                if (ueInfo->m_ulTbSize >= ueInfo->m_totBufUl)
+                if (ueInfo->m_ulTbSize >= ueInfo->m_totBufUl )
                 {
                     ueInfo->m_ulAllocDone = true;
                     ueInfo->m_lastAvgTputUl = ueInfo->m_avgTputUl;
@@ -1470,6 +1495,23 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
             }
             else if (!ueInfo->m_dlAllocDone)
             {
+                // Eligibility gate: skip low-credit UE if any eligible UE exists
+                if (applyWeightedDlCredit && ueInfo->m_qosDlCredit < 1.0) {
+                    // Check if any other DL-backlogged UE has credit >= 1.0
+                    bool anyEligible = false;
+                    for (auto* other : m_ueStatHeap) {
+                        if (other != ueInfo && !other->m_dlAllocDone &&
+                            other->m_totBufDl > 0 && other->m_qosDlCredit >= 1.0) {
+                            anyEligible = true;
+                            break;
+                        }
+                    }
+                    if (anyEligible) {
+                        ueHeapIt++;
+                        continue; // skip this UE, don't mark dlAllocDone
+                    }
+                }
+
                 ueInfo->m_dlSymbols++;
                 symAvail--;
                 ueInfo->m_dlTbSize = m_amc->CalculateTbSize(ueInfo->m_dlMcs, ueInfo->m_dlSymbols);
@@ -1477,6 +1519,18 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 {
                     ueInfo->m_dlAllocDone = true;
                     ueInfo->m_lastAvgTputDl = ueInfo->m_avgTputDl;
+                }
+                // Uniform deduction: 1.0 per DL symbol for all UEs
+                if (applyWeightedDlCredit) {
+                    ueInfo->m_qosDlCredit -= 1.0;
+                    // Log only on first DL symbol to reduce volume
+                    if (ueInfo->m_dlSymbols == 1) {
+                        NS_LOG_UNCOND("[QoSAlloc] sched=" << (void*)this
+                                      << " rnti=" << ueInfo->m_rnti
+                                      << " w=" << ueInfo->m_qosWeight
+                                      << " creditAfter=" << ueInfo->m_qosDlCredit
+                                      << " tb=" << ueInfo->m_dlTbSize);
+                    }
                 }
                 ueInfo->m_allocUlLast = false;
 

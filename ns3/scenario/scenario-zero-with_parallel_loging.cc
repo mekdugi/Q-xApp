@@ -548,6 +548,8 @@ main(int argc, char *argv[]) {
     Config::SetDefault("ns3::MmWaveHelper::UseIdealRrc", BooleanValue(true));
     Config::SetDefault("ns3::MmWaveHelper::E2TermIp", StringValue(e2TermIp));
 
+    Config::SetDefault("ns3::MmWaveHelper::Scheduler", StringValue("ns3::MmWaveFlexTtiPfMacScheduler"));
+    Config::SetDefault("ns3::MmWaveFlexTtiPfMacScheduler::HarqEnabled", BooleanValue(harqEnabled));
     Config::SetDefault("ns3::MmWaveFlexTtiMacScheduler::HarqEnabled", BooleanValue(harqEnabled));
     Config::SetDefault("ns3::MmWavePhyMacCommon::NumHarqProcess", UintegerValue(100));
     //Config::SetDefault ("ns3::MmWaveBearerStatsCalculator::EpochDuration", TimeValue (MilliSeconds (10.0)));

@@ -74,7 +74,7 @@
             display: flex; gap: 10px; align-items: flex-start;
         }
         #grid-panel {
-            width: 460px; display: flex; flex-direction: column;
+            width: 530px; display: flex; flex-direction: column;
             border: 1px solid #ddd; border-radius: 8px;
             padding: 10px; background: #fff; flex-shrink: 0;
         }
@@ -82,17 +82,19 @@
         #grid-chart-container { position: relative; width: 100%; margin: 0 auto; }
         #grid-chart-container canvas { }
         .grid-legend {
-            display: flex; justify-content: center; gap: 8px;
-            padding: 1px 6px; font-size: 18px; font-weight: normal; flex-wrap: wrap;
+            display: flex; justify-content: center; gap: 5px;
+            padding: 1px 4px; font-size: 18px; font-weight: normal; flex-wrap: wrap; max-width: 280px;
             border: 1px solid #bbb; border-radius: 4px; background: #fafafa;
             width: fit-content; margin: 3px auto 0;
         }
-        .grid-legend-item { display: flex; align-items: center; gap: 3px; }
-        .grid-legend-color { width: 14px; height: 14px; display: inline-block; }
+        .grid-legend-item { display: flex; align-items: center; gap: 2px; }
+        .grid-legend-color { width: 12px; height: 12px; display: inline-block; }
         .chart-header {
-            display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 3px;
+            display: flex; align-items: center; position: relative; margin-bottom: 3px;
+            flex: 0 0 auto;
         }
-        .chart-title { font-size: 20px; font-weight: 700; color: #333; }
+        .chart-title { font-size: 20px; font-weight: 700; color: #333; position: absolute; left: 50%; transform: translateX(-50%); }
+        .chart-legend { margin-left: auto; }
         .chart-legend ul { display: flex; align-items: center; gap: 10px; margin: 0; padding: 3px 10px; list-style: none;
             border: 1.5px solid #bbb; border-radius: 5px; background: #fafafa; }
         .chart-legend li { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 18px; }
@@ -103,9 +105,12 @@
         .kpi-chart-box {
             flex: 1; border: 1px solid #ddd; border-radius: 8px;
             padding: 8px; background: #fff;
-            position: relative; min-height: 0; max-height: 280px;
+            height: 300px; display: flex; flex-direction: column; min-height: 0;
         }
-        .kpi-chart-box canvas { width: 100% !important; height: 100% !important; }
+        .chart-canvas-wrap {
+            position: relative; flex: 1 1 auto; min-height: 0;
+        }
+        .chart-canvas-wrap canvas { width: 100% !important; height: 100% !important; display: block; }
 
 
         .status-row {
@@ -213,7 +218,7 @@
     <div id="frameContainer" style="display:none"></div>
 
 
-    <div id="sim-info-bar" style="display:flex; flex-direction:column; padding:8px 20px; font-size:13px; color:#333; border-bottom:2px solid #8B0000; gap:6px;">
+    <div id="sim-info-bar" style="display:flex; flex-direction:column; padding:8px 20px; font-size:17px; color:#333; border-bottom:2px solid #8B0000; gap:6px;">
         <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
             <span style="font-weight:700; color:#333; font-size:18px;">Network Settings</span>
             <span style="color:#999;">|</span>
@@ -227,7 +232,7 @@
         <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
             <span style="font-weight:700; color:white; background:#8B0000; padding:5px 12px; border-radius:4px; font-size:18px;">A1 Policy Manager</span>
             <label style="font-weight:600;">Use Case:
-                <select id="scenario-mode-bar" onchange="switchScenario(this.value)" style="font-size:13px; padding:3px 6px; margin-left:4px;">
+                <select id="scenario-mode-bar" onchange="switchScenario(this.value)" style="font-size:17px; padding:3px 6px; margin-left:4px;">
                     <option value="ts">Traffic Steering</option>
                     <option value="nes">Network Energy Saving</option>
                     <option value="qos">QoS-based Resource Allocation</option>
@@ -280,13 +285,13 @@
             <div class="kpi-row">
                 <div class="kpi-chart-box">
                     <div class="chart-header"><span class="chart-title">Throughput</span><div id="sinr-legend" class="chart-legend"></div></div>
-                    <canvas id="sinr-chart"></canvas>
+                    <div class="chart-canvas-wrap"><canvas id="sinr-chart"></canvas></div>
                 </div>
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box">
                     <div class="chart-header"><span class="chart-title">Cell Power</span><div id="energy-legend" class="chart-legend"></div></div>
-                    <canvas id="energy-chart"></canvas>
+                    <div class="chart-canvas-wrap"><canvas id="energy-chart"></canvas></div>
                 </div>
             </div>
         </div>
@@ -302,7 +307,7 @@
     const DEFAULT_SCENARIO = 'scratch/scenario-zero-with_parallel_loging.cc';
     const DEFAULT_SIMULATION_PARAMS = { flexric: 'true', flags: 'true', scenario: DEFAULT_SCENARIO };
     const cellColors = { 1: '#3366cc', 2: '#33aa33', 3: '#9933cc', 4: '#cc3333' };
-    const ueColors = ['#cc3333', '#33aa33', '#9933cc', '#3366cc'];
+    const ueColors = ['#33aa33', '#9933cc', '#cc3333', '#3366cc'];
     /* Fixed O-RU positions: triangular around center=(250,250), ISD=150 */
     const fixedCellPos = { 2: {x:400,y:250}, 3: {x:175,y:380}, 4: {x:175,y:120} };
 
@@ -506,7 +511,7 @@
                 box.style.cssText = 'display:inline-block;width:8px;height:8px;background:'+color+';border-radius:50%;';
                 if (ps === 'rect') box.style.borderRadius = '1px';
                 else if (ps === 'triangle') { box.style.cssText = 'display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid '+color+';background:transparent;'; }
-                else if (ps === 'star') { box.style.cssText = 'display:inline-block;width:8px;height:8px;background:'+color+';clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);'; }
+                else if (ps === 'crossRot') { box.style.cssText = 'display:inline-block;width:10px;height:10px;background:transparent;position:relative;'; box.innerHTML = '<span style="position:absolute;left:4px;top:0;width:2px;height:10px;background:'+color+';transform:rotate(45deg);"></span><span style="position:absolute;left:4px;top:0;width:2px;height:10px;background:'+color+';transform:rotate(-45deg);"></span>'; }
                 var txt = document.createElement('span');
                 txt.textContent = item.text;
                 txt.style.textDecoration = item.hidden ? 'line-through' : '';
@@ -519,17 +524,21 @@
         var c = document.getElementById(canvasId).getContext('2d');
         return new Chart(c, {
             type: 'line',
-            data: { labels: [], datasets: datasets || [] },
+            data: { labels: Array.from({length: 25}, function(_, i) { return i + 1; }), datasets: datasets || [] },
             options: {
                 responsive: true, maintainAspectRatio: false, animation: false, spanGaps: false,
                 scales: {
                     x: {
-                        title: { display: true, text: 'Timeline', color: '#444', font: { size: 16, weight: 'bold' } },
-                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#444', font: { size: 14 }, maxTicksLimit: 5, autoSkip: true }
+                        title: { display: true, text: 'Time', color: '#444', font: { size: 16, weight: 'bold' } },
+                        grid: { color: 'rgba(0,0,0,0.08)' },
+                        ticks: { color: '#444', font: { size: 14 },
+                            callback: function(value, index) { var v = index + 1; return (v % 5 === 0) ? v : ''; },
+                            autoSkip: false, maxRotation: 0
+                        }
                     },
                     y: {
                         title: { display: true, text: yLabel, color: '#444', font: { size: 16, weight: 'bold' } },
-                        beginAtZero: true,
+                        min: 0, beginAtZero: true,
                         grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#444', font: { size: 14 } }
                     }
                 },
@@ -545,11 +554,17 @@
     }
 
     var sinrChart = createLineChart('sinr-chart', 'Throughput', 'Mbps', [
-        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'circle', borderDash: [] },
-        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'rect', borderDash: [8, 4] },
-        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'triangle', borderDash: [2, 3] },
-        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'star', borderDash: [10, 3, 2, 3] }
+        { label: 'UE 1', data: [], borderColor: ueColors[0], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'circle' },
+        { label: 'UE 2', data: [], borderColor: ueColors[1], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'rect' },
+        { label: 'UE 3', data: [], borderColor: ueColors[2], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'triangle' },
+        { label: 'UE 4', data: [], borderColor: ueColors[3], borderWidth: 3, fill: false, pointRadius: 5, pointStyle: 'crossRot' }
     ], 'sinr-legend');
+    sinrChart.options.scales.x.ticks.display = false;
+    sinrChart.options.scales.x.title.display = false;
+    sinrChart.options.scales.x.grid.display = true;
+    sinrChart.options.scales.x.grid.drawTicks = false;
+    sinrChart.options.layout = { padding: { bottom: 10 } };
+    sinrChart.update();
     var energyChart = createLineChart('energy-chart', 'Cell Power', 'W', [
         { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 3, fill: false, pointRadius: 0 },
         { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 3, fill: false, pointRadius: 0 },
@@ -558,7 +573,7 @@
     // History
     var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
     var energyHistory = { 2: [], 3: [], 4: [] };
-    var MAX_HISTORY = 999; /* no cap — reset on cycle restart */
+    var MAX_HISTORY = 25;
     var _prevRound = -1;
 
     function pushHistory(histObj, id, value) {
@@ -671,22 +686,19 @@
             pushHistory(energyHistory, cid, cellEnergy);
         });
 
-        // Update SINR chart (per UE)
+        // Update SINR chart (per UE) — left-fill, null pad right
         [1,2,3,4].forEach(function(uid, idx) {
-            sinrChart.data.datasets[idx].data = sinrHistory[uid] || [];
+            var d = sinrHistory[uid] || [];
+            var pad = MAX_HISTORY - d.length;
+            sinrChart.data.datasets[idx].data = pad > 0 ? d.concat(Array(pad).fill(null)) : d;
         });
         // Update energy chart (per Cell)
         [2,3,4].forEach(function(cid, idx) {
-            energyChart.data.datasets[idx].data = energyHistory[cid] || [];
+            var d = energyHistory[cid] || [];
+            var pad = MAX_HISTORY - d.length;
+            energyChart.data.datasets[idx].data = pad > 0 ? d.concat(Array(pad).fill(null)) : d;
         });
-        // Labels match data length
-        var maxLen = Math.max.apply(null,
-            Object.keys(sinrHistory).map(function(k) { return sinrHistory[k].length; })
-            .concat(Object.keys(energyHistory).map(function(k) { return energyHistory[k].length; }))
-            .concat([1]));
-        var labels = Array.from({length: maxLen}, function(_, i) { return i; });
-        sinrChart.data.labels = labels;
-        energyChart.data.labels = labels;
+        // Labels fixed at 30, no update needed
         sinrChart.update();
         energyChart.update();
     }

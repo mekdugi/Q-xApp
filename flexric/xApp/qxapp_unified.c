@@ -998,12 +998,6 @@ int main(int argc, char *argv[])
     int n_sleep = 0;
 
     use_case_encoder(mode);                                                        /* Stage 1 */
-    /* Auto NES: override sleep target to cell 3 (O-RU 2) after encoder reads config */
-    if (is_auto && strcmp(mode, "nes") == 0) {
-      n_forced_sleep = 1;
-      forced_sleep_cells[0] = 3;
-      printf("[Q-xApp AUTO] NES: forced sleep target = cell 3 (O-RU 2)\n");
-    }
     assignment_algorithm(mode, assignment, &active_cells, sleep_cells, &n_sleep);  /* Stage 2 */
     output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
 
