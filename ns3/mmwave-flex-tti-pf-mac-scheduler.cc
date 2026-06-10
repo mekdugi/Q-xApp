@@ -923,6 +923,8 @@ void
 MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
     const struct MmWaveMacSchedSapProvider::SchedTriggerReqParameters& params)
 {
+    // F1 A/B: per-trigger transient worklist; was never cleared -> unbounded duplicate growth
+    m_ueStatHeap.clear();
     uint32_t frameNum = params.m_snfSf.m_frameNum;
     uint8_t sfNum = params.m_snfSf.m_sfNum;
     uint8_t slotNum = params.m_snfSf.m_slotNum;
@@ -1425,13 +1427,22 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
             }
         }
         if (applyWeightedDlCredit) {
+            // Normalized deficit credit (Codex A/B): distribute this trigger's
+            // symbol budget across DL-backlogged UEs in proportion to weight,
+            // so credit supply matches symbol consumption and the eligibility
+            // gate can enforce the intended share. Old raw +w supplied ~sum(w)
+            // (~5) vs ~12 symbols consumed -> share collapsed to ~1.67:1.
+            double sumW = 0.0;
             for (auto* ue : m_ueStatHeap) {
-                if (ue->m_totBufDl > 0) {
-                    // Raw weight credit: w=4 adds 4, w=1 adds 1
-                    // DL symbol cost is 1.0 uniformly → natural 4:1 share
-                    ue->m_qosDlCredit += ue->m_qosWeight;
-                    if (ue->m_qosDlCredit > ue->m_qosWeight * 3.0)
-                        ue->m_qosDlCredit = ue->m_qosWeight * 3.0; // cap
+                if (ue->m_totBufDl > 0) sumW += ue->m_qosWeight;
+            }
+            for (auto* ue : m_ueStatHeap) {
+                if (ue->m_totBufDl > 0 && sumW > 0.0) {
+                    double income = (double)symAvail * ue->m_qosWeight / sumW;
+                    ue->m_qosDlCredit += income;
+                    double cap = income * 3.0; // ~3 triggers of burst headroom
+                    if (ue->m_qosDlCredit > cap)
+                        ue->m_qosDlCredit = cap;
                 } else {
                     ue->m_qosDlCredit *= 0.9;
                 }
@@ -1471,7 +1482,9 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 ueInfo->m_ulAllocDone = true;
             }
 
-            if ((ueInfo->m_allocUlLast || ueInfo->m_dlAllocDone) && !ueInfo->m_ulAllocDone)
+            // UL/DL alternation fix (Codex A/B): condition was self-locking (UL latch starved DL).
+            // "last alloc was UL" must steer the NEXT alloc to DL, and vice versa.
+            if ((!ueInfo->m_allocUlLast || ueInfo->m_dlAllocDone) && !ueInfo->m_ulAllocDone)
             {
                 ueInfo->m_ulSymbols++;
                 symAvail--;
@@ -1523,14 +1536,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 // Uniform deduction: 1.0 per DL symbol for all UEs
                 if (applyWeightedDlCredit) {
                     ueInfo->m_qosDlCredit -= 1.0;
-                    // Log only on first DL symbol to reduce volume
-                    if (ueInfo->m_dlSymbols == 1) {
-                        NS_LOG_UNCOND("[QoSAlloc] sched=" << (void*)this
-                                      << " rnti=" << ueInfo->m_rnti
-                                      << " w=" << ueInfo->m_qosWeight
-                                      << " creditAfter=" << ueInfo->m_qosDlCredit
-                                      << " tb=" << ueInfo->m_dlTbSize);
-                    }
+                    // QoSAlloc log disabled to improve sim-time performance
                 }
                 ueInfo->m_allocUlLast = false;
 
@@ -1551,6 +1557,49 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
         if (!ueAlloc)
         {
             break;
+        }
+    }
+
+    // Scheduler starvation diagnostic: per-instance sim-time sampling
+    {
+        double nowSec = Simulator::Now().GetSeconds();
+        if (nowSec >= 2.0 && nowSec < 3.75 && (nowSec - m_lastDiagTime) >= 0.1) {
+            m_lastDiagTime = nowSec;
+            // Iterate m_ueSchedInfoMap (all registered UEs, not just heap)
+            for (auto& kv : m_ueSchedInfoMap) {
+                auto& ue = kv.second;
+                // Check if this UE is in the heap
+                bool inHeap = false;
+                for (auto* hp : m_ueStatHeap) {
+                    if (hp->m_rnti == ue.m_rnti) { inHeap = true; break; }
+                }
+                // Check pending across all cells
+                bool isPending = false;
+                for (auto& pv : s_handoverPendingRntis) {
+                    if (pv.second.count(ue.m_rnti) > 0) { isPending = true; break; }
+                }
+                // CQI info
+                bool hasCqi = (m_wbCqiRxed.find(ue.m_rnti) != m_wbCqiRxed.end());
+                uint8_t cqiVal = hasCqi ? m_wbCqiRxed[ue.m_rnti] : 0;
+                NS_LOG_UNCOND("[SchedDiag] t=" << nowSec
+                    << " sched=" << (void*)this
+                    << " rnti=" << ue.m_rnti
+                    << " inHeap=" << inHeap
+                    << " w=" << ue.m_qosWeight
+                    << " dlSym=" << (int)ue.m_dlSymbols
+                    << " ulSym=" << (int)ue.m_ulSymbols
+                    << " dlTb=" << ue.m_dlTbSize
+                    << " dlMcs=" << (int)ue.m_dlMcs
+                    << " bufDl=" << ue.m_totBufDl
+                    << " currDl=" << ue.m_currTputDl
+                    << " avgDl=" << ue.m_avgTputDl
+                    << " lastAvgDl=" << ue.m_lastAvgTputDl
+                    << " credit=" << ue.m_qosDlCredit
+                    << " pending=" << isPending
+                    << " dlDone=" << ue.m_dlAllocDone
+                    << " hasCqi=" << hasCqi
+                    << " cqi=" << (int)cqiVal);
+            }
         }
     }
 

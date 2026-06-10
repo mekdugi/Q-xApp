@@ -734,7 +734,7 @@ SetBSTX (Ptr<MmWaveEnbPhy> phy, int val, uint16_t cellid, bool m_esON)
     {
       NS_LOG_UNCOND ("Cell turned on " << cellid << " ,current ES state:" << m_esON);
     }
-  phy->SetTxPower (val); //set Cell TX power
+  phy->SetTxPower (val); //set Cell TX power (0 dBm for sleep)
   if (val == 0)
     {
       phy->SetNoiseFigure (100); //high noise
@@ -748,16 +748,26 @@ void
 MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
 {
   NodeContainer &mmWaveEnbNodes = NodeContainerManager::GetInstance ().GetMmWaveEnbNodes ();
+  printf("## RC ENTER: cell=%u, pdu=%p\n", m_cellId, (void*)sub_req_pdu);
+  fflush(stdout);
   NS_LOG_DEBUG (
       "\nMmWaveEnbNetDevice::ControlMessageReceivedCallback: Received RIC Control Message");
   // Create RIC Control ACK
   Ptr<RicControlMessage> controlMessage = Create<RicControlMessage> (sub_req_pdu);
   //BIT_STRING_t *bit_string = &controlMessage->m_e2SmRcControlHeaderFormat1->ueID.choice.gNB_UEID->ran_UEID
 
+  if (!controlMessage->m_e2SmRcControlHeaderFormat1) {
+    printf("## RC ERROR: header is NULL for cell=%u! Skipping.\n", m_cellId);
+    fflush(stdout);
+    return;
+  }
+
+
   NS_LOG_INFO ("After RicControlMessage::RicControlMessage constructor");
   NS_LOG_INFO ("Request ID " << controlMessage->m_ricRequestId.ricRequestorID);
   NS_LOG_INFO ("Request type " << controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type);
   printf("## RC DEBUG: ric_Style_Type=%ld, cell=%u\n", (long)controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type, m_cellId);
+  fflush(stdout);
 
   switch (controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type)
     {
@@ -806,7 +816,10 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
                     auto pfSched = DynamicCast<MmWaveFlexTtiPfMacScheduler> (ccEnb->GetMacScheduler ());
                     if (pfSched)
                       {
-                        pfSched->SetUeSchedulingWeight (rntiDrb, schedWeight);
+                        Simulator::ScheduleWithContext (
+                            1, Seconds (0),
+                            &MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight,
+                            pfSched, rntiDrb, schedWeight);
                       }
                     else
                       {
@@ -823,62 +836,9 @@ MmWaveEnbNetDevice::ControlMessageReceivedCallback (E2AP_PDU_t *sub_req_pdu)
         break;
       }
       case RicControlMessage::ControlMessageServiceStyle::Connected_Mode_Mobility: {
-
-        switch (controlMessage->m_e2SmRcControlHeaderFormat1->ric_ControlAction_ID)
-          {
-            case RicControlMessage::Connected_Mode_Mobility_Control_Action_ID::Handover_Control: {
-              NS_LOG_UNCOND("## RC-HO: Connected mobility callback triggered");
-              // do handover
-              UEID_GNB_t *UEgnb = (UEID_GNB_t *) calloc (1, sizeof (UEID_GNB_t));
-
-              UEgnb = controlMessage->m_e2SmRcControlHeaderFormat1->ueID.choice.gNB_UEID;
-              uint64_t imsi = {0};
-              memcpy (&imsi, UEgnb->ran_UEID->buf, UEgnb->ran_UEID->size);
-              uint16_t targetCellId = controlMessage->GetTargetCell();
-
-              auto ueMap = m_rrc->GetUeMap();
-              bool ueFound = false;
-              for (auto ue : ueMap)
-              {
-                if (ue.second->GetImsi() == imsi)
-                {
-                  ueFound = true;
-                  break;
-                }
-              }
-    
-              if (!ueFound)
-              {
-                NS_LOG_UNCOND("## RC-HO: UE IMSI=" << imsi << " NOT FOUND in cell " << m_cellId);
-                return;
-              }
-    
-              NS_LOG_UNCOND("## RC-HO: Processing handover UE IMSI=" << imsi << " to cell " << targetCellId);    
-
-              
-              m_rrc->TakeUeHoControl (imsi);
-              /* Always execute handover */
-                  Simulator::ScheduleWithContext (1, Seconds (0),
-                                                  &LteEnbRrc::PerformE2RCHO, m_rrc,
-                                                  imsi,targetCellId);
-              break;
-            }
-
-            case RicControlMessage::Connected_Mode_Mobility_Control_Action_ID::
-                Conditional_Handover_Control: {
-              NS_LOG_UNCOND ("Unsupported Conditional_Handover_Control ");
-              break;
-            }
-            case RicControlMessage::Connected_Mode_Mobility_Control_Action_ID::
-                DAPS_Handover_Control: {
-              NS_LOG_UNCOND ("Unsupported DAPS_Handover_Control ");
-              break;
-            }
-            default: {
-              NS_LOG_INFO ("Unrecognized Control Action type of RIC Control Message");
-              break;
-            }
-          }
+        /* HO handled by LTE anchor (Cell 1) via PerformE2RCHO. mmWave cells skip. */
+        printf("## RC-HO: mmWave cell %u ignoring HO (handled by LTE anchor)\n", m_cellId);
+        fflush(stdout);
         break;
       }
       case RicControlMessage::ControlMessageServiceStyle::Energy_state: {

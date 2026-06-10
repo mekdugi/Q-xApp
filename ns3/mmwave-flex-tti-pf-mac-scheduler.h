@@ -453,6 +453,7 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
     static const unsigned m_rlcHdrSize;
 
     double m_berDl; // used for SNR-based AMC model
+    double m_lastDiagTime = 0.0; // per-instance SchedDiag timestamp
 
     // for testing
     bool m_fixedMcsDl;

@@ -1355,11 +1355,9 @@ UeManager::RecvRlcSetupRequest (EpcX2SapUser::RlcSetupRequest params) // TODO on
     LteEnbRrc::X2uTeidInfo x2uTeidInfo;
     x2uTeidInfo.rnti = m_rnti;
     x2uTeidInfo.drbid = params.drbid;
-    std::pair<std::map<uint32_t, LteEnbRrc::X2uTeidInfo>::iterator, bool> ret;
-    ret = m_rrc->m_x2uMcTeidInfoMap.insert (std::pair<uint32_t, LteEnbRrc::X2uTeidInfo> (params.gtpTeid, x2uTeidInfo));
-    // TODO overwrite may be legit, as in EpcX2::SetMcEpcX2PdcpUser
-    //NS_ASSERT_MSG (ret.second == true, "overwriting a pre-existing entry in m_x2uTeidInfoMap");
-    NS_LOG_INFO("Added entry in m_x2uMcTeidInfoMap");
+    // overwrite instead of insert (HO may reuse same TEID)
+    m_rrc->m_x2uMcTeidInfoMap[params.gtpTeid] = x2uTeidInfo;
+    NS_LOG_INFO("Added/updated entry in m_x2uMcTeidInfoMap");
 
     // create new Rlc
     // define a new struct similar to LteDataRadioBearerInfo with only rlc
@@ -1886,9 +1884,8 @@ UeManager::RecvRrcSecondaryCellInitialAccessSuccessful(uint16_t mmWaveRnti, uint
           LteEnbRrc::X2uTeidInfo x2uTeidInfo;
           x2uTeidInfo.rnti = m_rnti;
           x2uTeidInfo.drbid = it->first;
-          std::pair<std::map<uint32_t, LteEnbRrc::X2uTeidInfo>::iterator, bool> ret;
-          ret = m_rrc->m_x2uMcTeidInfoMap.insert (std::pair<uint32_t, LteEnbRrc::X2uTeidInfo> (it->second->m_gtpTeid, x2uTeidInfo));
-          // NS_ASSERT_MSG (ret.second == true, "overwriting a pre-existing entry in m_x2uMcTeidInfoMap");
+          // overwrite instead of insert (HO may reuse same TEID)
+          m_rrc->m_x2uMcTeidInfoMap[it->second->m_gtpTeid] = x2uTeidInfo;
           // Setup McEpcX2PdcpUser
           m_rrc->m_x2SapProvider->SetEpcX2PdcpUser(it->second->m_gtpTeid, pdcp->GetEpcX2PdcpUser());
 
@@ -1916,6 +1913,7 @@ void
 UeManager::RecvSecondaryCellHandoverCompleted(EpcX2Sap::SecondaryHandoverCompletedParams params)
 {
   uint16_t oldMmWaveCellId = m_mmWaveCellId;
+  uint16_t oldMmWaveRnti = params.oldEnbUeX2apId;
   m_mmWaveCellId = params.cellId;
   m_mmWaveRnti = params.mmWaveRnti;
 
@@ -1923,6 +1921,7 @@ UeManager::RecvSecondaryCellHandoverCompleted(EpcX2Sap::SecondaryHandoverComplet
      it != m_drbMap.end ();
      ++it)
   {
+
     if(!(it->second->m_isMc) || (it->second->m_isMc && m_rrc->m_lastMmWaveCell.find(m_imsi)->second != m_mmWaveCellId))
     {
       Ptr<McEnbPdcp> pdcp = DynamicCast<McEnbPdcp> (it->second->m_pdcp);
@@ -1939,9 +1938,8 @@ UeManager::RecvSecondaryCellHandoverCompleted(EpcX2Sap::SecondaryHandoverComplet
         LteEnbRrc::X2uTeidInfo x2uTeidInfo;
         x2uTeidInfo.rnti = m_rnti;
         x2uTeidInfo.drbid = it->first;
-        std::pair<std::map<uint32_t, LteEnbRrc::X2uTeidInfo>::iterator, bool> ret;
-        ret = m_rrc->m_x2uMcTeidInfoMap.insert (std::pair<uint32_t, LteEnbRrc::X2uTeidInfo> (it->second->m_gtpTeid, x2uTeidInfo));
-        // NS_ASSERT_MSG (ret.second == true, "overwriting a pre-existing entry in m_x2uMcTeidInfoMap");
+        // overwrite instead of insert (HO may reuse same TEID)
+        m_rrc->m_x2uMcTeidInfoMap[it->second->m_gtpTeid] = x2uTeidInfo;
         // Setup McEpcX2PdcpUser
         m_rrc->m_x2SapProvider->SetEpcX2PdcpUser(it->second->m_gtpTeid, pdcp->GetEpcX2PdcpUser());
         // Remote RLC already setup
@@ -1952,6 +1950,8 @@ UeManager::RecvSecondaryCellHandoverCompleted(EpcX2Sap::SecondaryHandoverComplet
         NS_LOG_UNCOND("## HO-COMPLETE: LTE anchor updated IMSI=" << m_imsi
                       << " m_lastMmWaveCell=" << m_mmWaveCellId
                       << " setupCompleted=true at " << Simulator::Now().GetSeconds());
+        // Clear handover-pending on old source cell
+        ns3::mmwave::MmWaveFlexTtiPfMacScheduler::ClearUeHandoverPending(oldMmWaveCellId, oldMmWaveRnti);
         NS_LOG_INFO("Imsi " << m_imsi << " m_mmWaveCellSetupCompleted set to " << m_rrc->m_mmWaveCellSetupCompleted[m_imsi] <<
                 " for cell " <<  m_rrc->m_lastMmWaveCell[m_imsi]);
         m_rrc->m_imsiUsingLte[m_imsi] = false;

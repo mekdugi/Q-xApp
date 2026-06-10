@@ -469,8 +469,8 @@ static void read_mode(char *mode_buf, size_t buf_sz)
 
 /* Auto mode: round-based TS → QoS-RA → NES cycling */
 #define AUTO_TS_ROUNDS   5
-#define AUTO_QOS_ROUNDS  7
-#define AUTO_NES_ROUNDS  6
+#define AUTO_QOS_ROUNDS  5
+#define AUTO_NES_ROUNDS  5
 #define AUTO_TOTAL_ROUNDS (AUTO_TS_ROUNDS + AUTO_QOS_ROUNDS + AUTO_NES_ROUNDS)
 
 static void auto_resolve_mode(int round, char *effective, size_t sz)
@@ -606,6 +606,7 @@ static void assignment_algorithm(const char *mode,
 static int ho_sent[NUM_UE] = {0};
 static int sleep_sent = 0;
 static int qos_sent = 0;
+static int nes_round_count = 0; /* count NES rounds for sleep delay */
 
 /* Stage 3: Output Interpreter (Fig. 2) */
 static void output_interpreter(const char *mode,
@@ -625,6 +626,7 @@ static void output_interpreter(const char *mode,
     printf("[Q-xApp] Skipping RC HO (not NES mode)\n");
     for (int i=0;i<NUM_UE;i++) ho_sent[i]=0;
     sleep_sent = 0;
+    nes_round_count = 0;
     /* qos_sent reset moved to mode transition handler */
     goto skip_ho;
   }
@@ -748,6 +750,12 @@ skip_ho:
     printf("[Q-xApp NES] Sleep already sent this cycle, skip\n");
 
   } else if (strcmp(mode, "nes") == 0 && !sleep_sent) {
+    nes_round_count++;
+    /* Delay sleep until 4th NES round to let HO complete and data path stabilize */
+    if (nes_round_count < 4) {
+      printf("[Q-xApp NES] Delaying sleep to let HO stabilize (nes_round=%d)\n", nes_round_count);
+      goto skip_sleep;
+    }
     /* Wake ALL cells that are NOT sleep targets */
     for (int c = 0; c < NUM_CELL; c++) {
       char wake_char = '0' + CELL_IDS[c];
@@ -879,7 +887,9 @@ int main(int argc, char *argv[])
         printf("[Q-xApp AUTO] Round %d -> %s (mode=%s)\n", round, segment, mode);
       }
       /* After single cycle completes, wake and restart */
-      if (round > AUTO_TOTAL_ROUNDS) {
+      static int wake_sent = 0;
+      if (round > AUTO_TOTAL_ROUNDS && !wake_sent) {
+        wake_sent = 1;
         printf("[Q-xApp AUTO] Cycle complete. Sending wake for all cells...\n");
         for (int c = 0; c < NUM_CELL; c++) {
           char wake_char = '0' + CELL_IDS[c];
@@ -905,6 +915,13 @@ int main(int argc, char *argv[])
         }
         /* Cycle complete — stay idle, don't repeat */
         printf("[Q-xApp AUTO] Cycle complete. Charts frozen.\n");
+        sleep(10);
+        continue;
+      }
+      /* Already sent wake — just idle */
+      if (round > AUTO_TOTAL_ROUNDS && wake_sent) {
+        printf("[Q-xApp AUTO] Round %d -> Idle (mode=ts)\n", round);
+        printf("[Q-xApp AUTO] Cycle complete.\n");
         sleep(10);
         continue;
       }
@@ -1002,7 +1019,7 @@ int main(int argc, char *argv[])
     output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
 
     printf("[Q-xApp] Round %d complete. [mode=%s]\n", round, mode);
-    sleep(3);
+    sleep(10);
   } /* end while loop */
 
   return 0;
