@@ -73,6 +73,14 @@
         #content-area {
             display: flex; gap: 10px; align-items: flex-start;
         }
+        /* ?capture mode: compact layout for 2-column paper figure
+           (keeps grid+charts side by side, narrows grid so charts stay legible) */
+        html.capture #grid-panel { width: 470px; }
+        html.capture .kpi-chart-box { height: 280px; }
+        html.capture .chart-title { font-size: 20px; }
+        html.capture .chart-legend li { font-size: 14px; }
+        html.capture .grid-legend { font-size: 16px; }
+        html.capture #grid-panel h3 { font-size: 15px; }
         #grid-panel {
             width: 530px; display: flex; flex-direction: column;
             border: 1px solid #ddd; border-radius: 8px;
@@ -284,13 +292,13 @@
         <div id="kpi-panel">
             <div class="kpi-row">
                 <div class="kpi-chart-box">
-                    <div class="chart-header"><span class="chart-title">Throughput</span><div id="sinr-legend" class="chart-legend"></div></div>
+                    <div class="chart-header"><span class="chart-title">UE Throughput</span><div id="sinr-legend" class="chart-legend"></div></div>
                     <div class="chart-canvas-wrap"><canvas id="sinr-chart"></canvas></div>
                 </div>
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box">
-                    <div class="chart-header"><span class="chart-title">Cell Power</span><div id="energy-legend" class="chart-legend"></div></div>
+                    <div class="chart-header"><span class="chart-title">O-RU Power</span><div id="energy-legend" class="chart-legend"></div></div>
                     <div class="chart-canvas-wrap"><canvas id="energy-chart"></canvas></div>
                 </div>
             </div>
@@ -404,7 +412,7 @@
 
     // Background map plugin
     var mapImg = new Image();
-    mapImg.src = '/static/univmap.png';
+    mapImg.src = '/static/univmap.png?v=' + Date.now();
     var bgMapPlugin = {
         id: 'bgMap',
         beforeDraw: function(chart) {
@@ -576,18 +584,24 @@
     var MAX_HISTORY = 70;
     var _prevRound = -1;
 
+    if (window.location.search.indexOf('capture') !== -1) {
+        document.documentElement.classList.add('capture');
+    }
+
     function pushHistory(histObj, id, value) {
         if (!histObj[id]) histObj[id] = [];
+        /* fill one window (~= one auto cycle) then freeze, so the time axis
+           spans exactly one cycle; cycle-restart reset still clears arrays */
+        if (histObj[id].length >= MAX_HISTORY) return;
         histObj[id].push(value);
-        if (histObj[id].length > MAX_HISTORY) histObj[id].shift();
     }
 
     function pushDeltaHistory(histObj, id, value) {
         if (!histObj[id]) histObj[id] = [];
         var prev = histObj[id].length ? histObj[id][histObj[id].length - 1].__raw : null;
         var delta = prev === null ? 0 : Math.max(0, value - prev);
+        if (histObj[id].length >= MAX_HISTORY) return; /* freeze with window */
         histObj[id].push({ value: delta, __raw: value });
-        if (histObj[id].length > MAX_HISTORY) histObj[id].shift();
     }
 
     var qxappData = null; /* Q-xApp allocation result */
@@ -682,7 +696,7 @@
         /* Push energy from qxappData directly for fixed cell IDs */
         [2, 3, 4].forEach(function(cid) {
             var cellEnergy = (qxappData && qxappData.cell_energy && (qxappData.cell_energy[cid] || qxappData.cell_energy[String(cid)])) || 0;
-            if (cellEnergy > 300) cellEnergy = 300; /* clamp initial spike from delta calculation */
+            /* value is now true sim-time power (W) from the xApp; no clamp */
             pushHistory(energyHistory, cid, cellEnergy);
         });
 

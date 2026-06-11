@@ -236,7 +236,8 @@ MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight(uint16_t rnti, double weight)
     { auto it = m_ueSchedInfoMap.find(rnti);
       if (it != m_ueSchedInfoMap.end()) it->second.m_qosWeight = weight; }
 
-    NS_LOG_UNCOND("[Scheduler] Set weight for RNTI=" << rnti << " to " << weight);
+    NS_LOG_UNCOND("[Scheduler] Set weight for RNTI=" << rnti << " to " << weight
+                  << " at t=" << Simulator::Now().GetSeconds());
 
     /* Reset PF average throughput only on actual mode transition (weight changing from non-1.0 to 1.0) */
     {

@@ -329,8 +329,9 @@ static void read_sleep_config(void)
 }
 
 /* read NetEnergy from energyfilecell{2,3,4}.csv and compute delta */
-static double cell_energy[NUM_CELL]; /* delta joules per round */
+static double cell_energy[NUM_CELL]; /* avg power consumption (W, sim time) over last round */
 static double prev_net_energy[NUM_CELL] = {0};
+static double prev_net_time[NUM_CELL] = {0};
 static int energy_initialized = 0;
 
 
@@ -348,7 +349,7 @@ static void read_a1_policy(void)
   fclose(fp);
 }
 
-static double read_net_energy_from_csv(int cell_id)
+static double read_net_energy_from_csv(int cell_id, double *out_time)
 {
   char path[512];
   sprintf(path, "%s/energyfilecell%d.csv", CSV_DIR, cell_id);
@@ -365,20 +366,27 @@ static double read_net_energy_from_csv(int cell_id)
   /* format: Time,NetEnergy,DiffEnergy */
   char *comma1 = strchr(last_line, ',');
   if (!comma1) return 0.0;
+  if (out_time) *out_time = atof(last_line); /* sim time of last sample */
   return atof(comma1 + 1); /* NetEnergy */
 }
 
 static void read_cell_energy(void)
 {
   for (int c = 0; c < NUM_CELL; c++) {
-    double net = read_net_energy_from_csv(CELL_IDS[c]);
+    double tnow = 0.0;
+    double net = read_net_energy_from_csv(CELL_IDS[c], &tnow);
     if (!energy_initialized) {
       cell_energy[c] = 0.0;
       prev_net_energy[c] = net;
+      prev_net_time[c] = tnow;
     } else {
-      cell_energy[c] = net - prev_net_energy[c];
-      if (cell_energy[c] < 0) cell_energy[c] = 0;
+      double de = net - prev_net_energy[c];
+      double dt = tnow - prev_net_time[c];
+      /* true average power over the elapsed SIM time (W); matches the
+         offline figure semantics instead of joules-per-poll */
+      cell_energy[c] = (dt > 1e-9 && de > 0) ? de / dt : 0.0;
       prev_net_energy[c] = net;
+      prev_net_time[c] = tnow;
     }
   }
   energy_initialized = 1;
@@ -607,6 +615,9 @@ static int ho_sent[NUM_UE] = {0};
 static int sleep_sent = 0;
 static int qos_sent = 0;
 static int nes_round_count = 0; /* count NES rounds for sleep delay */
+static int last_slept_cells[NUM_CELL]; /* cells actually slept this cycle */
+static int n_last_slept = 0;
+static int recovery_ho_sent[NUM_UE] = {0}; /* post-wake recovery HO one-shot */
 
 /* Stage 3: Output Interpreter (Fig. 2) */
 static void output_interpreter(const char *mode,
@@ -797,6 +808,8 @@ skip_ho:
       usleep(200000);
     }
     sleep_sent = 1;
+    n_last_slept = (n_sleep < NUM_CELL) ? n_sleep : NUM_CELL;
+    for (int s = 0; s < n_last_slept; s++) last_slept_cells[s] = sleep_cells[s];
     printf("[Q-xApp NES] Sleep commands sent (will not repeat)\n");
   }
 skip_sleep:
@@ -918,8 +931,92 @@ int main(int argc, char *argv[])
         sleep(10);
         continue;
       }
-      /* Already sent wake — just idle */
-      if (round > AUTO_TOTAL_ROUNDS && wake_sent) {
+      /* Post-wake recovery TS (Codex-approved): one-shot re-assignment after wake.
+       * Waits for awakened-cell measurements to become usable, recomputes TS,
+       * and sends recovery RC-HO only for serving!=assignment UEs. */
+      static int post_wake_ts_done = 0;
+      static int recovery_wait_rounds = 0;
+      if (round > AUTO_TOTAL_ROUNDS && wake_sent && !post_wake_ts_done) {
+        recovery_wait_rounds++;
+        read_sinr_from_csv();
+        read_cell_energy();
+        /* Readiness: every slept cell must report a usable (>0 dB) link again */
+        int ready = 1;
+        for (int s = 0; s < n_last_slept; s++) {
+          int cidx = -1;
+          for (int c = 0; c < NUM_CELL; c++)
+            if (CELL_IDS[c] == last_slept_cells[s]) cidx = c;
+          double best = -1e9;
+          if (cidx >= 0)
+            for (int u = 0; u < NUM_UE; u++)
+              if (sinr_matrix[u][cidx] > best) best = sinr_matrix[u][cidx];
+          if (cidx < 0 || best <= 0.0) ready = 0;
+        }
+        printf("[POST-WAKE] wait round=%d, awakened-cell ready=%d\n",
+               recovery_wait_rounds, ready);
+        if (!ready && recovery_wait_rounds < 5) { sleep(10); continue; }
+        printf("[POST-WAKE] rate matrix (SINR dB):\n");
+        for (int u = 0; u < NUM_UE; u++) {
+          printf("[POST-WAKE]   UE %d:", u);
+          for (int c = 0; c < NUM_CELL; c++)
+            printf(" %s=%.1f", ORU_NAMES[c], sinr_matrix[u][c]);
+          printf(" serving=%d\n", serving_cell[u]);
+        }
+        if (!ready) {
+          printf("[POST-WAKE] readiness timeout after %d rounds — abort recovery\n",
+                 recovery_wait_rounds);
+          post_wake_ts_done = 1;
+          sleep(10);
+          continue;
+        }
+        /* TS recompute on fresh measurements */
+        int rec_assign[NUM_UE];
+        greedy_match(rec_assign);
+        for (int u = 0; u < NUM_UE; u++)
+          printf("[POST-WAKE] UE %d measured serving=%s computed assignment=%s\n", u,
+                 (serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "none",
+                 (rec_assign[u] >= 0) ? ORU_NAMES[rec_assign[u]] : "none");
+        /* Recovery RC-HO for mismatched UEs only (one-shot each) */
+        for (int u = 0; u < NUM_UE; u++) {
+          if (recovery_ho_sent[u]) continue;
+          if (rec_assign[u] < 0 || serving_cell[u] < 0) continue;
+          if (rec_assign[u] == serving_cell[u]) continue;
+          uint64_t imsi = (uint64_t)(u + 1);
+          char target_cell_char = '0' + CELL_IDS[rec_assign[u]];
+          ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+          rc_ctrl_req_data_t rc_ctrl = {0};
+          rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 3,
+                                        HANDOVER_CONTROL_7_6_4_1);
+          rc_ctrl.msg = gen_rc_ctrl_msg(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
+          size_t lte_idx = 0;
+          uint32_t min_id = UINT32_MAX;
+          for (size_t ii = 0; ii < nodes.len; ii++) {
+            if (nodes.n[ii].id.nb_id.nb_id < min_id) {
+              min_id = nodes.n[ii].id.nb_id.nb_id;
+              lte_idx = ii;
+            }
+          }
+          printf("[POST-WAKE] HO sent IMSI=%lu source=%s target=%s (char '%c')\n",
+                 imsi, ORU_NAMES[serving_cell[u]], ORU_NAMES[rec_assign[u]],
+                 target_cell_char);
+          control_sm_xapp_api(&nodes.n[lte_idx].id, SM_RC_ID, &rc_ctrl);
+          usleep(100000);
+          free_rc_ctrl_req_data(&rc_ctrl);
+          recovery_ho_sent[u] = 1;
+          usleep(500000);
+        }
+        /* refresh GUI with recovered assignment */
+        {
+          int no_sleep2[1] = {0};
+          write_result_json_unified(rec_assign, 0.0, "ts", NUM_CELL, no_sleep2, 0);
+        }
+        post_wake_ts_done = 1;
+        printf("[POST-WAKE] recovery complete, no further action\n");
+        sleep(10);
+        continue;
+      }
+      /* Recovery done — just idle */
+      if (round > AUTO_TOTAL_ROUNDS && wake_sent && post_wake_ts_done) {
         printf("[Q-xApp AUTO] Round %d -> Idle (mode=ts)\n", round);
         printf("[Q-xApp AUTO] Cycle complete.\n");
         sleep(10);
