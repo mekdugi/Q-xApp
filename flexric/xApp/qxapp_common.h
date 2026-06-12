@@ -39,6 +39,11 @@ static const char *CELL_FILES[NUM_CELL] = {
 /* ── SINR / rate data ─────────────────────────────────────────────── */
 static double sinr_matrix[NUM_UE][NUM_CELL];
 static int    serving_cell[NUM_UE];
+/* per-UE measurement validity for the CURRENT scan + latest CSV timestamp.
+ * serving_cell alone is NOT readiness: it is zero-initialized and keeps its
+ * previous value when a scan finds no row for a UE (Codex INIT-TS review). */
+static int      meas_valid[NUM_UE];
+static uint64_t meas_ts[NUM_UE];
 
 /* ── dynamic UE ID map ───────────────────────────────────────────── */
 #define MAX_UE_MAP 64
@@ -142,10 +147,14 @@ static void read_sinr_from_csv(void)
   }
 
   memset(sinr_matrix, 0, sizeof(sinr_matrix));
+  /* validity is per-scan: only UEs with an actual row this scan are valid */
+  for (int u = 0; u < NUM_UE; u++) meas_valid[u] = 0;
   for (int u = 0; u < NUM_UE; u++) {
     if (!has_row[u]) continue;
     row_t *r = &best_row[u];
 
+    meas_valid[u] = 1;
+    meas_ts[u] = r->ts;
     serving_cell[u] = r->cell_idx;
     sinr_matrix[u][r->cell_idx] = sinr_to_rate(r->srv_sinr);
 

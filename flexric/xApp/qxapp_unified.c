@@ -533,7 +533,10 @@ static void use_case_encoder(const char *mode)
     printf("  UE %d:  ", u);
     for (int c = 0; c < NUM_CELL; c++)
       printf("%-10.4f", sinr_matrix[u][c]);
-    printf("  (serving: %s)\n", ORU_NAMES[serving_cell[u]]);
+    printf("  (serving: %s%s)\n",
+           (meas_valid[u] && serving_cell[u] >= 0 && serving_cell[u] < NUM_CELL)
+               ? ORU_NAMES[serving_cell[u]] : "n/a",
+           meas_valid[u] ? "" : " [stale]");
   }
 
   /* Mode-specific configuration */
@@ -557,6 +560,11 @@ static void use_case_encoder(const char *mode)
   }
 }
 
+/* INIT-TS shared state — defined here so assignment_algorithm can read the
+ * frozen assignment; the state machine itself lives below Stage 2. */
+static int init_ts_converged = 0;
+static int init_ts_target[NUM_UE] = {-1, -1, -1, -1};
+
 /* Stage 2: Quantum Assignment Algorithm (Fig. 2) */
 static void assignment_algorithm(const char *mode,
                                  int assignment[NUM_UE],
@@ -569,8 +577,16 @@ static void assignment_algorithm(const char *mode,
   if (strcmp(mode, "nes") == 0) {
     energy_aware_match(assignment, active_cells, sleep_cells, n_sleep);
   } else if (strcmp(mode, "qos") == 0) {
-    /* TS xApp: UE-Cell assignment */
-    greedy_match(assignment);
+    /* QoS must not re-steer: use the converged frozen INIT-TS assignment.
+     * Re-running greedy_match here could diverge from actual serving state
+     * mid-cycle (Codex INIT-TS review §3). Manual qos mode (no INIT-TS)
+     * falls back to greedy. */
+    if (init_ts_converged) {
+      for (int u = 0; u < NUM_UE; u++) assignment[u] = init_ts_target[u];
+      printf("[Q-xApp QoS-RA] Using frozen INIT-TS assignment\n");
+    } else {
+      greedy_match(assignment);
+    }
     /* QoS-RA xApp: UE-DRB assignment (runs in parallel with TS) */
     drb_match(assignment);
     *active_cells = NUM_CELL;
@@ -610,6 +626,124 @@ static void assignment_algorithm(const char *mode,
   /* Write result JSON */
   write_result_json_unified(assignment, total_rate, mode, *active_cells, sleep_cells, *n_sleep);
 }
+
+/* ── common HO send + fresh-measurement confirmation (Codex INIT-TS design):
+ *    one judgment rule for INIT-TS / NES / POST-WAKE so the three paths
+ *    cannot drift apart. "Confirmed" = a CSV row NEWER than the send shows
+ *    the UE serving on the target. ───────────────────────────────────── */
+static uint64_t send_rc_ho_tagged(e2_node_arr_xapp_t *nodes, int u, int target_idx,
+                                  const char *tag)
+{
+  uint64_t imsi = (uint64_t)(u + 1);
+  char target_cell_char = '0' + CELL_IDS[target_idx];
+  ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+  rc_ctrl_req_data_t rc_ctrl = {0};
+  rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 3, HANDOVER_CONTROL_7_6_4_1);
+  rc_ctrl.msg = gen_rc_ctrl_msg(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
+  size_t lte_idx = 0;
+  uint32_t min_id = UINT32_MAX;
+  for (size_t ii = 0; ii < nodes->len; ii++) {
+    if (nodes->n[ii].id.nb_id.nb_id < min_id) {
+      min_id = nodes->n[ii].id.nb_id.nb_id;
+      lte_idx = ii;
+    }
+  }
+  printf("[%s] HO sent IMSI=%lu source=%s target=%s (char '%c')\n", tag, imsi,
+         (meas_valid[u] && serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "n/a",
+         ORU_NAMES[target_idx], target_cell_char);
+  control_sm_xapp_api(&nodes->n[lte_idx].id, SM_RC_ID, &rc_ctrl);
+  usleep(100000);
+  free_rc_ctrl_req_data(&rc_ctrl);
+  usleep(500000); /* staggered: one UE at a time toward the LTE anchor */
+  return meas_ts[u];
+}
+
+static int ho_confirmed_fresh(int u, int target_idx, uint64_t ts_at_send)
+{
+  return meas_valid[u] && serving_cell[u] == target_idx && meas_ts[u] > ts_at_send;
+}
+
+/* ── INIT-TS state machine (Codex-approved): WAIT_MEAS -> FREEZE -> ENFORCE
+ *    -> CONVERGE within the fixed TS window (rounds 1..AUTO_TS_ROUNDS).
+ *    Hard deadline = end of round AUTO_TS_ROUNDS; on timeout the run goes
+ *    fail-closed (no QoS/NES control) and the batch validator fails it. */
+static int init_ts_frozen = 0;
+static int init_ts_ho_count[NUM_UE] = {0};   /* sends incl. one retry */
+static uint64_t init_ts_send_ts[NUM_UE] = {0};
+static int init_ts_sent_round[NUM_UE] = {0};
+static int init_ts_confirmed[NUM_UE] = {0};
+static int init_ts_failed = 0;
+#define INIT_TS_RETRY_ROUND 4 /* one retry no later than this round */
+
+static void init_ts_enforce(int assignment[NUM_UE], e2_node_arr_xapp_t *nodes, int round)
+{
+  /* S0/S1: freeze the target once, when every UE has a current-scan row */
+  if (!init_ts_frozen) {
+    int all_valid = 1;
+    for (int u = 0; u < NUM_UE; u++)
+      if (!meas_valid[u]) all_valid = 0;
+    if (!all_valid) {
+      printf("[INIT-TS] waiting for valid measurements (round %d)\n", round);
+      return;
+    }
+    for (int u = 0; u < NUM_UE; u++) {
+      init_ts_target[u] = assignment[u];
+      printf("[INIT-TS] target frozen: UE %d -> %s (serving=%s)\n", u,
+             (init_ts_target[u] >= 0) ? ORU_NAMES[init_ts_target[u]] : "none",
+             (serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "n/a");
+    }
+    init_ts_frozen = 1;
+  }
+  if (init_ts_converged) return;
+
+  /* S2/S3: send/confirm against the FROZEN target (never recomputed) */
+  int all_conv = 1;
+  for (int u = 0; u < NUM_UE; u++) {
+    int tgt = init_ts_target[u];
+    if (tgt < 0) continue;
+    if (init_ts_ho_count[u] == 0) {
+      if (meas_valid[u] && serving_cell[u] == tgt) continue; /* no HO needed */
+      init_ts_send_ts[u] = send_rc_ho_tagged(nodes, u, tgt, "INIT-TS");
+      init_ts_ho_count[u] = 1;
+      init_ts_sent_round[u] = round;
+      all_conv = 0;
+      continue;
+    }
+    if (init_ts_confirmed[u]) continue;
+    if (ho_confirmed_fresh(u, tgt, init_ts_send_ts[u])) {
+      init_ts_confirmed[u] = 1;
+      printf("[INIT-TS] HO confirmed IMSI=%d serving=%s (fresh measurement)\n",
+             u + 1, ORU_NAMES[tgt]);
+      continue;
+    }
+    all_conv = 0;
+    if (init_ts_ho_count[u] == 1 && round >= INIT_TS_RETRY_ROUND &&
+        round > init_ts_sent_round[u]) {
+      printf("[INIT-TS] retry: UE %d still not confirmed, resending\n", u);
+      init_ts_send_ts[u] = send_rc_ho_tagged(nodes, u, tgt, "INIT-TS");
+      init_ts_ho_count[u] = 2;
+      init_ts_sent_round[u] = round;
+    }
+  }
+  if (all_conv) {
+    init_ts_converged = 1;
+    printf("[INIT-TS] converged at round %d (all UEs assignment==serving)\n", round);
+    int cap[NUM_CELL] = {0};
+    int tot = 0;
+    for (int u = 0; u < NUM_UE; u++) {
+      if (serving_cell[u] >= 0 && serving_cell[u] < NUM_CELL) {
+        cap[serving_cell[u]]++;
+        tot++;
+      }
+    }
+    printf("[INIT-TS] capacity: O-RU 1=%d O-RU 2=%d O-RU 3=%d (sum=%d)\n",
+           cap[0], cap[1], cap[2], tot);
+  }
+}
+
+/* NES evacuation confirmation state */
+static uint64_t nes_send_ts[NUM_UE] = {0};
+static int nes_evac_failed = 0;
 
 static int ho_sent[NUM_UE] = {0};
 static int sleep_sent = 0;
@@ -691,31 +825,44 @@ static void output_interpreter(const char *mode,
     printf("[Q-xApp] HO latency for UE %d: %ld us\n", u, time_now_us() - st);
     free_rc_ctrl_req_data(&rc_ctrl);
     ho_sent[u] = 1;
+    nes_send_ts[u] = meas_ts[u]; /* freshness anchor for evacuation confirm */
     usleep(500000);
   }
 skip_ho:
 
-  /* Phase 5: Wait for HO completion before sleep. Skip sleep if HO still pending. */
-  if (strcmp(mode, "nes") == 0) {
-    int ho_pending = 0;
+  /* Evacuation confirmation before sleep (Codex INIT-TS review §4):
+   * "ho_sent" is command-dispatched, NOT completed. Sleep only when a FRESH
+   * measurement shows zero UEs actually serving on every sleep-target cell. */
+  if (strcmp(mode, "nes") == 0 && !sleep_sent && !nes_evac_failed) {
+    int evac_ok = 1;
     for (int u = 0; u < NUM_UE; u++) {
-      /* Check if any UE on a sleeping cell has HO sent but not yet confirmed */
-      int on_sleep = 0;
+      if (!meas_valid[u]) { evac_ok = 0; break; }
+      /* UEs we HO'd away need a row NEWER than the send */
+      if (ho_sent[u] && meas_ts[u] <= nes_send_ts[u]) { evac_ok = 0; break; }
       for (int s = 0; s < n_sleep; s++) {
-        if (prev_assignment[u] >= 0 && CELL_IDS[prev_assignment[u]] == sleep_cells[s])
-          on_sleep = 1;
+        if (serving_cell[u] >= 0 && CELL_IDS[serving_cell[u]] == sleep_cells[s]) {
+          evac_ok = 0;
+          break;
+        }
       }
-      if (on_sleep && !ho_sent[u]) {
-        /* HO needed but not yet sent (shouldn't happen with gate, but safety) */
-        ho_pending = 1;
-      }
+      if (!evac_ok) break;
     }
-    if (ho_pending) {
-      printf("[Q-xApp NES] HO still pending, defer sleep to next round\n");
+    if (!evac_ok) {
+      if (nes_round_count + 1 >= AUTO_NES_ROUNDS) {
+        printf("[NES] TIMEOUT — evacuation not confirmed by round %d, sleep withheld\n",
+               nes_round_count + 1);
+        nes_evac_failed = 1;
+      } else {
+        printf("[Q-xApp NES] evacuation not confirmed yet, defer sleep (nes_round=%d)\n",
+               nes_round_count + 1);
+      }
+      nes_round_count++;
       goto skip_sleep;
     }
-    /* HO either completed or not needed — brief wait for ns-3 to process */
-    usleep(500000);
+    printf("[NES] evacuation converged: sleep targets have 0 serving UEs (fresh)\n");
+  }
+  if (strcmp(mode, "nes") == 0 && nes_evac_failed) {
+    goto skip_sleep; /* fail-closed: never sleep on unconfirmed evacuation */
   }
 
   /* QoS-RA mode: Send Radio_Bearer_Control (RC style=1) for each UE — once per cycle */
@@ -761,12 +908,7 @@ skip_ho:
     printf("[Q-xApp NES] Sleep already sent this cycle, skip\n");
 
   } else if (strcmp(mode, "nes") == 0 && !sleep_sent) {
-    nes_round_count++;
-    /* Delay sleep until 4th NES round to let HO complete and data path stabilize */
-    if (nes_round_count < 4) {
-      printf("[Q-xApp NES] Delaying sleep to let HO stabilize (nes_round=%d)\n", nes_round_count);
-      goto skip_sleep;
-    }
+    /* evacuation already confirmed by the fresh-measurement gate above */
     /* Wake ALL cells that are NOT sleep targets */
     for (int c = 0; c < NUM_CELL; c++) {
       char wake_char = '0' + CELL_IDS[c];
@@ -899,6 +1041,25 @@ int main(int argc, char *argv[])
           segment = "Idle";
         printf("[Q-xApp AUTO] Round %d -> %s (mode=%s)\n", round, segment, mode);
       }
+      /* INIT-TS hard deadline: end of the fixed TS window. Past it without
+       * convergence -> fail-closed (no QoS/NES control for the rest of the
+       * run; the batch validator fails this attempt). */
+      if (!init_ts_failed && !init_ts_converged && round > AUTO_TS_ROUNDS) {
+        printf("[INIT-TS] TIMEOUT — mismatched:");
+        for (int u = 0; u < NUM_UE; u++) {
+          if (init_ts_target[u] >= 0 &&
+              !(meas_valid[u] && serving_cell[u] == init_ts_target[u]))
+            printf(" UE%d", u);
+          if (!init_ts_frozen) { printf(" (never frozen)"); break; }
+        }
+        printf("\n");
+        init_ts_failed = 1;
+      }
+      if (init_ts_failed) {
+        printf("[INIT-TS] fail-closed: control suspended (round %d)\n", round);
+        sleep(10);
+        continue;
+      }
       /* After single cycle completes, wake and restart */
       static int wake_sent = 0;
       if (round > AUTO_TOTAL_ROUNDS && !wake_sent) {
@@ -936,6 +1097,11 @@ int main(int argc, char *argv[])
        * and sends recovery RC-HO only for serving!=assignment UEs. */
       static int post_wake_ts_done = 0;
       static int recovery_wait_rounds = 0;
+      static int post_wake_ho_done = 0;          /* HO send phase finished */
+      static int rec_confirm_rounds = 0;
+      static int rec_target[NUM_UE] = {-1, -1, -1, -1};
+      static uint64_t rec_send_ts[NUM_UE] = {0};
+      static int rec_confirmed[NUM_UE] = {0};
       if (round > AUTO_TOTAL_ROUNDS && wake_sent && !post_wake_ts_done) {
         recovery_wait_rounds++;
         read_sinr_from_csv();
@@ -969,49 +1135,62 @@ int main(int argc, char *argv[])
           sleep(10);
           continue;
         }
-        /* TS recompute on fresh measurements */
-        int rec_assign[NUM_UE];
-        greedy_match(rec_assign);
-        for (int u = 0; u < NUM_UE; u++)
-          printf("[POST-WAKE] UE %d measured serving=%s computed assignment=%s\n", u,
-                 (serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "none",
-                 (rec_assign[u] >= 0) ? ORU_NAMES[rec_assign[u]] : "none");
-        /* Recovery RC-HO for mismatched UEs only (one-shot each) */
-        for (int u = 0; u < NUM_UE; u++) {
-          if (recovery_ho_sent[u]) continue;
-          if (rec_assign[u] < 0 || serving_cell[u] < 0) continue;
-          if (rec_assign[u] == serving_cell[u]) continue;
-          uint64_t imsi = (uint64_t)(u + 1);
-          char target_cell_char = '0' + CELL_IDS[rec_assign[u]];
-          ue_id_e2sm_t ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
-          rc_ctrl_req_data_t rc_ctrl = {0};
-          rc_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, ue_id, 3,
-                                        HANDOVER_CONTROL_7_6_4_1);
-          rc_ctrl.msg = gen_rc_ctrl_msg(FORMAT_1_E2SM_RC_CTRL_MSG, target_cell_char);
-          size_t lte_idx = 0;
-          uint32_t min_id = UINT32_MAX;
-          for (size_t ii = 0; ii < nodes.len; ii++) {
-            if (nodes.n[ii].id.nb_id.nb_id < min_id) {
-              min_id = nodes.n[ii].id.nb_id.nb_id;
-              lte_idx = ii;
-            }
+        if (!post_wake_ho_done) {
+          /* TS recompute on fresh measurements */
+          int rec_assign[NUM_UE];
+          greedy_match(rec_assign);
+          for (int u = 0; u < NUM_UE; u++)
+            printf("[POST-WAKE] UE %d measured serving=%s computed assignment=%s\n", u,
+                   (serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "none",
+                   (rec_assign[u] >= 0) ? ORU_NAMES[rec_assign[u]] : "none");
+          /* Recovery RC-HO for mismatched UEs only (one-shot each, staggered) */
+          int any_ho = 0;
+          for (int u = 0; u < NUM_UE; u++) {
+            if (recovery_ho_sent[u]) continue;
+            if (rec_assign[u] < 0 || serving_cell[u] < 0) continue;
+            if (rec_assign[u] == serving_cell[u]) continue;
+            rec_target[u] = rec_assign[u];
+            rec_send_ts[u] = send_rc_ho_tagged(&nodes, u, rec_assign[u], "POST-WAKE");
+            recovery_ho_sent[u] = 1;
+            any_ho = 1;
           }
-          printf("[POST-WAKE] HO sent IMSI=%lu source=%s target=%s (char '%c')\n",
-                 imsi, ORU_NAMES[serving_cell[u]], ORU_NAMES[rec_assign[u]],
-                 target_cell_char);
-          control_sm_xapp_api(&nodes.n[lte_idx].id, SM_RC_ID, &rc_ctrl);
-          usleep(100000);
-          free_rc_ctrl_req_data(&rc_ctrl);
-          recovery_ho_sent[u] = 1;
-          usleep(500000);
+          /* refresh GUI with recovered assignment */
+          {
+            int no_sleep2[1] = {0};
+            write_result_json_unified(rec_assign, 0.0, "ts", NUM_CELL, no_sleep2, 0);
+          }
+          post_wake_ho_done = 1;
+          if (!any_ho) {
+            post_wake_ts_done = 1;
+            printf("[POST-WAKE] recovery complete, no further action\n");
+          }
+          sleep(10);
+          continue;
         }
-        /* refresh GUI with recovered assignment */
-        {
-          int no_sleep2[1] = {0};
-          write_result_json_unified(rec_assign, 0.0, "ts", NUM_CELL, no_sleep2, 0);
+        /* confirmation phase: complete only on FRESH serving==target rows
+         * (Codex INIT-TS review §5 — "recovery complete" was send-complete) */
+        rec_confirm_rounds++;
+        int all_ok = 1;
+        for (int u = 0; u < NUM_UE; u++) {
+          if (!recovery_ho_sent[u] || rec_confirmed[u]) continue;
+          if (ho_confirmed_fresh(u, rec_target[u], rec_send_ts[u])) {
+            rec_confirmed[u] = 1;
+            printf("[POST-WAKE] HO confirmed IMSI=%d serving=%s (fresh measurement)\n",
+                   u + 1, ORU_NAMES[rec_target[u]]);
+          } else {
+            all_ok = 0;
+          }
         }
-        post_wake_ts_done = 1;
-        printf("[POST-WAKE] recovery complete, no further action\n");
+        if (all_ok) {
+          post_wake_ts_done = 1;
+          printf("[POST-WAKE] recovery complete, no further action\n");
+        } else if (rec_confirm_rounds >= 5) {
+          printf("[POST-WAKE] TIMEOUT — unconfirmed:");
+          for (int u = 0; u < NUM_UE; u++)
+            if (recovery_ho_sent[u] && !rec_confirmed[u]) printf(" IMSI=%d", u + 1);
+          printf("\n");
+          post_wake_ts_done = 1;
+        }
         sleep(10);
         continue;
       }
@@ -1113,6 +1292,10 @@ int main(int argc, char *argv[])
 
     use_case_encoder(mode);                                                        /* Stage 1 */
     assignment_algorithm(mode, assignment, &active_cells, sleep_cells, &n_sleep);  /* Stage 2 */
+    /* INIT-TS enforcement (auto TS window only): freeze the computed
+     * assignment once and drive ACTUAL serving state to it before QoS. */
+    if (is_auto && strcmp(mode, "ts") == 0 && round <= AUTO_TS_ROUNDS && !init_ts_failed)
+      init_ts_enforce(assignment, &nodes, round);
     output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
 
     printf("[Q-xApp] Round %d complete. [mode=%s]\n", round, mode);

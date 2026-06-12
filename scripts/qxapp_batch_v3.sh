@@ -38,12 +38,16 @@ log() { echo "[batch3] $*" | tee -a "$OUT_BASE/batch.log"; }
 SCHED_CC=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.cc
 SCHED_H=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.h
 SCENARIO_CC=$NS/scratch/scenario-fig4-qxapp.cc
+XAPP_C=/root/flexric/examples/xApp/c/ctrl/qxapp_unified.c
+XAPP_H=/root/flexric/examples/xApp/c/ctrl/qxapp_common.h
 {
   echo "simulation_code_commit=$SIM_CODE_COMMIT"
   echo "batch_repo_commit=$BATCH_REPO_COMMIT"
   echo "sched_cc_sha256=$(sha256sum "$SCHED_CC" | cut -d' ' -f1)"
   echo "sched_h_sha256=$(sha256sum "$SCHED_H" | cut -d' ' -f1)"
   echo "scenario_cc_sha256=$(sha256sum "$SCENARIO_CC" | cut -d' ' -f1)"
+  echo "xapp_c_sha256=$(sha256sum "$XAPP_C" | cut -d' ' -f1)"
+  echo "xapp_h_sha256=$(sha256sum "$XAPP_H" | cut -d' ' -f1)"
   echo "batch_script_sha256=$(sha256sum "$0" | cut -d' ' -f1)"
   echo "start_time=$(date -Is)"
   echo "seed_range=${START}..${END}"
@@ -79,6 +83,9 @@ cleanup_procs() {
 
 clear_ns_outputs() {
   rm -f "$NS/DlPdcpStats.txt" "$NS/DlRlcStats.txt" "$NS"/energyfilecell*.csv
+  # measurement/result files the xApp reads — stale copies from a previous
+  # attempt must never leak into a new one (Codex INIT-TS review §6)
+  rm -f "$NS"/cu-cp-cell-*.txt "$NS/qxapp_result.json"
 }
 
 # scenario writes energyfilecell{2,3,4} only (x+2, x=0..N_MmWaveEnbNodes-1).
@@ -114,6 +121,57 @@ validate_run_semantics() {  # $1 = seed, $2 = run dir; 0 = PASS
   [ "$c" -eq 0 ] || fail="$fail f2guard=$c"
   c=$(grep -cE 'NS_FATAL|SIGABRT|assert failed|Assertion|assertion|Aborted|terminate called' "$RUN_DIR/ns3.txt")
   [ "$c" -eq 0 ] || fail="$fail crash=$c"
+
+  # ── INIT-TS protocol checks (Codex INIT-TS review §6) ──
+  c=$(grep -cF '[INIT-TS] converged' "$RUN_DIR/xapp.txt")
+  [ "$c" -eq 1 ] || fail="$fail initts_converged=$c"
+  if [ "$c" -eq 1 ]; then
+    l1=$(grep -nF '[INIT-TS] converged' "$RUN_DIR/xapp.txt" | head -1 | cut -d: -f1)
+    l2=$(grep -nF 'DRB weights sent' "$RUN_DIR/xapp.txt" | head -1 | cut -d: -f1)
+    if [ -n "$l2" ] && [ "$l1" -ge "$l2" ]; then
+      fail="$fail initts_after_qos"
+    fi
+  fi
+  for tmo in '[INIT-TS] TIMEOUT' '[NES] TIMEOUT' '[POST-WAKE] TIMEOUT'; do
+    c=$(grep -cF "$tmo" "$RUN_DIR/xapp.txt")
+    [ "$c" -eq 0 ] || fail="$fail timeout($tmo)=$c"
+  done
+  # actual capacity: each O-RU <= 2 AND sum == NUM_UE(4)
+  capline=$(grep -F '[INIT-TS] capacity:' "$RUN_DIR/xapp.txt" | head -1)
+  if [ -z "$capline" ]; then
+    fail="$fail no_capacity_line"
+  else
+    k1=$(echo "$capline" | sed -E 's/.*O-RU 1=([0-9]+).*/\1/')
+    k2=$(echo "$capline" | sed -E 's/.*O-RU 2=([0-9]+).*/\1/')
+    k3=$(echo "$capline" | sed -E 's/.*O-RU 3=([0-9]+).*/\1/')
+    sm=$(echo "$capline" | sed -E 's/.*sum=([0-9]+).*/\1/')
+    if ! { [ "$k1" -le 2 ] && [ "$k2" -le 2 ] && [ "$k3" -le 2 ] && [ "$sm" -eq 4 ]; }; then
+      fail="$fail capacity(${k1},${k2},${k3},sum=${sm})"
+    fi
+  fi
+  # every INIT-TS send must be confirmed (fresh measurement) and have a
+  # matching ns-3 HO-COMPLETE with the SAME IMSI and target cell (O-RU n = cell n+1)
+  sents=$(grep -cF '[INIT-TS] HO sent' "$RUN_DIR/xapp.txt")
+  confs=$(grep -cF '[INIT-TS] HO confirmed' "$RUN_DIR/xapp.txt")
+  [ "$sents" -eq "$confs" ] || fail="$fail initts_sent=${sents}_confirmed=${confs}"
+  while read -r imsi oru; do
+    [ -n "$imsi" ] || continue
+    cell=$((oru + 1))
+    cc=$(grep -cF "HO-COMPLETE: target cell $cell IMSI=$imsi" "$RUN_DIR/ns3.txt")
+    [ "$cc" -ge 1 ] || fail="$fail initts_imsi${imsi}_cell${cell}_nocomplete"
+  done < <(grep -F '[INIT-TS] HO sent' "$RUN_DIR/xapp.txt" | \
+           sed -E 's/.*IMSI=([0-9]+).*target=O-RU ([0-9]+).*/\1 \2/')
+  # QoS must run on the frozen converged assignment
+  c=$(grep -cF 'Using frozen INIT-TS assignment' "$RUN_DIR/xapp.txt")
+  [ "$c" -ge 1 ] || fail="$fail qos_frozen=$c"
+  # NES: sleep only after confirmed evacuation
+  c=$(grep -cF '[NES] evacuation converged' "$RUN_DIR/xapp.txt")
+  [ "$c" -ge 1 ] || fail="$fail nes_evac=$c"
+  # POST-WAKE: every sent recovery HO must be freshly confirmed
+  ps=$(grep -cF '[POST-WAKE] HO sent' "$RUN_DIR/xapp.txt")
+  pc=$(grep -cF '[POST-WAKE] HO confirmed' "$RUN_DIR/xapp.txt")
+  [ "$ps" -eq "$pc" ] || fail="$fail postwake_sent=${ps}_confirmed=${pc}"
+
   if [ -n "$fail" ]; then
     log "run $N semantic validation FAILED:$fail"
     return 1
