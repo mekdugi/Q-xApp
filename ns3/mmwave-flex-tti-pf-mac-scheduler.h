@@ -475,7 +475,6 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
 
     double m_timeWindow;
 
-    std::vector<FlowStats*> m_flowHeap;
     std::vector<UeSchedInfo*> m_ueStatHeap;
 };
 

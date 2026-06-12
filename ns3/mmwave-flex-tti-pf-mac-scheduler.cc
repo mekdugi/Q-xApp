@@ -2185,7 +2185,6 @@ MmWaveFlexTtiPfMacScheduler::DoCschedLcConfigReq(
                     itUe->second.m_flowStatsDl[lcid].m_deadlineUs =
                         lowLatBearer.GetPacketDelayBudgetMs() * 1000;
                 }
-                m_flowHeap.push_back(&(itUe->second.m_flowStatsDl[lcid]));
             }
             else if (params.m_logicalChannelConfigList[i].m_direction ==
                      LogicalChannelConfigListElement_s::DIR_UL)
@@ -2204,7 +2203,6 @@ MmWaveFlexTtiPfMacScheduler::DoCschedLcConfigReq(
                     itUe->second.m_flowStatsUl[lcid].m_deadlineUs =
                         lowLatBearer.GetPacketDelayBudgetMs() * 1000;
                 }
-                m_flowHeap.push_back(&(itUe->second.m_flowStatsUl[lcid]));
             }
             else if (params.m_logicalChannelConfigList[i].m_direction ==
                      LogicalChannelConfigListElement_s::DIR_BOTH)
@@ -2228,8 +2226,6 @@ MmWaveFlexTtiPfMacScheduler::DoCschedLcConfigReq(
                         lowLatBearer.GetPacketDelayBudgetMs() * 1000;
                 }
 
-                m_flowHeap.push_back(&(itUe->second.m_flowStatsDl[lcid]));
-                m_flowHeap.push_back(&(itUe->second.m_flowStatsUl[lcid]));
             }
         }
     }
