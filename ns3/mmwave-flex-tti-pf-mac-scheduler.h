@@ -420,7 +420,7 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
      * Map of previous allocated UE per RBG
      * (used to retrieve info from UL-CQI)
      */
-    std::map<uint32_t, struct AllocMapElem> m_ulAllocationMap;
+    std::map<uint64_t, struct AllocMapElem> m_ulAllocationMap; // K1: full SfnSf::Encode() key
 
     // HARQ attributes
     /**
@@ -483,8 +483,12 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
 
     // ULKEY(F9) diagnostic counters (temporary instrumentation)
     uint64_t m_ulKeyInsertOk{0};
-    uint64_t m_ulKeyDupFullKey{0};
-    uint64_t m_ulKeyTruncCollision{0};
+    uint64_t m_ulKeyDupSameAlloc{0};    // same key, same rnti+numSym+tbSize
+    uint64_t m_ulKeyDupChangedAlloc{0}; // same key, same rnti, payload differs
+    uint64_t m_ulKeyDupDiffRnti{0};     // same key, different rnti
+    uint64_t m_ulKeyTruncCollision{0};  // K1 이후 구조적 0 (sanity)
+    uint32_t m_ulKeySampleIns{0};
+    uint32_t m_ulKeySampleLkp{0};
     uint64_t m_ulKeyLookupHit{0};
     uint64_t m_ulKeyLookupMiss{0};
     uint64_t m_ulKeyValidHit{0};

@@ -584,12 +584,25 @@ MmWaveFlexTtiPfMacScheduler::DoSchedUlCqiInfoReq(
     switch (params.m_ulCqi.m_type)
     {
     case UlCqiInfo::PUSCH: {
-        std::map<uint32_t, struct AllocMapElem>::iterator itMap;
+        std::map<uint64_t, struct AllocMapElem>::iterator itMap;
         std::map<uint16_t, struct UlCqiMapElem>::iterator itCqi;
         // ULKEY(F9) diag: classify lookups — wrongKeyHit (full-key mismatch) is
         // the direct evidence of wrong-frame CQI attribution
         uint64_t ulReqFullKey = params.m_sfnSf.Encode();
-        itMap = m_ulAllocationMap.find(static_cast<uint32_t>(ulReqFullKey));
+        itMap = m_ulAllocationMap.find(ulReqFullKey);
+        // ULKEY-KEY sample: first 10 lookups per scheduler instance
+        if (m_ulKeySampleLkp < 10)
+        {
+            ++m_ulKeySampleLkp;
+            NS_LOG_UNCOND("## ULKEY-KEY: lookup sched=" << (void*)this
+                          << " t=" << Simulator::Now().GetSeconds()
+                          << " frame=" << params.m_sfnSf.m_frameNum
+                          << " sf=" << +params.m_sfnSf.m_sfNum
+                          << " slot=" << +params.m_sfnSf.m_slotNum
+                          << " sym=" << +params.m_sfnSf.m_symStart
+                          << " key=" << ulReqFullKey << " "
+                          << (itMap != m_ulAllocationMap.end() ? "hit" : "miss"));
+        }
         if (itMap == m_ulAllocationMap.end())
         {
             ++m_ulKeyLookupMiss;
@@ -1676,7 +1689,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
         {
             m_lastUlKeyStatTime = nowSec;
             double oldestAge = 0.0;
-            for (std::map<uint32_t, struct AllocMapElem>::iterator ageIt =
+            for (std::map<uint64_t, struct AllocMapElem>::iterator ageIt =
                      m_ulAllocationMap.begin();
                  ageIt != m_ulAllocationMap.end();
                  ++ageIt)
@@ -1687,22 +1700,32 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                     oldestAge = age;
                 }
             }
+            double p50Age = 0.0;
             double p99Age = 0.0;
             if (!m_ulKeyValidHitAges.empty())
             {
                 std::vector<double> ages = m_ulKeyValidHitAges;
-                size_t idx = static_cast<size_t>(ages.size() * 0.99);
-                if (idx >= ages.size())
+                size_t idx50 = static_cast<size_t>(ages.size() * 0.50);
+                size_t idx99 = static_cast<size_t>(ages.size() * 0.99);
+                if (idx50 >= ages.size())
                 {
-                    idx = ages.size() - 1;
+                    idx50 = ages.size() - 1;
                 }
-                std::nth_element(ages.begin(), ages.begin() + idx, ages.end());
-                p99Age = ages[idx];
+                if (idx99 >= ages.size())
+                {
+                    idx99 = ages.size() - 1;
+                }
+                std::nth_element(ages.begin(), ages.begin() + idx50, ages.end());
+                p50Age = ages[idx50];
+                std::nth_element(ages.begin(), ages.begin() + idx99, ages.end());
+                p99Age = ages[idx99];
             }
             NS_LOG_UNCOND("## ULKEY-STAT: t=" << nowSec << " sched=" << (void*)this
                           << " mapSize=" << m_ulAllocationMap.size()
                           << " insertOk=" << m_ulKeyInsertOk
-                          << " duplicateFullKey=" << m_ulKeyDupFullKey
+                          << " dupSameAlloc=" << m_ulKeyDupSameAlloc
+                          << " dupChangedAlloc=" << m_ulKeyDupChangedAlloc
+                          << " dupDiffRnti=" << m_ulKeyDupDiffRnti
                           << " truncationCollision=" << m_ulKeyTruncCollision
                           << " lookupHit=" << m_ulKeyLookupHit
                           << " lookupMiss=" << m_ulKeyLookupMiss
@@ -1710,8 +1733,9 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                           << " wrongKeyHit=" << m_ulKeyWrongKeyHit
                           << " oldAgeHit=" << m_ulKeyOldAgeHit
                           << " oldestAgeSec=" << oldestAge
-                          << " maxValidHitAgeSec=" << m_ulKeyMaxValidHitAge
-                          << " p99ValidHitAgeSec=" << p99Age);
+                          << " p50ValidHitAgeSec=" << p50Age
+                          << " p99ValidHitAgeSec=" << p99Age
+                          << " maxValidHitAgeSec=" << m_ulKeyMaxValidHitAge);
         }
     }
 
@@ -1977,17 +2001,17 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
             }
             // SfnSf slotSfn = ret.m_ulSfAllocInfo.m_sfnSf;
             SfnSf slotSfn = ret.m_slotAllocInfo.m_sfnSf;
-            slotSfn.m_slotNum =
-                dci.m_symStart; // use the start symbol index of the slot because the absolute UL
-                                // slot index depends on the future DL allocation
+            slotSfn.m_symStart =
+                dci.m_symStart; // K0: symStart belongs in the symStart field. The
+                                // frame/sf/slot of ret already address the future
+                                // execution slot (MAC trigger adds L1L2Latency),
+                                // matching the PHY-side PUSCH CQI lookup key.
             // insert into allocation map to recall previous allocations upon receiving UL-CQI
-            // ULKEY(F9) diag: make the 64->32 bit key truncation explicit and
-            // classify insert failures (duplicate full key vs truncation collision)
+            // ULKEY(F9): K1 full 64-bit key; classify duplicates by rnti+payload
             uint64_t ulKeyFull = slotSfn.Encode();
-            uint32_t ulKeyTrunc = static_cast<uint32_t>(ulKeyFull);
-            std::pair<std::map<uint32_t, struct AllocMapElem>::iterator, bool> ulKeyIns =
-                m_ulAllocationMap.insert(std::pair<uint32_t, struct AllocMapElem>(
-                    ulKeyTrunc,
+            std::pair<std::map<uint64_t, struct AllocMapElem>::iterator, bool> ulKeyIns =
+                m_ulAllocationMap.insert(std::pair<uint64_t, struct AllocMapElem>(
+                    ulKeyFull,
                     AllocMapElem(ueChunkMap, dci.m_numSym, dci.m_tbSize)));
             if (ulKeyIns.second)
             {
@@ -1999,32 +2023,62 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
             {
                 struct AllocMapElem& oldE = ulKeyIns.first->second;
                 bool isDup = (oldE.m_fullKey == ulKeyFull);
-                if (isDup)
+                bool sameRnti = (!oldE.m_rntiPerChunk.empty() &&
+                                 oldE.m_rntiPerChunk.front() == dci.m_rnti);
+                bool sameAlloc = (oldE.m_rntiPerChunk == ueChunkMap &&
+                                  oldE.m_numSym == dci.m_numSym &&
+                                  oldE.m_tbSize == dci.m_tbSize);
+                const char* dupKind;
+                if (!isDup)
                 {
-                    ++m_ulKeyDupFullKey;
+                    ++m_ulKeyTruncCollision; // structurally impossible post-K1
+                    dupKind = "truncationCollision";
+                }
+                else if (!sameRnti)
+                {
+                    ++m_ulKeyDupDiffRnti;
+                    dupKind = "duplicateDifferentRnti";
+                }
+                else if (sameAlloc)
+                {
+                    ++m_ulKeyDupSameAlloc;
+                    dupKind = "duplicateSameRntiSameAlloc";
                 }
                 else
                 {
-                    ++m_ulKeyTruncCollision;
+                    ++m_ulKeyDupChangedAlloc;
+                    dupKind = "duplicateSameRntiChangedAlloc";
                 }
-                if (m_ulKeyDupFullKey + m_ulKeyTruncCollision <= 20)
+                if (m_ulKeyDupSameAlloc + m_ulKeyDupChangedAlloc + m_ulKeyDupDiffRnti +
+                        m_ulKeyTruncCollision <=
+                    20)
                 {
-                    uint32_t oldFrame = static_cast<uint32_t>(oldE.m_fullKey >> 24);
-                    uint32_t newFrame = static_cast<uint32_t>(ulKeyFull >> 24);
                     NS_LOG_UNCOND(
-                        "## ULKEY-DIAG: insert "
-                        << (isDup ? "duplicateFullKey" : "truncationCollision")
-                        << " truncatedKey=" << ulKeyTrunc
-                        << " oldFullKey=" << oldE.m_fullKey
-                        << " newFullKey=" << ulKeyFull
-                        << " oldFrame=" << oldFrame << " newFrame=" << newFrame
-                        << " frameDelta=" << (newFrame - oldFrame)
+                        "## ULKEY-DIAG: insert " << dupKind
+                        << " key=" << ulKeyFull
                         << " oldRnti="
                         << (oldE.m_rntiPerChunk.empty() ? 0 : oldE.m_rntiPerChunk.front())
                         << " newRnti=" << dci.m_rnti
+                        << " oldNumSym=" << +oldE.m_numSym << " newNumSym=" << +dci.m_numSym
+                        << " oldTbSize=" << oldE.m_tbSize << " newTbSize=" << dci.m_tbSize
                         << " oldAgeSec=" << (Simulator::Now().GetSeconds() - oldE.m_insertTime)
                         << " mapSize=" << m_ulAllocationMap.size());
                 }
+            }
+            // ULKEY-KEY sample: first 10 inserts per scheduler instance
+            if (m_ulKeySampleIns < 10)
+            {
+                ++m_ulKeySampleIns;
+                NS_LOG_UNCOND("## ULKEY-KEY: insert sched=" << (void*)this
+                              << " t=" << Simulator::Now().GetSeconds()
+                              << " frame=" << slotSfn.m_frameNum
+                              << " sf=" << +slotSfn.m_sfNum
+                              << " slot=" << +slotSfn.m_slotNum
+                              << " sym=" << +slotSfn.m_symStart
+                              << " key=" << ulKeyFull
+                              << " rnti=" << dci.m_rnti
+                              << " numSym=" << +dci.m_numSym
+                              << " tbSize=" << dci.m_tbSize);
             }
 
             if (m_harqOn == true)
@@ -2494,7 +2548,7 @@ MmWaveFlexTtiPfMacScheduler::DoCschedUeReleaseReq(
     // the UL CQI pair. TDMA fills each entry's chunks with a single RNTI, so
     // whole-entry erase is safe under the current implementation.
     size_t f2UlAllocErased = 0;
-    for (std::map<uint32_t, struct AllocMapElem>::iterator allocIt = m_ulAllocationMap.begin();
+    for (std::map<uint64_t, struct AllocMapElem>::iterator allocIt = m_ulAllocationMap.begin();
          allocIt != m_ulAllocationMap.end();)
     {
         if (std::find(allocIt->second.m_rntiPerChunk.begin(),
