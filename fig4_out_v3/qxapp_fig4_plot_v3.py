@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Q-xApp Fig.4 post-processing v2: 4-phase (TS/QoS/NES/Recovery) multi-run average.
+"""Q-xApp Fig.4 post-processing v3: 4-phase (TS/QoS/NES/Recovery) multi-run average.
 
-Codex revisions: target-agnostic HO markers (C), exact t_qos from weight log (D),
-raw vs warped stats separated (E), power-consumption label (F), recovery phase (H).
+v3 (INIT-TS era, Codex marker-identification review):
+- INIT-TS legitimately completes steering HOs inside the TS phase, so HO
+  markers can no longer rely on order. ho1/ho2 are identified explicitly:
+    ho1 = first 'HO-COMPLETE: target cell 4 IMSI=2' after t_qos (UE2 NES move)
+    ho2 = first 'HO-COMPLETE: target cell 3 IMSI=2' after ho1 (UE2 return)
+- A run missing a required marker is excluded WITH an explicit recorded
+  invalid reason (never silently skipped).
 Also emits runs_summary.csv as the reusable raw dataset.
 """
 import os, re, sys, glob, csv
@@ -11,7 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-BATCH = sys.argv[1] if len(sys.argv) > 1 else "/home/wookjin/qxapp_runs/fig4_batch_v2"
+BATCH = sys.argv[1] if len(sys.argv) > 1 else "/home/wookjin/qxapp_runs/fig4_batch_v4"
 OUTDIR = sys.argv[2] if len(sys.argv) > 2 else os.path.join(BATCH, "fig_out")
 SIM_T = 7.0
 BIN = 0.25
@@ -54,38 +59,31 @@ def parse_power(path):
     return np.diff(e_at) / BIN_P, edges[:-1] + BIN_P / 2
 
 def extract_markers(run_dir, ue, uc, p3, pc):
-    """qos/ho1(+target)/sleep/wake/ho2(+target)"""
-    hos = []   # (t, target)
+    """qos / ho1 (UE2 NES move, IMSI2->cell4) / sleep / wake /
+       ho2 (UE2 return, IMSI2->cell3).
+       Returns a dict on success or an invalid-reason STRING; the caller
+       records the reason instead of silently skipping the run."""
+    hos = []   # (t, target_cell, imsi)
     t_qos = None
     with open(os.path.join(run_dir, "ns3.txt"), errors="replace") as f:
         for ln in f:
-            m = re.search(r"HO-COMPLETE: target cell (\d+) .* at ([0-9.]+)", ln)
+            m = re.search(r"HO-COMPLETE: target cell (\d+) IMSI=(\d+) .* at ([0-9.]+)", ln)
             if m:
-                hos.append((float(m.group(2)), int(m.group(1))))
+                hos.append((float(m.group(3)), int(m.group(1)), int(m.group(2))))
             if t_qos is None:
                 w = re.search(r"Set weight for RNTI=\d+ to 4 at t=([0-9.]+)", ln)
                 if w:
                     t_qos = float(w.group(1))
     if not hos:
-        return None
-    # v3: INIT-TS may complete an HO during the TS phase (before the QoS
-    # marker), so ho1 (the NES displacement HO) is the first HO-COMPLETE
-    # AFTER t_qos, not simply hos[0].
-    if t_qos is not None:
-        nes_hos = [(t, g) for (t, g) in hos if t > t_qos]
-        if not nes_hos:
-            return None
-        t_ho1, tgt1 = nes_hos[0]
-    else:
-        t_ho1, tgt1 = hos[0]
-    if t_qos is None:  # old-build fallback: PDCP-effect onset minus one bin
-        r = ue[1] / np.maximum(ue[4], 1e-3)
-        for i, tc in enumerate(uc[:-1]):
-            if 0.4 < tc < t_ho1 - BIN and r[i] >= 3 and r[i + 1] >= 3:
-                t_qos = max(0.3, tc - BIN)
-                break
-        if t_qos is None:
-            t_qos = 0.55 * t_ho1
+        return "no HO-COMPLETE lines in ns3.txt"
+    if t_qos is None:
+        return "no QoS weight marker (Set weight ... to 4)"
+    # ho1: UE2's NES displacement specifically — INIT-TS HOs and other UEs'
+    # HOs must never be misread as the UE2 move (Codex marker review)
+    ue2_out = [t for (t, c, i) in hos if i == 2 and c == 4 and t > t_qos]
+    if not ue2_out:
+        return "no UE2 NES HO (IMSI2->cell4 after t_qos)"
+    t_ho1, tgt1 = ue2_out[0], 4
     pre = p3[pc < t_ho1]
     base = np.median(pre[pre > 0]) if np.any(pre > 0) else 0
     th = 0.3 * base if base > 0 else 0
@@ -100,19 +98,20 @@ def extract_markers(run_dir, ue, uc, p3, pc):
             break
         i += 1
     if t_sleep is None:
-        return None
+        return "no O-RU2 sleep power drop detected"
     if t_wake is None:
         t_wake = min(t_sleep + 1.0, SIM_T - 0.3)
-    t_ho2 = tgt2 = None
-    for (t, g) in hos[1:]:
-        if t > t_wake - 0.2:
-            t_ho2, tgt2 = t, g
-            break
+    # ho2: UE2's return specifically (IMSI2 -> cell3 after the NES move)
+    ue2_ret = [t for (t, c, im) in hos if im == 2 and c == 3 and t > t_ho1]
+    if not ue2_ret:
+        return "no UE2 return HO (IMSI2->cell3 after ho1)"
+    t_ho2, tgt2 = ue2_ret[0], 3
     return {"qos": t_qos, "ho1": t_ho1, "tgt1": tgt1, "sleep": t_sleep,
             "wake": t_wake, "ho2": t_ho2, "tgt2": tgt2}
 
 def main():
     runs = []
+    invalid_runs = []  # (name, reason) — recorded, never silently dropped
     for d in sorted(glob.glob(os.path.join(BATCH, "run_*"))):
         if not os.path.isfile(os.path.join(d, "DlPdcpStats.txt")):
             continue
@@ -123,10 +122,12 @@ def main():
                 pw[c], pc = parse_power(os.path.join(d, f"energyfilecell{c}.csv"))
             mk = extract_markers(d, ue, uc, pw[3], pc)
         except Exception as ex:
-            print(f"[skip] {d}: {ex}")
+            print(f"[invalid] {os.path.basename(d)}: parse error: {ex}")
+            invalid_runs.append((os.path.basename(d), f"parse error: {ex}"))
             continue
-        if mk is None:
-            print(f"[skip] {d}: markers not found")
+        if isinstance(mk, str):
+            print(f"[invalid] {os.path.basename(d)}: {mk}")
+            invalid_runs.append((os.path.basename(d), mk))
             continue
         rec_hos = []
         xf = os.path.join(d, "xapp.txt")
@@ -212,6 +213,9 @@ def main():
             w.writerow(row)
     lines = [f"RAW per-run phase means (paper numbers), runs={n}, "
              f"recovery-HO runs={len(with_ho2)}"]
+    lines.append("invalid runs: " +
+                 (", ".join(f"{nm}[{rs}]" for nm, rs in invalid_runs)
+                  if invalid_runs else "none"))
     tgt_dist = {}
     for r in runs:
         tgt_dist[r["mk"]["tgt1"]] = tgt_dist.get(r["mk"]["tgt1"], 0) + 1

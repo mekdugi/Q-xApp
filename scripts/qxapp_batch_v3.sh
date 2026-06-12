@@ -112,6 +112,20 @@ validate_run_semantics() {  # $1 = seed, $2 = run dir; 0 = PASS
   [ "$c" -ge 1 ] || fail="$fail ue2_return_cmd=$c"
   c=$(grep -cF 'HO-COMPLETE: target cell 3 IMSI=2' "$RUN_DIR/ns3.txt")
   [ "$c" -ge 1 ] || fail="$fail ue2_return_done=$c"
+  # UE2 NES departure must also be explicit (IMSI2 -> O-RU3/cell4), and the
+  # xApp ordering must be: UE2 NES HO cmd < evacuation converged < sleep cmd
+  c=$(grep -cF '[Q-xApp] HO: UE 1 (IMSI 2) -> O-RU 3' "$RUN_DIR/xapp.txt")
+  [ "$c" -ge 1 ] || fail="$fail ue2_nes_cmd=$c"
+  c=$(grep -cF 'HO-COMPLETE: target cell 4 IMSI=2' "$RUN_DIR/ns3.txt")
+  [ "$c" -ge 1 ] || fail="$fail ue2_nes_done=$c"
+  o1=$(grep -nF '[Q-xApp] HO: UE 1 (IMSI 2) -> O-RU 3' "$RUN_DIR/xapp.txt" | head -1 | cut -d: -f1)
+  o2=$(grep -nF '[NES] evacuation converged' "$RUN_DIR/xapp.txt" | head -1 | cut -d: -f1)
+  o3=$(grep -nF 'Sending Energy_state SLEEP for cell ID=3' "$RUN_DIR/xapp.txt" | head -1 | cut -d: -f1)
+  if [ -n "$o1" ] && [ -n "$o2" ] && [ -n "$o3" ]; then
+    if ! { [ "$o1" -lt "$o2" ] && [ "$o2" -lt "$o3" ]; }; then
+      fail="$fail nes_order(cmd=$o1,evac=$o2,sleep=$o3)"
+    fi
+  fi
   # QoS weight must reach the scheduler, not merely be sent by the xApp
   c=$(grep -cE 'Set weight for RNTI=[0-9]+ to 4 at t=' "$RUN_DIR/ns3.txt")
   [ "$c" -ge 1 ] || fail="$fail qos_weight_applied=$c"
