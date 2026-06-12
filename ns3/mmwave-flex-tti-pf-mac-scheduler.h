@@ -411,6 +411,10 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
         std::vector<uint16_t> m_rntiPerChunk;
         uint8_t m_numSym;
         uint32_t m_tbSize;
+        // ULKEY(F9) diagnostics: full 64-bit key kept alongside the truncated
+        // 32-bit map key so collisions and wrong-frame lookups are detectable
+        uint64_t m_fullKey{0};
+        double m_insertTime{0.0};
     };
     /*
      * Map of previous allocated UE per RBG
@@ -476,6 +480,19 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
     double m_timeWindow;
 
     std::vector<UeSchedInfo*> m_ueStatHeap;
+
+    // ULKEY(F9) diagnostic counters (temporary instrumentation)
+    uint64_t m_ulKeyInsertOk{0};
+    uint64_t m_ulKeyDupFullKey{0};
+    uint64_t m_ulKeyTruncCollision{0};
+    uint64_t m_ulKeyLookupHit{0};
+    uint64_t m_ulKeyLookupMiss{0};
+    uint64_t m_ulKeyValidHit{0};
+    uint64_t m_ulKeyWrongKeyHit{0};
+    uint64_t m_ulKeyOldAgeHit{0};
+    double m_ulKeyMaxValidHitAge{0.0};
+    std::vector<double> m_ulKeyValidHitAges;
+    double m_lastUlKeyStatTime{0.0};
 };
 
 } // namespace mmwave

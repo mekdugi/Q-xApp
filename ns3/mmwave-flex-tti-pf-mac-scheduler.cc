@@ -586,12 +586,51 @@ MmWaveFlexTtiPfMacScheduler::DoSchedUlCqiInfoReq(
     case UlCqiInfo::PUSCH: {
         std::map<uint32_t, struct AllocMapElem>::iterator itMap;
         std::map<uint16_t, struct UlCqiMapElem>::iterator itCqi;
-        itMap = m_ulAllocationMap.find(params.m_sfnSf.Encode());
+        // ULKEY(F9) diag: classify lookups — wrongKeyHit (full-key mismatch) is
+        // the direct evidence of wrong-frame CQI attribution
+        uint64_t ulReqFullKey = params.m_sfnSf.Encode();
+        itMap = m_ulAllocationMap.find(static_cast<uint32_t>(ulReqFullKey));
         if (itMap == m_ulAllocationMap.end())
         {
+            ++m_ulKeyLookupMiss;
             NS_LOG_INFO(this << " Does not find info on allocation, size : "
                              << m_ulAllocationMap.size());
             return;
+        }
+        ++m_ulKeyLookupHit;
+        {
+            double ulEntryAge = Simulator::Now().GetSeconds() - itMap->second.m_insertTime;
+            if (itMap->second.m_fullKey != ulReqFullKey)
+            {
+                ++m_ulKeyWrongKeyHit;
+                if (m_ulKeyWrongKeyHit <= 20)
+                {
+                    NS_LOG_UNCOND(
+                        "## ULKEY-DIAG: wrongKeyHit reqFullKey=" << ulReqFullKey
+                        << " entryFullKey=" << itMap->second.m_fullKey
+                        << " reqFrame=" << params.m_sfnSf.m_frameNum
+                        << " entryFrame="
+                        << static_cast<uint32_t>(itMap->second.m_fullKey >> 24)
+                        << " entryRnti="
+                        << (itMap->second.m_rntiPerChunk.empty()
+                                ? 0
+                                : itMap->second.m_rntiPerChunk.front())
+                        << " ageSec=" << ulEntryAge);
+                }
+            }
+            else
+            {
+                ++m_ulKeyValidHit;
+                if (ulEntryAge > m_ulKeyMaxValidHitAge)
+                {
+                    m_ulKeyMaxValidHitAge = ulEntryAge;
+                }
+                m_ulKeyValidHitAges.push_back(ulEntryAge);
+            }
+            if (ulEntryAge > 0.05)
+            {
+                ++m_ulKeyOldAgeHit;
+            }
         }
         NS_ASSERT_MSG(itMap->second.m_rntiPerChunk.size() == m_phyMacConfig->GetNumRb(),
                       "SINR chunk map must cover full BW in TDMA mode");
@@ -1628,6 +1667,54 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
         }
     }
 
+    // ULKEY(F9) diagnostic summary: own timestamp (m_lastDiagTime untouched),
+    // 0.5s cadence over the whole sim so both 8-bit frame wraps (~2.56s, ~5.12s)
+    // and end-of-sim map growth are visible
+    {
+        double nowSec = Simulator::Now().GetSeconds();
+        if (nowSec >= 0.5 && (nowSec - m_lastUlKeyStatTime) >= 0.5)
+        {
+            m_lastUlKeyStatTime = nowSec;
+            double oldestAge = 0.0;
+            for (std::map<uint32_t, struct AllocMapElem>::iterator ageIt =
+                     m_ulAllocationMap.begin();
+                 ageIt != m_ulAllocationMap.end();
+                 ++ageIt)
+            {
+                double age = nowSec - ageIt->second.m_insertTime;
+                if (age > oldestAge)
+                {
+                    oldestAge = age;
+                }
+            }
+            double p99Age = 0.0;
+            if (!m_ulKeyValidHitAges.empty())
+            {
+                std::vector<double> ages = m_ulKeyValidHitAges;
+                size_t idx = static_cast<size_t>(ages.size() * 0.99);
+                if (idx >= ages.size())
+                {
+                    idx = ages.size() - 1;
+                }
+                std::nth_element(ages.begin(), ages.begin() + idx, ages.end());
+                p99Age = ages[idx];
+            }
+            NS_LOG_UNCOND("## ULKEY-STAT: t=" << nowSec << " sched=" << (void*)this
+                          << " mapSize=" << m_ulAllocationMap.size()
+                          << " insertOk=" << m_ulKeyInsertOk
+                          << " duplicateFullKey=" << m_ulKeyDupFullKey
+                          << " truncationCollision=" << m_ulKeyTruncCollision
+                          << " lookupHit=" << m_ulKeyLookupHit
+                          << " lookupMiss=" << m_ulKeyLookupMiss
+                          << " validHit=" << m_ulKeyValidHit
+                          << " wrongKeyHit=" << m_ulKeyWrongKeyHit
+                          << " oldAgeHit=" << m_ulKeyOldAgeHit
+                          << " oldestAgeSec=" << oldestAge
+                          << " maxValidHitAgeSec=" << m_ulKeyMaxValidHitAge
+                          << " p99ValidHitAgeSec=" << p99Age);
+        }
+    }
+
     // no further allocations
     if (ueAllocMap.size() == 0)
     {
@@ -1894,9 +1981,51 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 dci.m_symStart; // use the start symbol index of the slot because the absolute UL
                                 // slot index depends on the future DL allocation
             // insert into allocation map to recall previous allocations upon receiving UL-CQI
-            m_ulAllocationMap.insert(std::pair<uint32_t, struct AllocMapElem>(
-                slotSfn.Encode(),
-                AllocMapElem(ueChunkMap, dci.m_numSym, dci.m_tbSize)));
+            // ULKEY(F9) diag: make the 64->32 bit key truncation explicit and
+            // classify insert failures (duplicate full key vs truncation collision)
+            uint64_t ulKeyFull = slotSfn.Encode();
+            uint32_t ulKeyTrunc = static_cast<uint32_t>(ulKeyFull);
+            std::pair<std::map<uint32_t, struct AllocMapElem>::iterator, bool> ulKeyIns =
+                m_ulAllocationMap.insert(std::pair<uint32_t, struct AllocMapElem>(
+                    ulKeyTrunc,
+                    AllocMapElem(ueChunkMap, dci.m_numSym, dci.m_tbSize)));
+            if (ulKeyIns.second)
+            {
+                ++m_ulKeyInsertOk;
+                ulKeyIns.first->second.m_fullKey = ulKeyFull;
+                ulKeyIns.first->second.m_insertTime = Simulator::Now().GetSeconds();
+            }
+            else
+            {
+                struct AllocMapElem& oldE = ulKeyIns.first->second;
+                bool isDup = (oldE.m_fullKey == ulKeyFull);
+                if (isDup)
+                {
+                    ++m_ulKeyDupFullKey;
+                }
+                else
+                {
+                    ++m_ulKeyTruncCollision;
+                }
+                if (m_ulKeyDupFullKey + m_ulKeyTruncCollision <= 20)
+                {
+                    uint32_t oldFrame = static_cast<uint32_t>(oldE.m_fullKey >> 24);
+                    uint32_t newFrame = static_cast<uint32_t>(ulKeyFull >> 24);
+                    NS_LOG_UNCOND(
+                        "## ULKEY-DIAG: insert "
+                        << (isDup ? "duplicateFullKey" : "truncationCollision")
+                        << " truncatedKey=" << ulKeyTrunc
+                        << " oldFullKey=" << oldE.m_fullKey
+                        << " newFullKey=" << ulKeyFull
+                        << " oldFrame=" << oldFrame << " newFrame=" << newFrame
+                        << " frameDelta=" << (newFrame - oldFrame)
+                        << " oldRnti="
+                        << (oldE.m_rntiPerChunk.empty() ? 0 : oldE.m_rntiPerChunk.front())
+                        << " newRnti=" << dci.m_rnti
+                        << " oldAgeSec=" << (Simulator::Now().GetSeconds() - oldE.m_insertTime)
+                        << " mapSize=" << m_ulAllocationMap.size());
+                }
+            }
 
             if (m_harqOn == true)
             {
