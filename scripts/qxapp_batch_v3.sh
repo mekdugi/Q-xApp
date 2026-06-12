@@ -98,11 +98,19 @@ validate_run_semantics() {  # $1 = seed, $2 = run dir; 0 = PASS
   [ "$c" -ge 1 ] || fail="$fail nes_round15=$c"
   c=$(grep -cF '[POST-WAKE] recovery complete' "$RUN_DIR/xapp.txt")
   [ "$c" -eq 1 ] || fail="$fail recovery=$c"
+  # UE2 must actually return to O-RU2/cell3 — generic HO counts are not enough
+  c=$(grep -F '[POST-WAKE] HO sent IMSI=2' "$RUN_DIR/xapp.txt" | grep -cF 'target=O-RU 2')
+  [ "$c" -ge 1 ] || fail="$fail ue2_return_cmd=$c"
+  c=$(grep -cF 'HO-COMPLETE: target cell 3 IMSI=2' "$RUN_DIR/ns3.txt")
+  [ "$c" -ge 1 ] || fail="$fail ue2_return_done=$c"
+  # QoS weight must reach the scheduler, not merely be sent by the xApp
+  c=$(grep -cE 'Set weight for RNTI=[0-9]+ to 4 at t=' "$RUN_DIR/ns3.txt")
+  [ "$c" -ge 1 ] || fail="$fail qos_weight_applied=$c"
   c=$(grep -cF 'HO-COMPLETE: target' "$RUN_DIR/ns3.txt")
   [ "$c" -ge 2 ] || fail="$fail ho_complete=$c"
   c=$(grep -cF 'F2-GUARD' "$RUN_DIR/ns3.txt")
   [ "$c" -eq 0 ] || fail="$fail f2guard=$c"
-  c=$(grep -cE 'NS_FATAL|SIGABRT|assert failed|Aborted|terminate called' "$RUN_DIR/ns3.txt")
+  c=$(grep -cE 'NS_FATAL|SIGABRT|assert failed|Assertion|assertion|Aborted|terminate called' "$RUN_DIR/ns3.txt")
   [ "$c" -eq 0 ] || fail="$fail crash=$c"
   if [ -n "$fail" ]; then
     log "run $N semantic validation FAILED:$fail"
@@ -174,6 +182,9 @@ for N in $(seq "$START" "$END"); do
     rm -rf "$TMP_DIR"
     mkdir -p "$TMP_DIR"
     if run_once "$N" "$TMP_DIR"; then
+      # re-verify binaries AFTER the successful attempt too: a rebuild during
+      # the run must disqualify this seed, not just the next attempt
+      check_binary_freeze
       mv "$TMP_DIR" "$FINAL_DIR"
       chown -R wookjin:wookjin "$FINAL_DIR" 2>/dev/null
       OK=1
