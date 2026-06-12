@@ -688,7 +688,7 @@ main(int argc, char *argv[]) {
     Ptr<ListPositionAllocator> ueFixedPos = CreateObject<ListPositionAllocator>();
     // QoS pair (UE 1 & UE 4) near O-RU 1 (cell 2) — cell 2 RC works
     ueFixedPos->Add(Vector(325, 230, 1.5));   // UE 1: O-RU 1 coverage (~78m), 5QI=2
-    ueFixedPos->Add(Vector(190, 360, 1.5));   // UE 2: O-RU 2 coverage (~25m), 5QI=4
+    ueFixedPos->Add(Vector(210, 320, 1.5));   // UE 2: O-RU 2 coverage (~69m), 5QI=4
     ueFixedPos->Add(Vector(230, 190, 1.5));   // UE 3: O-RU 3 coverage (~89m), 5QI=7
     ueFixedPos->Add(Vector(325, 270, 1.5));   // UE 4: O-RU 1 coverage (~78m), 5QI=9
     uemobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
