@@ -70,6 +70,10 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
     void RefreshDlCqiMaps(void);
     void RefreshUlCqiMaps(void);
 
+    /* PF redesign: once-per-trigger EWMA update over ALL registered UEs
+       (zero-update decay for unserved) + transient allocation-state reset */
+    void EndTriggerUpdate(void);
+
     void UpdateDlRlcBufferInfo(uint16_t rnti, uint8_t lcid, uint16_t size);
     void UpdateUlRlcBufferInfo(uint16_t rnti, uint16_t size);
 
@@ -152,8 +156,6 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
               m_ulAllocDone(false),
               m_avgTputDl(0.0),
               m_avgTputUl(0.0),
-              m_lastAvgTputDl(0.0),
-              m_lastAvgTputUl(0.0),
               m_currTputDl(0.0),
               m_currTputUl(0.0),
               m_totBufDl(0),
@@ -182,8 +184,6 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
               m_ulAllocDone(false),
               m_avgTputDl(0.0),
               m_avgTputUl(0.0),
-              m_lastAvgTputDl(0.0),
-              m_lastAvgTputUl(0.0),
               m_currTputDl(0.0),
               m_currTputUl(0.0),
               m_totBufDl(0),
@@ -214,8 +214,6 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
         std::vector<FlowStats> m_flowStatsUl;
         double m_avgTputDl;
         double m_avgTputUl;
-        double m_lastAvgTputDl;
-        double m_lastAvgTputUl;
         double m_currTputDl;
         double m_currTputUl;
         uint32_t m_totBufDl;
@@ -243,7 +241,13 @@ class MmWaveFlexTtiPfMacScheduler : public MmWaveMacScheduler
                            std::max(1E-9, (lue->m_avgTputDl + lue->m_avgTputUl));
         double rPfMetric = std::max(rue->m_currTputDl, rue->m_currTputUl) /
                            std::max(1E-9, (rue->m_avgTputDl + rue->m_avgTputUl));
-        return (lPfMetric > rPfMetric);
+        if (lPfMetric != rPfMetric)
+        {
+            return lPfMetric > rPfMetric;
+        }
+        // strict total order: exact metric ties (cold start) resolve by RNTI,
+        // never by std::sort internals
+        return lue->m_rnti < rue->m_rnti;
     }
 
     unsigned CalcMinTbSizeNumSym(unsigned mcs, unsigned bufSize, unsigned& tbSize);

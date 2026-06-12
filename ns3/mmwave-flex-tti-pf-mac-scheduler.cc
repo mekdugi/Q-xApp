@@ -239,17 +239,16 @@ MmWaveFlexTtiPfMacScheduler::SetUeSchedulingWeight(uint16_t rnti, double weight)
     NS_LOG_UNCOND("[Scheduler] Set weight for RNTI=" << rnti << " to " << weight
                   << " at t=" << Simulator::Now().GetSeconds());
 
-    /* Reset PF average throughput only on actual mode transition (weight changing from non-1.0 to 1.0) */
+    /* QoS exit (weight non-1.0 -> 1.0): credit-only reset (Codex P4).
+       The PF EWMA is NOT reset — asynchronous per-UE avg wipes are not
+       standard PF behavior and create artificial transients; post-QoS
+       compensation decays naturally with the ~25ms EWMA window. */
     {
       if (weight == 1.0 && prevWeight != 1.0) {
         auto it = m_ueSchedInfoMap.find(rnti);
         if (it != m_ueSchedInfoMap.end()) {
-          it->second.m_avgTputDl = 0;
-          it->second.m_avgTputUl = 0;
-          it->second.m_lastAvgTputDl = 0;
-          it->second.m_lastAvgTputUl = 0;
-          it->second.m_qosDlCredit = 0.0; // Reset credit on QoS exit
-          NS_LOG_UNCOND("[Scheduler] Reset PF avg throughput + credit for RNTI=" << rnti << " (prev weight=" << prevWeight << ")");
+          it->second.m_qosDlCredit = 0.0;
+          NS_LOG_UNCOND("[Scheduler] Reset QoS credit for RNTI=" << rnti << " (prev weight=" << prevWeight << ")");
         }
       }
     }
@@ -945,6 +944,48 @@ MmWaveFlexTtiPfMacScheduler::CalcMinTbSizeNumSym(unsigned mcs, unsigned bufSize,
 }
 
 void
+MmWaveFlexTtiPfMacScheduler::EndTriggerUpdate(void)
+{
+    /* PF redesign (Codex-approved P1/P2):
+       - exactly one EWMA tick per trigger, on EVERY return path
+       - covers ALL registered UEs so unserved UEs receive a zero-update and
+         their average decays (this decay is what restores their priority —
+         the source of standard PF fairness)
+       - replaces the old per-trigger avg=0 wipe that degenerated the PF
+         metric into exact ties resolved by std::sort internals
+       - transient allocation state is reset here as well so no caller can
+         forget one of the two halves */
+    double slotSec = m_phyMacConfig->GetSlotPeriod().GetSeconds();
+    for (std::map<uint16_t, UeSchedInfo>::iterator it = m_ueSchedInfoMap.begin();
+         it != m_ueSchedInfoMap.end();
+         ++it)
+    {
+        UeSchedInfo& ue = it->second;
+        // served rate this trigger, bits/s (new-data TB only; HARQ retx
+        // airtime is intentionally not charged)
+        double servedDl = ((double)ue.m_dlTbSize * 8.0) / slotSec;
+        double servedUl = ((double)ue.m_ulTbSize * 8.0) / slotSec;
+        ue.m_avgTputDl =
+            ((1.0 - (1.0 / m_timeWindow)) * ue.m_avgTputDl) + ((1.0 / m_timeWindow) * servedDl);
+        ue.m_avgTputUl =
+            ((1.0 - (1.0 / m_timeWindow)) * ue.m_avgTputUl) + ((1.0 / m_timeWindow) * servedUl);
+        ue.m_dlSymbols = 0;
+        ue.m_ulSymbols = 0;
+        ue.m_dlTbSize = 0;
+        ue.m_ulTbSize = 0;
+        ue.m_dlSymbolsRetx = 0;
+        ue.m_ulSymbolsRetx = 0;
+        ue.m_currTputDl = 0;
+        ue.m_currTputUl = 0;
+        ue.m_totBufDl = 0;
+        ue.m_totBufUl = 0;
+        ue.m_dlAllocDone = false;
+        ue.m_ulAllocDone = false;
+        ue.m_rlcPduInfo.clear();
+    }
+}
+
+void
 MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
     const struct MmWaveMacSchedSapProvider::SchedTriggerReqParameters& params)
 {
@@ -1293,12 +1334,8 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
         // scheduler
         m_macSchedSapUser->SchedConfigInd(ret);
 
-        // reset the alloc info for the next scheduler call
-        for (itUeAllocMap = ueAllocMap.begin(); itUeAllocMap != ueAllocMap.end(); itUeAllocMap++)
-        {
-            itUeAllocMap->second->m_dlSymbolsRetx = 0;
-            itUeAllocMap->second->m_ulSymbolsRetx = 0;
-        }
+        // HARQ-only trigger: still tick the PF EWMA (pure decay) and reset transients
+        EndTriggerUpdate();
         return;
     }
 
@@ -1517,7 +1554,6 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 if (ueInfo->m_ulTbSize >= ueInfo->m_totBufUl )
                 {
                     ueInfo->m_ulAllocDone = true;
-                    ueInfo->m_lastAvgTputUl = ueInfo->m_avgTputUl;
                 }
                 ueInfo->m_allocUlLast = true;
 
@@ -1525,10 +1561,8 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                                   8; // Bytes -> Bits
                 ueInfo->m_currTputUl = std::min(ueInfo->m_totBufUl, tbSize) /
                                        (m_phyMacConfig->GetSlotPeriod().GetSeconds());
-                ueInfo->m_avgTputUl =
-                    ((1.0 - (1.0 / m_timeWindow)) * ueInfo->m_lastAvgTputUl) +
-                    ((1.0 / m_timeWindow) *
-                     ((double)ueInfo->m_ulTbSize / (m_phyMacConfig->GetSlotPeriod().GetSeconds())));
+                /* PF redesign: avg frozen within the trigger (TTI-PF); the
+                   once-per-trigger EWMA happens in EndTriggerUpdate() */
                 ueAlloc = true;
             }
             else if (!ueInfo->m_dlAllocDone)
@@ -1556,7 +1590,6 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                 if (ueInfo->m_dlTbSize >= ueInfo->m_totBufDl)
                 {
                     ueInfo->m_dlAllocDone = true;
-                    ueInfo->m_lastAvgTputDl = ueInfo->m_avgTputDl;
                 }
                 // Uniform deduction: 1.0 per DL symbol for all UEs
                 if (applyWeightedDlCredit) {
@@ -1569,10 +1602,8 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                                   8; // Bytes -> Bits
                 ueInfo->m_currTputDl = std::min(ueInfo->m_totBufDl, tbSize) /
                                        (m_phyMacConfig->GetSlotPeriod().GetSeconds());
-                ueInfo->m_avgTputDl =
-                    ((1.0 - (1.0 / m_timeWindow)) * ueInfo->m_lastAvgTputDl) +
-                    ((1.0 / m_timeWindow) *
-                     ((double)ueInfo->m_dlTbSize / (m_phyMacConfig->GetSlotPeriod().GetSeconds())));
+                /* PF redesign: avg frozen within the trigger (TTI-PF); the
+                   once-per-trigger EWMA happens in EndTriggerUpdate() */
                 ueAlloc = true;
             }
 
@@ -1588,7 +1619,8 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
     // Scheduler starvation diagnostic: per-instance sim-time sampling
     {
         double nowSec = Simulator::Now().GetSeconds();
-        if (nowSec >= 2.0 && nowSec < 3.75 && (nowSec - m_lastDiagTime) >= 0.1) {
+        // PF redesign T1/T3: window widened to cover the TS phase (was 2.0-3.75)
+        if (nowSec >= 0.3 && nowSec < 3.75 && (nowSec - m_lastDiagTime) >= 0.1) {
             m_lastDiagTime = nowSec;
             // Iterate m_ueSchedInfoMap (all registered UEs, not just heap)
             for (auto& kv : m_ueSchedInfoMap) {
@@ -1618,7 +1650,6 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
                     << " bufDl=" << ue.m_totBufDl
                     << " currDl=" << ue.m_currTputDl
                     << " avgDl=" << ue.m_avgTputDl
-                    << " lastAvgDl=" << ue.m_lastAvgTputDl
                     << " credit=" << ue.m_qosDlCredit
                     << " pending=" << isPending
                     << " dlDone=" << ue.m_dlAllocDone
@@ -1641,25 +1672,8 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
         // scheduler
         m_macSchedSapUser->SchedConfigInd(ret);
 
-        // reset the alloc info for the next scheduler call
-        for (itUeAllocMap = ueAllocMap.begin(); itUeAllocMap != ueAllocMap.end(); itUeAllocMap++)
-        {
-            itUeAllocMap->second->m_dlSymbols = 0;
-            itUeAllocMap->second->m_ulSymbols = 0;
-            itUeAllocMap->second->m_dlTbSize = 0;
-            itUeAllocMap->second->m_ulTbSize = 0;
-            itUeAllocMap->second->m_dlSymbolsRetx = 0;
-            itUeAllocMap->second->m_ulSymbolsRetx = 0;
-            itUeAllocMap->second->m_currTputDl = 0;
-            itUeAllocMap->second->m_currTputUl = 0;
-            itUeAllocMap->second->m_avgTputDl = 0;
-            itUeAllocMap->second->m_avgTputUl = 0;
-            itUeAllocMap->second->m_totBufDl = 0;
-            itUeAllocMap->second->m_totBufUl = 0;
-            itUeAllocMap->second->m_dlAllocDone = false;
-            itUeAllocMap->second->m_ulAllocDone = false;
-            itUeAllocMap->second->m_rlcPduInfo.clear();
-        }
+        // no-allocation trigger: EWMA tick + transient reset
+        EndTriggerUpdate();
         return;
     }
 
@@ -1927,25 +1941,8 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
         }
     }
 
-    // reset the alloc info for the next scheduler call
-    for (itUeAllocMap = ueAllocMap.begin(); itUeAllocMap != ueAllocMap.end(); itUeAllocMap++)
-    {
-        itUeAllocMap->second->m_dlSymbols = 0;
-        itUeAllocMap->second->m_ulSymbols = 0;
-        itUeAllocMap->second->m_dlTbSize = 0;
-        itUeAllocMap->second->m_ulTbSize = 0;
-        itUeAllocMap->second->m_dlSymbolsRetx = 0;
-        itUeAllocMap->second->m_ulSymbolsRetx = 0;
-        itUeAllocMap->second->m_currTputDl = 0;
-        itUeAllocMap->second->m_currTputUl = 0;
-        itUeAllocMap->second->m_avgTputDl = 0;
-        itUeAllocMap->second->m_avgTputUl = 0;
-        itUeAllocMap->second->m_totBufDl = 0;
-        itUeAllocMap->second->m_totBufUl = 0;
-        itUeAllocMap->second->m_dlAllocDone = false;
-        itUeAllocMap->second->m_ulAllocDone = false;
-        itUeAllocMap->second->m_rlcPduInfo.clear();
-    }
+    // normal end of trigger: EWMA tick + transient reset
+    EndTriggerUpdate();
 
     // add slot for UL control
     TtiAllocInfo ulCtrlSlot(0xFF, TtiAllocInfo::UL_slotAllocInfo, TtiAllocInfo::CTRL, 0);
