@@ -1619,8 +1619,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedTriggerReq(
     // Scheduler starvation diagnostic: per-instance sim-time sampling
     {
         double nowSec = Simulator::Now().GetSeconds();
-        // PF redesign T1/T3: window widened to cover the TS phase (was 2.0-3.75)
-        if (nowSec >= 0.3 && nowSec < 3.75 && (nowSec - m_lastDiagTime) >= 0.1) {
+        if (nowSec >= 2.0 && nowSec < 3.75 && (nowSec - m_lastDiagTime) >= 0.1) {
             m_lastDiagTime = nowSec;
             // Iterate m_ueSchedInfoMap (all registered UEs, not just heap)
             for (auto& kv : m_ueSchedInfoMap) {
