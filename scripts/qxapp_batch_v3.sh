@@ -17,7 +17,7 @@ OUT_BASE=${3:?out_base is required}
 NS=/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
 SIMTIME=7
 SIM_CODE_COMMIT=c492fb3
-BATCH_REPO_COMMIT=c9d8200
+BATCH_REPO_COMMIT=1087b1f
 
 # binaries frozen for the whole batch — any drift aborts everything
 FROZEN_BINARIES="\
