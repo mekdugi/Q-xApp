@@ -44,6 +44,8 @@
 #include <ns3/lte-enb-cmac-sap.h>
 #include <ns3/lte-mac-sap.h>
 
+#include <algorithm>
+
 namespace ns3
 {
 
@@ -825,6 +827,15 @@ void
 MmWaveEnbMac::DoUlHarqFeedback(UlHarqInfo params)
 {
     NS_LOG_FUNCTION(this);
+    // F2 (M2): do not re-buffer feedback for released/unknown RNTIs.
+    // m_rlcAttached is MAC-owned and populated in DoAddUe before any HARQ
+    // activity is possible, so attached UEs are never blocked.
+    if (m_rlcAttached.find(params.m_rnti) == m_rlcAttached.end())
+    {
+        NS_LOG_UNCOND("## F2-GUARD: dropping late UL HARQ feedback, unknown RNTI "
+                      << params.m_rnti << " cell=" << m_cellId);
+        return;
+    }
     m_ulHarqInfoReceived.push_back(params);
 }
 
@@ -835,7 +846,14 @@ MmWaveEnbMac::DoDlHarqFeedback(DlHarqInfo params)
     // Update HARQ buffer
     std::map<uint16_t, MmWaveDlHarqProcessesBuffer_t>::iterator it =
         m_miDlHarqProcessesPackets.find(params.m_rnti);
-    NS_ASSERT(it != m_miDlHarqProcessesPackets.end());
+    if (it == m_miDlHarqProcessesPackets.end())
+    {
+        // F2 (M2): late feedback for a released/unknown RNTI — drop safely
+        // before the buffer dereference and the m_dlHarqInfoReceived push below
+        NS_LOG_UNCOND("## F2-GUARD: dropping late DL HARQ feedback, unknown RNTI "
+                      << params.m_rnti << " cell=" << m_cellId);
+        return;
+    }
 
     if (params.m_harqStatus == DlHarqInfo::ACK)
     {
@@ -1160,14 +1178,23 @@ MmWaveEnbMac::DoRemoveUe(uint16_t rnti)
     params.m_rnti = rnti;
     m_macCschedSapProvider->CschedUeReleaseReq(params);
     m_miDlHarqProcessesPackets.erase(rnti);
-    // for(std::vector<UlHarqInfo>::iterator iter = m_ulHarqInfoReceived.begin(); iter !=
-    // m_ulHarqInfoReceived.end(); ++iter)
-    // {
-    //    if(iter->m_rnti == rnti)
-    //    {
-    //            iter = m_ulHarqInfoReceived.erase(iter);
-    //    }
-    // }
+    // F2 (M1): drop HARQ feedback buffered in MAC but not yet handed to the
+    // scheduler, so the next SchedTriggerReq cannot re-deliver it post-release
+    size_t f2MacHarqFb = 0;
+    std::vector<DlHarqInfo>::iterator dlNewEnd =
+        std::remove_if(m_dlHarqInfoReceived.begin(),
+                       m_dlHarqInfoReceived.end(),
+                       [rnti](const DlHarqInfo& h) { return h.m_rnti == rnti; });
+    f2MacHarqFb += std::distance(dlNewEnd, m_dlHarqInfoReceived.end());
+    m_dlHarqInfoReceived.erase(dlNewEnd, m_dlHarqInfoReceived.end());
+    std::vector<UlHarqInfo>::iterator ulNewEnd =
+        std::remove_if(m_ulHarqInfoReceived.begin(),
+                       m_ulHarqInfoReceived.end(),
+                       [rnti](const UlHarqInfo& h) { return h.m_rnti == rnti; });
+    f2MacHarqFb += std::distance(ulNewEnd, m_ulHarqInfoReceived.end());
+    m_ulHarqInfoReceived.erase(ulNewEnd, m_ulHarqInfoReceived.end());
+    NS_LOG_UNCOND("## F2-CLEANUP(mac): cell=" << m_cellId << " rnti=" << rnti
+                  << " harqFb=" << f2MacHarqFb);
     m_rlcAttached.erase(rnti);
 }
 

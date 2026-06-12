@@ -531,6 +531,13 @@ MmWaveFlexTtiPfMacScheduler::DoSchedDlCqiInfoReq(
             // wideband CQI reporting
             std::map<uint16_t, uint8_t>::iterator it;
             uint16_t rnti = params.m_cqiList.at(i).m_rnti;
+            // F2: ignore CQI for RNTIs without scheduler context (released or
+            // not yet configured) — prevents stale-entry rebirth after release
+            if (m_ueSchedInfoMap.find(rnti) == m_ueSchedInfoMap.end())
+            {
+                NS_LOG_UNCOND("## F2-GUARD: ignoring DL CQI for unregistered RNTI " << rnti);
+                continue;
+            }
             it = m_wbCqiRxed.find(rnti);
             if (it == m_wbCqiRxed.end())
             {
@@ -588,11 +595,23 @@ MmWaveFlexTtiPfMacScheduler::DoSchedUlCqiInfoReq(
         }
         NS_ASSERT_MSG(itMap->second.m_rntiPerChunk.size() == m_phyMacConfig->GetNumRb(),
                       "SINR chunk map must cover full BW in TDMA mode");
+        uint32_t f2SkippedChunks = 0;
+        uint16_t f2SkippedRnti = 0;
         for (unsigned i = 0; i < itMap->second.m_rntiPerChunk.size(); i++)
         {
+            uint16_t chunkRnti = itMap->second.m_rntiPerChunk.at(i);
+            // F2: skip chunks of released/unknown RNTIs (pairs with the
+            // release-time m_ulAllocationMap cleanup to close the
+            // late-PUSCH-CQI rebirth path)
+            if (m_ueSchedInfoMap.find(chunkRnti) == m_ueSchedInfoMap.end())
+            {
+                ++f2SkippedChunks;
+                f2SkippedRnti = chunkRnti;
+                continue;
+            }
             // convert from fixed point notation Sxxxxxxxxxxx.xxx to double
             // double sinr = LteFfConverter::fpS11dot3toDouble (params.m_ulCqi.m_sinr.at (i));
-            itCqi = m_ueUlCqi.find(itMap->second.m_rntiPerChunk.at(i));
+            itCqi = m_ueUlCqi.find(chunkRnti);
             if (itCqi == m_ueUlCqi.end())
             {
                 // create a new entry
@@ -604,7 +623,7 @@ MmWaveFlexTtiPfMacScheduler::DoSchedUlCqiInfoReq(
                     {
                         newCqi.push_back(params.m_ulCqi.m_sinr.at(i));
                         NS_LOG_INFO("UL CQI report for RNTI "
-                                    << itMap->second.m_rntiPerChunk.at(i) << " chunk " << i
+                                    << chunkRnti << " chunk " << i
                                     << " SINR " << params.m_ulCqi.m_sinr.at(i) << " frame "
                                     << frameNum << " subframe " << +subframeNum << " slot "
                                     << +slotNum << " startSym " << +symNum);
@@ -616,12 +635,11 @@ MmWaveFlexTtiPfMacScheduler::DoSchedUlCqiInfoReq(
                     }
                 }
                 m_ueUlCqi.insert(std::pair<uint16_t, struct UlCqiMapElem>(
-                    itMap->second.m_rntiPerChunk.at(i),
+                    chunkRnti,
                     UlCqiMapElem(newCqi, itMap->second.m_numSym, itMap->second.m_tbSize)));
                 // generate correspondent timer
                 m_ueCqiTimers.insert(
-                    std::pair<uint16_t, uint32_t>(itMap->second.m_rntiPerChunk.at(i),
-                                                  m_cqiTimersThreshold));
+                    std::pair<uint16_t, uint32_t>(chunkRnti, m_cqiTimersThreshold));
             }
             else
             {
@@ -631,16 +649,22 @@ MmWaveFlexTtiPfMacScheduler::DoSchedUlCqiInfoReq(
                 (*itCqi).second.m_tbSize = itMap->second.m_tbSize;
                 // update correspondent timer
                 std::map<uint16_t, uint32_t>::iterator itTimers;
-                itTimers = m_ueCqiTimers.find(itMap->second.m_rntiPerChunk.at(i));
+                itTimers = m_ueCqiTimers.find(chunkRnti);
                 (*itTimers).second = m_cqiTimersThreshold;
 
                 NS_LOG_INFO("UL CQI report for RNTI "
-                            << itMap->second.m_rntiPerChunk.at(i) << " chunk " << i << " SINR "
+                            << chunkRnti << " chunk " << i << " SINR "
                             << params.m_ulCqi.m_sinr.at(i) << " frame " << frameNum << " subframe "
                             << +subframeNum << " slot " << +slotNum << " startSym " << +symNum);
             }
         }
-        // remove obsolete info on allocation
+        if (f2SkippedChunks > 0)
+        {
+            NS_LOG_UNCOND("## F2-GUARD: skipped UL CQI for unregistered RNTI "
+                          << f2SkippedRnti << " (" << f2SkippedChunks << " chunks)");
+        }
+        // remove obsolete info on allocation (must run even when all chunks
+        // were skipped by the F2 guard)
         m_ulAllocationMap.erase(itMap);
     }
     break;
@@ -2282,6 +2306,22 @@ MmWaveFlexTtiPfMacScheduler::DoCschedUeReleaseReq(
     m_ulHarqProcessesTimer.erase(params.m_rnti);
     m_ulHarqProcessesStatus.erase(params.m_rnti);
     m_ulHarqProcessesDciInfoMap.erase(params.m_rnti);
+    // F2 (R7): drop HARQ feedback already handed to the scheduler
+    size_t f2SchedHarqFb = 0;
+    {
+        std::vector<DlHarqInfo>::iterator dlNewEnd =
+            std::remove_if(m_dlHarqInfoList.begin(),
+                           m_dlHarqInfoList.end(),
+                           [&](const DlHarqInfo& h) { return h.m_rnti == params.m_rnti; });
+        f2SchedHarqFb += std::distance(dlNewEnd, m_dlHarqInfoList.end());
+        m_dlHarqInfoList.erase(dlNewEnd, m_dlHarqInfoList.end());
+        std::vector<UlHarqInfo>::iterator ulNewEnd =
+            std::remove_if(m_ulHarqInfoList.begin(),
+                           m_ulHarqInfoList.end(),
+                           [&](const UlHarqInfo& h) { return h.m_rnti == params.m_rnti; });
+        f2SchedHarqFb += std::distance(ulNewEnd, m_ulHarqInfoList.end());
+        m_ulHarqInfoList.erase(ulNewEnd, m_ulHarqInfoList.end());
+    }
     m_ceBsrRxed.erase(params.m_rnti);
     std::list<MmWaveMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it =
         m_rlcBufferReq.begin();
@@ -2307,6 +2347,48 @@ MmWaveFlexTtiPfMacScheduler::DoCschedUeReleaseReq(
     {
         m_nextRntiDl = 0;
     }
+
+    // F2 (R3): DL CQI pair — erase both sides together (Refresh*CqiMaps invariant)
+    bool f2HadDlCqi = (m_wbCqiRxed.erase(params.m_rnti) > 0);
+    m_wbCqiTimers.erase(params.m_rnti);
+    // F2 (R4): UL CQI pair
+    bool f2HadUlCqi = false;
+    std::map<uint16_t, struct UlCqiMapElem>::iterator ulCqiIt = m_ueUlCqi.find(params.m_rnti);
+    if (ulCqiIt != m_ueUlCqi.end())
+    {
+        f2HadUlCqi = true;
+        ulCqiIt->second.m_ueUlCqi.clear();
+        m_ueUlCqi.erase(ulCqiIt);
+    }
+    m_ueCqiTimers.erase(params.m_rnti);
+    // F2 (R6): invalidate past UL allocations so a late PUSCH CQI cannot recreate
+    // the UL CQI pair. TDMA fills each entry's chunks with a single RNTI, so
+    // whole-entry erase is safe under the current implementation.
+    size_t f2UlAllocErased = 0;
+    for (std::map<uint32_t, struct AllocMapElem>::iterator allocIt = m_ulAllocationMap.begin();
+         allocIt != m_ulAllocationMap.end();)
+    {
+        if (std::find(allocIt->second.m_rntiPerChunk.begin(),
+                      allocIt->second.m_rntiPerChunk.end(),
+                      params.m_rnti) != allocIt->second.m_rntiPerChunk.end())
+        {
+            allocIt = m_ulAllocationMap.erase(allocIt);
+            ++f2UlAllocErased;
+        }
+        else
+        {
+            ++allocIt;
+        }
+    }
+    // F2 (R2): xApp scheduling weight (prevents RNTI-reuse contamination)
+    bool f2HadWeight = (m_ueSchedulingWeight.erase(params.m_rnti) > 0);
+    // F2 (R1): UE scheduling context — erase last, after all dependent cleanup
+    bool f2HadCtx = (m_ueSchedInfoMap.erase(params.m_rnti) > 0);
+    NS_LOG_UNCOND("## F2-CLEANUP(sched): t=" << Simulator::Now().GetSeconds()
+                  << " sched=" << (void*)this << " rnti=" << params.m_rnti
+                  << " ctx=" << f2HadCtx << " w=" << f2HadWeight
+                  << " dlCqi=" << f2HadDlCqi << " ulCqi=" << f2HadUlCqi
+                  << " ulAlloc=" << f2UlAllocErased << " harqFb=" << f2SchedHarqFb);
 
     return;
 }
