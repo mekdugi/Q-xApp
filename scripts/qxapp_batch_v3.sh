@@ -16,8 +16,8 @@ END=${2:?usage: qxapp_batch_v3.sh <start> <end> <out_base>}
 OUT_BASE=${3:?out_base is required}
 NS=/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
 SIMTIME=7
-SIM_CODE_COMMIT=c492fb3
-BATCH_REPO_COMMIT=1087b1f
+SIM_CODE_COMMIT=8356780
+BATCH_REPO_COMMIT=PENDING
 
 # binaries frozen for the whole batch — any drift aborts everything
 FROZEN_BINARIES="\
@@ -37,11 +37,13 @@ log() { echo "[batch3] $*" | tee -a "$OUT_BASE/batch.log"; }
 
 SCHED_CC=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.cc
 SCHED_H=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.h
+SCENARIO_CC=$NS/scratch/scenario-fig4-qxapp.cc
 {
   echo "simulation_code_commit=$SIM_CODE_COMMIT"
   echo "batch_repo_commit=$BATCH_REPO_COMMIT"
   echo "sched_cc_sha256=$(sha256sum "$SCHED_CC" | cut -d' ' -f1)"
   echo "sched_h_sha256=$(sha256sum "$SCHED_H" | cut -d' ' -f1)"
+  echo "scenario_cc_sha256=$(sha256sum "$SCENARIO_CC" | cut -d' ' -f1)"
   echo "batch_script_sha256=$(sha256sum "$0" | cut -d' ' -f1)"
   echo "start_time=$(date -Is)"
   echo "seed_range=${START}..${END}"
