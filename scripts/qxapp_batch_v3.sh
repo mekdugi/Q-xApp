@@ -16,7 +16,16 @@ END=${2:?usage: qxapp_batch_v3.sh <start> <end> <out_base>}
 OUT_BASE=${3:?out_base is required}
 NS=/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
 SIMTIME=7
-REPO_COMMIT=c492fb3
+SIM_CODE_COMMIT=c492fb3
+BATCH_REPO_COMMIT=c9d8200
+
+# binaries frozen for the whole batch — any drift aborts everything
+FROZEN_BINARIES="\
+$NS/build/scratch/ns3.42-scenario-fig4-qxapp-default \
+$NS/build/lib/libns3.42-mmwave-default.so \
+$NS/build/lib/libns3.42-lte-default.so \
+/root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified \
+/root/flexric/build/examples/ric/nearRT-RIC"
 
 if [ -e "$OUT_BASE" ] && [ -n "$(ls -A "$OUT_BASE" 2>/dev/null)" ]; then
   echo "[batch3] FATAL: OUT_BASE $OUT_BASE exists and is not empty - refusing to run" >&2
@@ -29,7 +38,8 @@ log() { echo "[batch3] $*" | tee -a "$OUT_BASE/batch.log"; }
 SCHED_CC=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.cc
 SCHED_H=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.h
 {
-  echo "repo_commit=$REPO_COMMIT"
+  echo "simulation_code_commit=$SIM_CODE_COMMIT"
+  echo "batch_repo_commit=$BATCH_REPO_COMMIT"
   echo "sched_cc_sha256=$(sha256sum "$SCHED_CC" | cut -d' ' -f1)"
   echo "sched_h_sha256=$(sha256sum "$SCHED_H" | cut -d' ' -f1)"
   echo "batch_script_sha256=$(sha256sum "$0" | cut -d' ' -f1)"
@@ -37,6 +47,25 @@ SCHED_H=$NS/src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.h
   echo "seed_range=${START}..${END}"
   echo "simtime=$SIMTIME"
 } > "$OUT_BASE/manifest.txt"
+
+# capture start-of-batch binary hashes (also appended to manifest)
+sha256sum $FROZEN_BINARIES > "$OUT_BASE/binary_hashes.txt" || {
+  echo "[batch3] FATAL: cannot hash frozen binaries" >&2
+  exit 1
+}
+sed 's/^/binary_sha256 /' "$OUT_BASE/binary_hashes.txt" >> "$OUT_BASE/manifest.txt"
+
+check_binary_freeze() {
+  if ! sha256sum --status -c "$OUT_BASE/binary_hashes.txt" 2>/dev/null; then
+    log "FATAL: binary hash drift detected - aborting entire batch"
+    sha256sum $FROZEN_BINARIES | tee -a "$OUT_BASE/batch.log" > "$OUT_BASE/binary_hashes_at_abort.txt"
+    echo "abort_time=$(date -Is)" >> "$OUT_BASE/manifest.txt"
+    echo "abort_reason=binary_hash_drift" >> "$OUT_BASE/manifest.txt"
+    touch "$OUT_BASE/BATCH_ABORTED_${START}_${END}"
+    cleanup_procs
+    exit 1
+  fi
+}
 
 cleanup_procs() {
   pkill -f nearRT-RIC 2>/dev/null
@@ -54,8 +83,33 @@ clear_ns_outputs() {
 # energyfilecell5.csv in older run dirs was a stale leftover propagated by
 # v2's unverified cp — never written by the current scenario, never read by
 # the plot script (CELLS=[2,3,4]); intentionally NOT required here.
-REQUIRED_ARTIFACTS="ns3.txt xapp.txt DlPdcpStats.txt DlRlcStats.txt \
+REQUIRED_ARTIFACTS="ns3.txt xapp.txt ric.txt DlPdcpStats.txt DlRlcStats.txt \
 energyfilecell2.csv energyfilecell3.csv energyfilecell4.csv"
+
+# semantic validator: artifact files being clean is not the same as the Fig.4
+# control cycle having actually executed — verify the end-to-end markers
+validate_run_semantics() {  # $1 = seed, $2 = run dir; 0 = PASS
+  local N=$1 RUN_DIR=$2 c fail=""
+  c=$(grep -cF '[Q-xApp QoS-RA] DRB weights sent' "$RUN_DIR/xapp.txt")
+  [ "$c" -ge 1 ] || fail="$fail qos_weights=$c"
+  c=$(grep -cF 'Sending Energy_state SLEEP for cell ID=3' "$RUN_DIR/xapp.txt")
+  [ "$c" -ge 1 ] || fail="$fail nes_sleep=$c"
+  c=$(grep -cF '[Q-xApp] Round 15 complete. [mode=nes]' "$RUN_DIR/xapp.txt")
+  [ "$c" -ge 1 ] || fail="$fail nes_round15=$c"
+  c=$(grep -cF '[POST-WAKE] recovery complete' "$RUN_DIR/xapp.txt")
+  [ "$c" -eq 1 ] || fail="$fail recovery=$c"
+  c=$(grep -cF 'HO-COMPLETE: target' "$RUN_DIR/ns3.txt")
+  [ "$c" -ge 2 ] || fail="$fail ho_complete=$c"
+  c=$(grep -cF 'F2-GUARD' "$RUN_DIR/ns3.txt")
+  [ "$c" -eq 0 ] || fail="$fail f2guard=$c"
+  c=$(grep -cE 'NS_FATAL|SIGABRT|assert failed|Aborted|terminate called' "$RUN_DIR/ns3.txt")
+  [ "$c" -eq 0 ] || fail="$fail crash=$c"
+  if [ -n "$fail" ]; then
+    log "run $N semantic validation FAILED:$fail"
+    return 1
+  fi
+  return 0
+}
 
 # returns 0 only on verified success; harvests into $2 (tmp dir)
 run_once() {  # $1 = seed, $2 = tmp run dir
@@ -104,6 +158,7 @@ run_once() {  # $1 = seed, $2 = tmp run dir
       return 1
     fi
   done
+  validate_run_semantics "$N" "$RUN_DIR" || return 1
   echo "rng=$N simtime=$SIMTIME status=success" > "$RUN_DIR/meta.txt"
   return 0
 }
@@ -114,6 +169,7 @@ for N in $(seq "$START" "$END"); do
   log "=== run $N start $(date +%H:%M:%S) ==="
   OK=0
   for ATTEMPT in 1 2; do
+    check_binary_freeze
     TMP_DIR="$OUT_BASE/.tmp_run_$(printf %03d "$N")_a$ATTEMPT"
     rm -rf "$TMP_DIR"
     mkdir -p "$TMP_DIR"
