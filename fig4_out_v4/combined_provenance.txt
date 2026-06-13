@@ -1,0 +1,73 @@
+Q-xApp Fig.4 — combined 30-run dataset provenance
+==================================================
+Generated 2026-06-13. Final paper dataset = fig4_batch_v4_combined.
+
+Run sources
+-----------
+run_001..run_015, run_017..run_030  source = fig4_batch_v4      (main batch)
+run_016                             source = fig4_batch_v4_s16  (supplement)
+
+Why a supplement run
+--------------------
+The main batch (seeds 1..30) produced 29/30; seed 16 was excluded
+(BATCH_PARTIAL_1_30, failed_seeds=16) because both of its attempts failed
+the v3.5 semantic validator on `qos_weight_applied=0`. A clean supplement
+run of seed 16 (same code, same frozen binaries) was executed to fill the
+missing seed. This is gap-filling of a failed seed with identical
+code/binaries, not seed cherry-picking.
+
+What the seed-16 failure was — and was NOT
+------------------------------------------
+Confirmable from preserved evidence:
+  - The validator intermittently did not observe the scheduler's QoS-weight
+    application marker for seed 16's failed attempts.
+  - Re-running the SAME seed applies the weight normally (diag_s16/run_016
+    via v2, and fig4_batch_v4_s16 attempt 2, both have the marker and PASS
+    the v3.5 validator), so this is NOT a seed-/policy-deterministic failure.
+  - A transient in the RC delivery or application path is the likely cause.
+NOT confirmable (do not state as fact):
+  - The exact failure point. The original FAILED-attempt logs were deleted
+    by the batch on failure and were not preserved; the snapshot that exists
+    (s16_attempt_snapshot/.tmp_run_016_a2) is the SUCCEEDING attempt and has
+    the weight marker. Future investigation must preserve failed-attempt logs.
+
+Attempt accounting (v3.5 protocol)
+----------------------------------
+  Main batch:   30 base + run12 retry(1) + run16 retry(1) = 32 attempts
+  Supplement:   seed16 = 2 attempts
+  Total:        34 v3.5 attempts, 4 failures (run12 a1, run16 a1, run16 a2,
+                s16 a1) = 11.8%
+  (Including the v2 diagnostic success run: 4/35 = 11.4%, different protocol.)
+  All 4 failures were blocked by the validator -> zero data contamination.
+
+Integrity checks
+----------------
+  Source diff (combined run_NNN vs its origin):   30/30 exact, 0 mismatch
+  v3.5 validate_run_semantics on combined:         30/30 PASS, 0 FAIL
+  Main batch and supplement binary_hashes.txt:     identical (diff 0)
+  No binary-hash drift in either batch.
+
+Component identities
+--------------------
+  simulation_code_commit = 8356780  (F2 + ULKEY K0/K1 + PF redesign)
+  xapp/batch commit       = ff7c00e  (INIT-TS + validator v3.5 + plot v3
+                                      UE2-explicit; logic), recorded as
+                                      f3522f9/60ae8b5 lineage
+  plot script             = qxapp_fig4_plot_v3.py  commit ff7c00e
+    SHA256 = b515ccb28430b53c28fb12afd70f27c0b6e0430f9d1592473cb915f030da11ca
+
+  fig4_batch_v4/manifest.txt
+    SHA256 = 0ea419751dd96e180550b14226d076996add70f802340080d6953ea54f51fc42
+  fig4_batch_v4_s16/manifest.txt
+    SHA256 = b54f8e259167b64d854de7cad048d53c09dce6c5b2f50aea86fdf5510c977f1d
+  phase_stats_raw.txt
+    SHA256 = 9d6766c1b250258f6903673a895f98aebfce46dc73f4019f732072bd84ec260c
+  runs_summary.csv
+    SHA256 = 7b854e99be5aa615074cbbebb3479dd0aea56ffa21656272cabd1c2ac263a681
+
+Post-processing outputs (this directory)
+----------------------------------------
+  ho1 target = cell4 : 30/30
+  ho2 target = cell3 : 30/30
+  recovery HO count=1 per run : 30/30
+  invalid runs : none

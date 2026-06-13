@@ -1,0 +1,20 @@
+RAW per-run phase means (paper numbers), runs=30, recovery-HO runs=30
+invalid runs: none
+ho1 target distribution: cell4:30
+recovery HO commands: 30 total in 30 runs; runs with extra HOs: 0
+TS        UE1:   259.8 +-  37.7 Mbps  (n=30)
+TS        UE2:   509.6 +-  43.7 Mbps  (n=30)
+TS        UE3:   367.0 +-  88.4 Mbps  (n=30)
+TS        UE4:   257.8 +-  31.8 Mbps  (n=30)
+QoS       UE1:   451.1 +-  56.4 Mbps  (n=30)
+QoS       UE2:   513.0 +-  47.7 Mbps  (n=30)
+QoS       UE3:   396.5 +-  94.8 Mbps  (n=30)
+QoS       UE4:    57.8 +-  15.6 Mbps  (n=30)
+NES       UE1:   272.2 +-  21.5 Mbps  (n=30)
+NES       UE2:   149.1 +-  35.8 Mbps  (n=30)
+NES       UE3:   259.1 +-  22.6 Mbps  (n=30)
+NES       UE4:   268.7 +-  29.4 Mbps  (n=30)
+Recovery  UE1:   261.4 +-  15.2 Mbps  (n=30)
+Recovery  UE2:   523.1 +-  21.8 Mbps  (n=30)
+Recovery  UE3:   384.4 +-  42.5 Mbps  (n=30)
+Recovery  UE4:   267.9 +-  19.6 Mbps  (n=30)
