@@ -14,6 +14,11 @@ import os, re, sys, glob, csv
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+# Embed real, selectable fonts for LaTeX/EPS output: TrueType (not Type3) in
+# PDF/EPS, and keep SVG text as <text> rather than outlined paths.
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["svg.fonttype"] = "none"
 import matplotlib.pyplot as plt
 
 BATCH = sys.argv[1] if len(sys.argv) > 1 else "/home/wookjin/qxapp_runs/fig4_batch_v4"
@@ -243,8 +248,10 @@ def main():
     for u in UES:
         ax1.plot(grid, ue_m[u], color=colors[u], lw=1.6, label=f"UE {u}")
         if n > 1:
+            # rasterized: EPS/PS cannot render alpha; rasterize only this band
+            # so the lines, ticks and ALL TEXT stay vector (selectable) in EPS.
             ax1.fill_between(grid, ue_m[u] - ue_s[u], ue_m[u] + ue_s[u],
-                             color=colors[u], alpha=0.13, lw=0)
+                             color=colors[u], alpha=0.13, lw=0, rasterized=True)
     ax1.set_ylabel("Throughput (Mbps)")
     ax1.set_ylim(bottom=0)
     ax1.legend(ncol=4, fontsize=8, loc="upper right", framealpha=0.9)
@@ -277,9 +284,13 @@ def main():
     ax2.text((tgt["sleep"] + tgt["wake"]) / 2, 0.45, "O-RU2\nsleep",
              transform=ax2.get_xaxis_transform(), ha="center", fontsize=8)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    for ext in ("png", "pdf", "svg"):
+    # dpi only affects the rasterized sigma band; vector text/lines are
+    # resolution-independent. 300 dpi is print-standard for the flat band and
+    # keeps the EPS small (EPS image compression is weak, so 600 dpi ballooned
+    # the file to ~29 MB for no visible gain on a smooth shaded region).
+    for ext in ("png", "pdf", "svg", "eps"):
         fig.savefig(os.path.join(OUTDIR, f"fig4_avg.{ext}"), dpi=300)
-    print(f"saved -> {OUTDIR}/fig4_avg.png(.pdf,.svg)")
+    print(f"saved -> {OUTDIR}/fig4_avg.png(.pdf,.svg,.eps)")
 
 if __name__ == "__main__":
     main()
