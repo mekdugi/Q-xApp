@@ -52,6 +52,8 @@ CLAUDE.md
 # Internal AI-agent coordination files (kept locally, not for public repo)
 saytocodex.md
 saytoclaude.md
+saytocodex_archive*.md
+saytoclaude_archive*.md
 handover_log.md
 add_energy_to_xapp.py
 gui_check*.png
