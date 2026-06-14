@@ -298,7 +298,7 @@
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box">
-                    <div class="chart-header"><span class="chart-title">O-RU Power</span><div id="energy-legend" class="chart-legend"></div></div>
+                    <div class="chart-header"><span class="chart-title">O-RU Power Consumption</span><div id="energy-legend" class="chart-legend"></div></div>
                     <div class="chart-canvas-wrap"><canvas id="energy-chart"></canvas></div>
                 </div>
             </div>
@@ -532,7 +532,7 @@
         var c = document.getElementById(canvasId).getContext('2d');
         return new Chart(c, {
             type: 'line',
-            data: { labels: Array.from({length: 70}, function(_, i) { return i + 1; }), datasets: datasets || [] },
+            data: { labels: Array.from({length: 100}, function(_, i) { return i + 1; }), datasets: datasets || [] },
             options: {
                 responsive: true, maintainAspectRatio: false, animation: false, spanGaps: false,
                 scales: {
@@ -573,7 +573,7 @@
     sinrChart.options.scales.x.grid.drawTicks = false;
     sinrChart.options.layout = { padding: { bottom: 10 } };
     sinrChart.update();
-    var energyChart = createLineChart('energy-chart', 'Cell Power', 'W', [
+    var energyChart = createLineChart('energy-chart', 'Power Consumption', 'W', [
         { label: 'O-RU 1', data: [], borderColor: cellColors[2], borderWidth: 3, fill: false, pointRadius: 0, pointStyle: 'triangle' },
         { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 3, fill: false, pointRadius: 0, pointStyle: 'triangle' },
         { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 3, fill: false, pointRadius: 0, pointStyle: 'triangle' }
@@ -581,8 +581,9 @@
     // History
     var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
     var energyHistory = { 2: [], 3: [], 4: [] };
-    var MAX_HISTORY = 70;
+    var MAX_HISTORY = 100;
     var _prevRound = -1;
+    var _cycleFrozen = false;
 
     if (window.location.search.indexOf('capture') !== -1) {
         document.documentElement.classList.add('capture');
@@ -621,14 +622,16 @@
                 if (_prevRound > 0 && qxappData.round < _prevRound) {
                     sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
                     energyHistory = { 2: [], 3: [], 4: [] };
+                    _cycleFrozen = false;
                 }
                 _prevRound = qxappData.round;
             }
             updateGrid(data);
-            /* Freeze charts after cycle ends (mode=ts + round > total rounds) */
-            var cycleEnded = qxappData && qxappData.mode === 'ts' && qxappData.round > 18 && _prevRound > 18;
-            if (!cycleEnded) {
+            /* Freeze only after xApp signals the final recovery snapshot
+               (cycle_finished): draw that final point once, then stop appending. */
+            if (!_cycleFrozen) {
                 updateKPIs(data);
+                if (qxappData && qxappData.cycle_finished === true) _cycleFrozen = true;
             }
         }).catch(function(e) { console.log('Fetch error:', e); });
     }

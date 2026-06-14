@@ -393,6 +393,8 @@ static void read_cell_energy(void)
 }
 
 static int g_current_round = 0;
+static int g_cycle_finished = 0; /* GUI freeze flag (any terminal recovery outcome) */
+static const char *g_cycle_status = "running"; /* running | complete | timeout */
 /* write result JSON with mode info */
 static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
                                       const char *mode,
@@ -443,7 +445,9 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
   for (int c = 0; c < NUM_CELL; c++) {
     fprintf(fp, "\"%d\": %.1f%s", CELL_IDS[c], cell_energy[c], c < NUM_CELL - 1 ? ", " : "");
   }
-  fprintf(fp, "}\n}\n");
+  fprintf(fp, "},\n");
+  fprintf(fp, "  \"cycle_finished\": %s,\n", g_cycle_finished ? "true" : "false");
+  fprintf(fp, "  \"cycle_status\": \"%s\"\n}\n", g_cycle_status);
   fclose(fp);
   printf("[Q-xApp] Result written to %s\n", RESULT_JSON);
 }
@@ -1102,6 +1106,7 @@ int main(int argc, char *argv[])
       static int rec_target[NUM_UE] = {-1, -1, -1, -1};
       static uint64_t rec_send_ts[NUM_UE] = {0};
       static int rec_confirmed[NUM_UE] = {0};
+      static int rec_final_assign[NUM_UE] = {-1, -1, -1, -1};
       if (round > AUTO_TOTAL_ROUNDS && wake_sent && !post_wake_ts_done) {
         recovery_wait_rounds++;
         read_sinr_from_csv();
@@ -1131,6 +1136,8 @@ int main(int argc, char *argv[])
         if (!ready) {
           printf("[POST-WAKE] readiness timeout after %d rounds — abort recovery\n",
                  recovery_wait_rounds);
+          g_cycle_finished = 1; g_cycle_status = "timeout";
+          { int ns_fin[1] = {0}; write_result_json_unified(prev_assignment, 0.0, "ts", NUM_CELL, ns_fin, 0); }
           post_wake_ts_done = 1;
           sleep(10);
           continue;
@@ -1139,12 +1146,12 @@ int main(int argc, char *argv[])
           /* TS recompute on fresh measurements */
           int rec_assign[NUM_UE];
           greedy_match(rec_assign);
+          for (int u = 0; u < NUM_UE; u++) rec_final_assign[u] = rec_assign[u]; /* preserve for final publish */
           for (int u = 0; u < NUM_UE; u++)
             printf("[POST-WAKE] UE %d measured serving=%s computed assignment=%s\n", u,
                    (serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "none",
                    (rec_assign[u] >= 0) ? ORU_NAMES[rec_assign[u]] : "none");
           /* Recovery RC-HO for mismatched UEs only (one-shot each, staggered) */
-          int any_ho = 0;
           for (int u = 0; u < NUM_UE; u++) {
             if (recovery_ho_sent[u]) continue;
             if (rec_assign[u] < 0 || serving_cell[u] < 0) continue;
@@ -1152,7 +1159,6 @@ int main(int argc, char *argv[])
             rec_target[u] = rec_assign[u];
             rec_send_ts[u] = send_rc_ho_tagged(&nodes, u, rec_assign[u], "POST-WAKE");
             recovery_ho_sent[u] = 1;
-            any_ho = 1;
           }
           /* refresh GUI with recovered assignment */
           {
@@ -1160,10 +1166,7 @@ int main(int argc, char *argv[])
             write_result_json_unified(rec_assign, 0.0, "ts", NUM_CELL, no_sleep2, 0);
           }
           post_wake_ho_done = 1;
-          if (!any_ho) {
-            post_wake_ts_done = 1;
-            printf("[POST-WAKE] recovery complete, no further action\n");
-          }
+          /* no-HO still goes to confirmation so stabilized power gets published */
           sleep(10);
           continue;
         }
@@ -1182,13 +1185,17 @@ int main(int argc, char *argv[])
           }
         }
         if (all_ok) {
+          g_cycle_finished = 1; g_cycle_status = "complete";
+          { int ns_fin[1] = {0}; write_result_json_unified(rec_final_assign, 0.0, "ts", NUM_CELL, ns_fin, 0); }
           post_wake_ts_done = 1;
-          printf("[POST-WAKE] recovery complete, no further action\n");
+          printf("[POST-WAKE] recovery complete, final power published\n");
         } else if (rec_confirm_rounds >= 5) {
           printf("[POST-WAKE] TIMEOUT — unconfirmed:");
           for (int u = 0; u < NUM_UE; u++)
             if (recovery_ho_sent[u] && !rec_confirmed[u]) printf(" IMSI=%d", u + 1);
           printf("\n");
+          g_cycle_finished = 1; g_cycle_status = "timeout";
+          { int ns_fin[1] = {0}; write_result_json_unified(rec_final_assign, 0.0, "ts", NUM_CELL, ns_fin, 0); }
           post_wake_ts_done = 1;
         }
         sleep(10);
