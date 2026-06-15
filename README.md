@@ -41,7 +41,7 @@ The GUI carries the axes and legends the averaged plot shares: **UE Throughput**
 - **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
 - **TS** (resumed after NES) — O-RU 2 wakes (power back to ~3.3 kW) and UE2 returns to **~103.7%** of its first-TS level (521.6 Mbps).
 
-The x-axis is shown to 4.5 s; phase statistics are computed over the full 7 s runs. The resumed-TS window is labeled `TS2` in the data files only to distinguish it from the first TS window — it is the same TS mode, not a separate phase. This is the **final result and per-run summary**, not a self-contained raw archive: raw per-run time-series are not stored in the repo. Per-run means: [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv), [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); plotting script: [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py). (`scenario-fig4-qxapp.cc` is the automated scenario; the GUI demo in §6 uses a separate interactive scenario.)
+Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv) and [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); the plotting script is [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py).
 
 ---
 
