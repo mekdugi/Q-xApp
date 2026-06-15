@@ -20,20 +20,28 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ---
 
-## 2. Fig.4 Results (50 Runs)
+## 2. Fig.4 Results
 
-The unified xApp drives all four control phases in a single continuous run. The figure below is the **average of 50 independent simulation runs** (RngRun seeds 1–50) of the `scenario-fig4-qxapp.cc` scenario, showing per-UE throughput (top) and per-O-RU power (bottom).
+The unified xApp cycles through the control modes **TS → QoS → NES → TS** in a single continuous run. The GUI (left) shows one live run with labeled axes; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
 
-![Fig.4: 50-run average of throughput and O-RU power](fig4_ppt/fig4_50run_combined.png)
+### GUI (one live run)
 
-**Four phases (left → right):**
+![Q-xApp GUI: Simulation Grid, UE Throughput, O-RU Power Consumption](fig4_ppt/fig4_gui_capture.png)
 
-- **TS** — UEs are steered to best-SINR cells. The equidistant pair UE1 / UE4 receives comparable throughput (**254.5 / 261.0 Mbps**).
+The GUI carries the axes and legends the averaged plot shares: **UE Throughput** (per-UE, Mbps) and **O-RU Power Consumption** (per-O-RU, W) over **simulation time (s)**, plus the Simulation Grid (O-RU triangles, UE circles colored by serving cell; a sleeping O-RU turns gray).
+
+### 50-run average
+
+![Fig.4: 50-run average of UE throughput (top) and O-RU power (bottom)](fig4_ppt/fig4_50run_combined.png)
+
+**Control modes (left → right):**
+
+- **TS** — UEs steered to best-SINR cells. The equidistant pair UE1 / UE4 gets comparable throughput (**254.5 / 261.0 Mbps**).
 - **QoS** (runs alongside TS) — DRB weights enforce 5QI priority: high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
 - **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
-- **Recovery** — O-RU 2 wakes (power restored to ~3.3 kW) and UE2 returns to **~103.7%** of its TS baseline (521.6 Mbps).
+- **TS** (resumed after NES) — O-RU 2 wakes (power back to ~3.3 kW) and UE2 returns to **~103.7%** of its first-TS level (521.6 Mbps).
 
-The x-axis is shown to 4.5 s; phase statistics are computed over the full 7 s runs. This is the **final result and per-run phase summary**, not a self-contained raw-data archive: raw per-run time-series are not stored in the repo. Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv) and [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); the plotting script is [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py). (`scenario-fig4-qxapp.cc` is the automated 4-phase scenario for this figure; the GUI demo below uses a separate interactive scenario.)
+The x-axis is shown to 4.5 s; phase statistics are computed over the full 7 s runs. The resumed-TS window is labeled `TS2` in the data files only to distinguish it from the first TS window — it is the same TS mode, not a separate phase. This is the **final result and per-run summary**, not a self-contained raw archive: raw per-run time-series are not stored in the repo. Per-run means: [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv), [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); plotting script: [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py). (`scenario-fig4-qxapp.cc` is the automated scenario; the GUI demo in §6 uses a separate interactive scenario.)
 
 ---
 
@@ -276,7 +284,8 @@ Q-xApp/
 │   ├── mmwave-flex-tti-pf-mac-scheduler.cc
 │   └── mmwave-flex-tti-pf-mac-scheduler.h
 ├── fig4_ppt/                       # Fig.4 results (50-run average)
-│   ├── fig4_50run_combined.png     # the figure (also .pdf for high-res / paper)
+│   ├── fig4_gui_capture.png        # GUI screenshot (one live run, labeled axes)
+│   ├── fig4_50run_combined.png     # the averaged figure (also .pdf for high-res / paper)
 │   ├── qxapp_fig4_plot_ppt_v5.py   # plotting script (x-axis 4.5s, marker from scheduler_weights.csv)
 │   ├── runs_summary_50run.csv      # per-run phase means (seeds 1–50)
 │   ├── phase_stats_raw_50run.txt   # aggregate phase means ± std

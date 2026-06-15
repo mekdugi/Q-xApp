@@ -223,7 +223,7 @@ def main():
         ho2 = m["ho2"] if m["ho2"] else None
         wins = {"TS": (0.25, m["qos"]), "QoS": (m["qos"], m["ho1"]),
                 "NES": (m["sleep"], m["wake"]),
-                "Recovery": (ho2 + 0.1, SIM_T) if ho2 else None}
+                "TS2": (ho2 + 0.1, SIM_T) if ho2 else None}   # TS mode resumed after NES
         for ph, w in wins.items():
             if w is None or w[1] <= w[0]:
                 out[ph] = {u: float("nan") for u in UES}
@@ -233,7 +233,7 @@ def main():
                        else float("nan") for u in UES}
         return out
     os.makedirs(OUTDIR, exist_ok=True)
-    phases = ["TS", "QoS", "NES", "Recovery"]
+    phases = ["TS", "QoS", "NES", "TS2"]   # TS2 = TS mode resumed after NES (not "recovery")
     allm = {ph: {u: [] for u in UES} for ph in phases}
     with open(os.path.join(OUTDIR, "runs_summary_50run.csv"), "w", newline="") as f:
         w = csv.writer(f)
