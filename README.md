@@ -37,7 +37,7 @@ The GUI carries the axes and legends the averaged plot shares: **UE Throughput**
 **Control modes (left → right):**
 
 - **TS** — UEs steered to best-SINR cells. The equidistant pair UE1 / UE4 gets comparable throughput (**254.5 / 261.0 Mbps**).
-- **TS+QoS-RA** — QoS-RA runs alongside TS: DRB weights enforce 5QI priority, so high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
+- **TS+QoS-RA** — DRB weights enforce 5QI priority: high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
 - **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
 - **TS** (resumed after NES) — O-RU 2 wakes (power back to ~3.3 kW) and UE2 returns to **~103.7%** of its first-TS level (521.6 Mbps).
 
@@ -205,7 +205,7 @@ Switch use cases and configure policies in real-time:
 - RC Control: style=3 (handover) + Energy_state (style=300, sleep/wake)
 
 **QoS-based Resource Allocation (QoS-RA)**
-- Assigns UE ↔ DRB independently of TS (which steers UE ↔ Cell); the two can run together (as in Fig.4) or separately
+- Assignment: UE ↔ DRB (per-UE 5QI requirement)
 - Each UE has a 5QI requirement (2, 4, 7, 9). Each cell offers a subset of DRBs
 - DRB Pool: DRB 1 (5QI=2, w=4.0), DRB 2 (5QI=4, w=3.0), DRB 3 (5QI=7, w=2.0), DRB 4 (5QI=9, w=1.0)
 - Cell DRB availability: O-RU 1 → DRB 1,2,3 / O-RU 2 → DRB 2,3,4 / O-RU 3 → DRB 1,3,4
