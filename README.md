@@ -14,7 +14,7 @@ Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **in
 |----------|----------------|-------------|
 | **Traffic Steering (TS)** | UE ↔ Cell | Assigns UEs to best-SINR cells |
 | **Network Energy Saving (NES)** | UE ↔ Cell | Packs UEs into fewer cells, sleeps idle O-RUs |
-| **QoS-based Resource Allocation** | UE ↔ DRB | Assigns DRBs by per-UE 5QI requirement. Runs alongside TS |
+| **QoS-based Resource Allocation (QoS-RA)** | UE ↔ DRB | Assigns DRBs by per-UE 5QI requirement |
 
 Switch between them in real-time from the GUI — no restart needed.
 
@@ -205,7 +205,7 @@ Switch use cases and configure policies in real-time:
 - RC Control: style=3 (handover) + Energy_state (style=300, sleep/wake)
 
 **QoS-based Resource Allocation (QoS-RA)**
-- Runs alongside TS: TS handles UE-Cell, QoS-RA handles UE-DRB
+- Assigns UE ↔ DRB independently of TS (which steers UE ↔ Cell); the two can run together (as in Fig.4) or separately
 - Each UE has a 5QI requirement (2, 4, 7, 9). Each cell offers a subset of DRBs
 - DRB Pool: DRB 1 (5QI=2, w=4.0), DRB 2 (5QI=4, w=3.0), DRB 3 (5QI=7, w=2.0), DRB 4 (5QI=9, w=1.0)
 - Cell DRB availability: O-RU 1 → DRB 1,2,3 / O-RU 2 → DRB 2,3,4 / O-RU 3 → DRB 1,3,4
