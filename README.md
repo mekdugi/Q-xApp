@@ -22,7 +22,7 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ## 2. Fig.4 Results
 
-The unified xApp cycles through the control modes **TS → QoS → NES → TS** in a single continuous run. The GUI (left) shows one live run with labeled axes; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
+For this figure the xApp runs in **auto mode**, automatically cycling through the control modes **TS → QoS → NES → TS** in a single continuous run so that every use case appears together in one figure. Auto mode exists only to produce this combined figure — **the point of the GUI is the opposite: an operator selects the use case manually, in real time** (see the "Use Case" selector in the A1 Policy Manager bar of the GUI below). The GUI (left) shows one live auto-mode run with labeled axes; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
 
 ### GUI (one live run)
 
