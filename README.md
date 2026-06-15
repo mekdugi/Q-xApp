@@ -12,7 +12,7 @@ Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **in
 
 | Use Case | Assignment Type | What it does |
 |----------|----------------|-------------|
-| **Traffic Steering (TS)** | UE ↔ Cell | Assigns UEs to best-SINR cells via greedy matching |
+| **Traffic Steering (TS)** | UE ↔ Cell | Assigns UEs to best-SINR cells |
 | **Network Energy Saving (NES)** | UE ↔ Cell | Packs UEs into fewer cells, sleeps idle O-RUs |
 | **QoS-based Resource Allocation** | UE ↔ DRB | Assigns DRBs by per-UE 5QI requirement. Runs alongside TS |
 
@@ -22,7 +22,7 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ## 2. Fig.4 Results
 
-For this figure the xApp runs in **auto mode**, automatically cycling through the control modes **TS → QoS → NES → TS** in a single continuous run so that every use case appears together in one figure. Auto mode exists only to produce this combined figure — **the point of the GUI is the opposite: an operator selects the use case manually, in real time** (see the "Use Case" selector in the A1 Policy Manager bar of the GUI below). The GUI (left) shows one live auto-mode run with labeled axes; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
+For this figure the xApp runs in **auto mode**, cycling through **TS → TS+QoS-RA → NES → TS** so all use cases appear in one figure; in the GUI an operator can also select each use case manually in real time. The GUI (left) shows one live run; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
 
 ### GUI (one live run)
 
@@ -37,7 +37,7 @@ The GUI carries the axes and legends the averaged plot shares: **UE Throughput**
 **Control modes (left → right):**
 
 - **TS** — UEs steered to best-SINR cells. The equidistant pair UE1 / UE4 gets comparable throughput (**254.5 / 261.0 Mbps**).
-- **QoS** (runs alongside TS) — DRB weights enforce 5QI priority: high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
+- **TS+QoS-RA** — QoS-RA runs alongside TS: DRB weights enforce 5QI priority, so high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
 - **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
 - **TS** (resumed after NES) — O-RU 2 wakes (power back to ~3.3 kW) and UE2 returns to **~103.7%** of its first-TS level (521.6 Mbps).
 
@@ -81,9 +81,9 @@ Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_sum
 │  │ Use-Case      │  │ Assignment     │  │ Output         │  │
 │  │ Encoder       │→│ Algorithm      │→│ Interpreter    │  │
 │  │               │  │                │  │                │  │
-│  │ Read SINR,    │  │ TS: greedy     │  │ Handover       │  │
+│  │ Read SINR,    │  │ TS: best-SINR  │  │ Handover       │  │
 │  │ A1 policy,    │  │ NES: energy    │  │ Sleep/Wake     │  │
-│  │ QoS config    │  │ QoS: DRB match │  │ DRB weight     │  │
+│  │ QoS config    │  │ QoS-RA: DRB    │  │ DRB weight     │  │
 │  └───────────────┘  └────────────────┘  └────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -136,10 +136,10 @@ cd <ns-O-RAN>/GUI && sudo docker compose up -d
 
 | File | Copies to | What was changed |
 |------|----------|-----------------|
-| `scenario-fig4-qxapp.cc` | `scratch/` | Fig.4 scenario: 3 O-RU, 4 UE, automated 4-phase (TS/QoS/NES/Recovery), 7 s, energy model |
+| `scenario-fig4-qxapp.cc` | `scratch/` | Fig.4 scenario: 3 O-RU, 4 UE, automated phases (TS → TS+QoS-RA → NES → TS), 7 s, energy model |
 | `scenario-zero-with_parallel_loging.cc` | `scratch/` | GUI interactive demo: 3 O-RU, 4 UE, long-run, real-time use-case switching |
 | `mmwave-enb-net-device.cc` | `src/mmwave/model/` | Added Energy_state sleep/wake + Radio_Bearer_Control handler |
-| `mmwave-flex-tti-pf-mac-scheduler.cc/.h` | `src/mmwave/model/` | Added per-UE scheduling weight for QoS |
+| `mmwave-flex-tti-pf-mac-scheduler.cc/.h` | `src/mmwave/model/` | Added per-UE scheduling weight for QoS-RA |
 | `qxapp_unified.c` | `examples/xApp/c/ctrl/` | Unified xApp: 3 use cases with Fig. 2 pipeline |
 | `qxapp_common.h` | `examples/xApp/c/ctrl/` | Shared code: RC messages, CSV parsing, rate computation |
 | `GUI/*` | `GUI/` | Web dashboard, Docker config, auto-start data pusher |
