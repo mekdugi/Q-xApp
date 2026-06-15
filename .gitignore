@@ -57,3 +57,18 @@ saytoclaude_archive*.md
 handover_log.md
 add_energy_to_xapp.py
 gui_check*.png
+
+# Superseded Fig.4 intermediates (kept locally; 50-run is the final published result)
+fig4_out/
+fig4_out_v3/
+fig4_out_v4/
+fig4_ppt/fig4_combined.*
+fig4_ppt/fig4_power.*
+fig4_ppt/fig4_throughput.*
+fig4_ppt/fig4_50run_power.*
+fig4_ppt/fig4_50run_throughput.*
+fig4_ppt/*.svg
+fig4_ppt/*.eps
+fig4_ppt/qxapp_fig4_plot_ppt.py
+ns3/scenario/scenario-fig4-qxapp.cc
+scripts/qxapp_batch_v3.sh

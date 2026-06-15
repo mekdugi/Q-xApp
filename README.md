@@ -20,7 +20,24 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ---
 
-## 2. Architecture
+## 2. Fig.4 Results (50 Runs)
+
+The unified xApp drives all four control phases in a single continuous run. The figure below is the **average of 50 independent simulation runs** (RngRun seeds 1–50) of the `scenario-fig4-qxapp.cc` scenario, showing per-UE throughput (top) and per-O-RU power (bottom).
+
+![Fig.4: 50-run average of throughput and O-RU power](fig4_ppt/fig4_50run_combined.png)
+
+**Four phases (left → right):**
+
+- **TS** — UEs are steered to best-SINR cells. The equidistant pair UE1 / UE4 receives comparable throughput (**254.5 / 261.0 Mbps**).
+- **QoS** (runs alongside TS) — DRB weights enforce 5QI priority: high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
+- **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
+- **Recovery** — O-RU 2 wakes (power restored to ~3.3 kW) and UE2 returns to **~103.7%** of its TS baseline (521.6 Mbps).
+
+The x-axis is shown to 4.5 s; phase statistics are computed over the full 7 s runs. This is the **final result and per-run phase summary**, not a self-contained raw-data archive: raw per-run time-series are not stored in the repo. Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv) and [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); the plotting script is [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py). (`scenario-fig4-qxapp.cc` is the automated 4-phase scenario for this figure; the GUI demo below uses a separate interactive scenario.)
+
+---
+
+## 3. Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -65,7 +82,7 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ---
 
-## 3. Prerequisites
+## 4. Prerequisites
 
 | Component | Repository | Branch |
 |-----------|-----------|--------|
@@ -77,13 +94,14 @@ Install ns-O-RAN and FlexRIC following their respective guides first. Tested on 
 
 ---
 
-## 4. Installation
+## 5. Installation
 
 After the base platform is installed, apply Q-xApp modifications:
 
 ```bash
 # 1. Copy ns-3 files
-cp ns3/scenario/scenario-zero-with_parallel_loging.cc  <ns-O-RAN>/scratch/
+cp ns3/scenario-fig4-qxapp.cc                          <ns-O-RAN>/scratch/   # Fig.4 scenario
+cp ns3/scenario/scenario-zero-with_parallel_loging.cc  <ns-O-RAN>/scratch/   # GUI demo scenario
 cp ns3/mmwave-enb-net-device.cc                        <ns-O-RAN>/src/mmwave/model/
 cp ns3/mmwave-flex-tti-pf-mac-scheduler.cc             <ns-O-RAN>/src/mmwave/model/
 cp ns3/mmwave-flex-tti-pf-mac-scheduler.h              <ns-O-RAN>/src/mmwave/model/
@@ -110,7 +128,8 @@ cd <ns-O-RAN>/GUI && sudo docker compose up -d
 
 | File | Copies to | What was changed |
 |------|----------|-----------------|
-| `scenario-zero-with_parallel_loging.cc` | `scratch/` | 3 BS, 4 UE, antenna config, 30min simTime, energy model |
+| `scenario-fig4-qxapp.cc` | `scratch/` | Fig.4 scenario: 3 O-RU, 4 UE, automated 4-phase (TS/QoS/NES/Recovery), 7 s, energy model |
+| `scenario-zero-with_parallel_loging.cc` | `scratch/` | GUI interactive demo: 3 O-RU, 4 UE, long-run, real-time use-case switching |
 | `mmwave-enb-net-device.cc` | `src/mmwave/model/` | Added Energy_state sleep/wake + Radio_Bearer_Control handler |
 | `mmwave-flex-tti-pf-mac-scheduler.cc/.h` | `src/mmwave/model/` | Added per-UE scheduling weight for QoS |
 | `qxapp_unified.c` | `examples/xApp/c/ctrl/` | Unified xApp: 3 use cases with Fig. 2 pipeline |
@@ -119,7 +138,7 @@ cd <ns-O-RAN>/GUI && sudo docker compose up -d
 
 ---
 
-## 5. Running the Simulation
+## 6. Running the Simulation
 
 Open **three terminals** and run in order:
 
@@ -128,7 +147,10 @@ Open **three terminals** and run in order:
 sudo <FlexRIC>/build/examples/ric/nearRT-RIC
 
 # Terminal 2: Start ns-3 network simulation (wait for E2 Setup to complete)
+#   GUI interactive demo:
 cd <ns-O-RAN> && ./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
+#   or the Fig.4 automated scenario:
+#   ./ns3 run "scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=7"
 
 # Terminal 3: Start Q-xApp controller (after ns-3 connects to RIC)
 sudo <FlexRIC>/build/examples/xApp/c/ctrl/xapp_qxapp_unified
@@ -140,7 +162,7 @@ Switch use cases from the GUI at any time. The default mode is Traffic Steering.
 
 ---
 
-## 6. Using the GUI
+## 7. Using the GUI
 
 ### Network Settings (top bar)
 Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, inter-site distance.
@@ -160,7 +182,7 @@ Switch use cases and configure policies in real-time:
 
 ---
 
-## 7. Technical Details
+## 8. Technical Details
 
 ### Use Case Details
 
@@ -189,7 +211,7 @@ The simulation platform integrates [FlexRIC](https://gitlab.eurecom.fr/mosaic5g/
 1. **E2 Setup**: ns-O-RAN establishes an SCTP connection with the nearRT-RIC (E2AP v1.01). Each mmWave gNB registers KPM and RC service models.
 2. **E42 Interface**: The RIC connects to the Q-xApp via E42, a FlexRIC-specific interface for RIC–xApp communication.
 3. **Subscription**: Q-xApp subscribes to KPM reports. ns-O-RAN begins periodically sending measurements.
-4. **Control Loop**: Every 5 seconds, Q-xApp reads SINR → computes assignment → sends RC Control → receives ACK.
+4. **Control Loop**: Q-xApp periodically reads SINR → computes assignment → sends RC Control → receives ACK.
 
 ```
 ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
@@ -238,7 +260,7 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
 
 ---
 
-## 8. Project Structure
+## 9. Project Structure
 
 ```
 Q-xApp/
@@ -248,10 +270,17 @@ Q-xApp/
 │   ├── qxapp_greedy_handover.c     # Standalone TS xApp
 │   └── qxapp_energy_saving.c       # Standalone NES xApp
 ├── ns3/
-│   ├── scenario/scenario-zero-with_parallel_loging.cc
+│   ├── scenario-fig4-qxapp.cc      # Fig.4 scenario (3 O-RU, 4 UE, 7s, automated 4-phase)
+│   ├── scenario/scenario-zero-with_parallel_loging.cc   # GUI interactive demo scenario
 │   ├── mmwave-enb-net-device.cc
 │   ├── mmwave-flex-tti-pf-mac-scheduler.cc
 │   └── mmwave-flex-tti-pf-mac-scheduler.h
+├── fig4_ppt/                       # Fig.4 results (50-run average)
+│   ├── fig4_50run_combined.png     # the figure (also .pdf for high-res / paper)
+│   ├── qxapp_fig4_plot_ppt_v5.py   # plotting script (x-axis 4.5s, marker from scheduler_weights.csv)
+│   ├── runs_summary_50run.csv      # per-run phase means (seeds 1–50)
+│   ├── phase_stats_raw_50run.txt   # aggregate phase means ± std
+│   └── SHA256SUMS_50run.txt        # checksums of the public Fig.4 files
 ├── gui/
 │   ├── main.py                           # FastAPI entrypoint
 │   ├── requirements.txt
@@ -265,15 +294,14 @@ Q-xApp/
 │       ├── http/data_controller.py       # API routes
 │       ├── copy_sim_data_pusher.py       # InfluxDB data pusher
 │       └── simulation_objects/           # Simulation state management
-├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future integration
-├── scripts/collect_qxapp_verification.py
+├── bs_ue_matching.py               # Quantum circuit (Qiskit) — future quantum assignment integration
 └── README.md
 ```
 
 
 ---
 
-## 9. References
+## 10. References
 
 - O-RAN Alliance, "O-RAN Architecture Description", O-RAN.WG1.O-RAN-Architecture-Description
 - O-RAN WG3, "Use Cases and Requirements", O-RAN.WG3.TS.UCR-R004-v09.00

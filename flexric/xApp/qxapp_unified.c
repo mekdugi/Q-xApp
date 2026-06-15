@@ -332,6 +332,7 @@ static void read_sleep_config(void)
 static double cell_energy[NUM_CELL]; /* avg power consumption (W, sim time) over last round */
 static double prev_net_energy[NUM_CELL] = {0};
 static double prev_net_time[NUM_CELL] = {0};
+static double g_energy_sample_time = 0.0; /* ns-3 sim-time of last energy sample (GUI x-axis) */
 static int energy_initialized = 0;
 
 
@@ -372,9 +373,11 @@ static double read_net_energy_from_csv(int cell_id, double *out_time)
 
 static void read_cell_energy(void)
 {
+  double tmax = 0.0;
   for (int c = 0; c < NUM_CELL; c++) {
     double tnow = 0.0;
     double net = read_net_energy_from_csv(CELL_IDS[c], &tnow);
+    if (tnow > tmax) tmax = tnow;
     if (!energy_initialized) {
       cell_energy[c] = 0.0;
       prev_net_energy[c] = net;
@@ -389,6 +392,7 @@ static void read_cell_energy(void)
       prev_net_time[c] = tnow;
     }
   }
+  g_energy_sample_time = tmax;
   energy_initialized = 1;
 }
 
@@ -447,7 +451,8 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
   }
   fprintf(fp, "},\n");
   fprintf(fp, "  \"cycle_finished\": %s,\n", g_cycle_finished ? "true" : "false");
-  fprintf(fp, "  \"cycle_status\": \"%s\"\n}\n", g_cycle_status);
+  fprintf(fp, "  \"cycle_status\": \"%s\",\n", g_cycle_status);
+  fprintf(fp, "  \"energy_sample_time\": %.3f\n}\n", g_energy_sample_time);
   fclose(fp);
   printf("[Q-xApp] Result written to %s\n", RESULT_JSON);
 }
