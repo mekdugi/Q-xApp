@@ -16,6 +16,17 @@ static int a1_max_ue_per_cell = 2;
 #define A1_POLICY_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_a1_policy.txt"
 #define QOS_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_qos_config.txt"
 
+/* == Quantum TS assignment (dqna_ts.py, Stage-0 validated) ==================
+ * Quantum is the default assignment engine (Q-xApp). QUANTUM_CONFIG_FILE
+ * first line "0"/"off" forces the legacy greedy placeholder (debug / historic
+ * Fig.4 reproduction); missing file = quantum ON. Paths can be overridden via
+ * env QXAPP_PY / QXAPP_TS_SCRIPT. TS uses the 4x3 circuit now; QoS/NES switch
+ * to a 4x2 circuit when it lands, after which greedy is removed. */
+#define QUANTUM_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_quantum.txt"
+#define QXAPP_PY_DEFAULT        "/root/qxapp-venv/bin/python"
+#define QXAPP_TS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_ts.py"
+#define QXAPP_TS_TIMEOUT_S 10
+
 /* == QoS-based Resource Allocation ========================================= */
 #define NUM_DRB 4
 
@@ -117,6 +128,185 @@ static void greedy_match(int assignment[NUM_UE])
     assignment[u] = best;
     cell_load[best]++;
   }
+}
+
+/* == Quantum TS matching implementation ==================================== */
+static int  quantum_ts_enabled = 0;
+static int  quantum_env_logged = 0;
+static int  ts_quantum_state = 0;   /* last TS decision: 0=greedy 1=quantum 2=fallback */
+static long quantum_ok_count = 0;
+static long quantum_fallback_count = 0;
+
+static const char *qx_py(void)
+{
+  const char *p = getenv("QXAPP_PY");
+  return p ? p : QXAPP_PY_DEFAULT;
+}
+
+static const char *qx_ts_script(void)
+{
+  const char *p = getenv("QXAPP_TS_SCRIPT");
+  return p ? p : QXAPP_TS_SCRIPT_DEFAULT;
+}
+
+/* Quantum is the Q-xApp assignment engine and therefore the default; greedy
+ * is the placeholder from before the circuit existed, kept only as the
+ * automatic fallback and as a debug path (write "0"/"off" to the config file
+ * to force it). On first enable, log solver provenance. */
+static void read_quantum_config(void)
+{
+  int enabled = 1;
+  FILE *fp = fopen(QUANTUM_CONFIG_FILE, "r");
+  if (fp) {
+    char buf[64] = {0};
+    if (fgets(buf, sizeof(buf), fp))
+      enabled = !(buf[0] == '0' || strncmp(buf, "off", 3) == 0);
+    fclose(fp);
+  }
+  if (enabled && !quantum_env_logged) {
+    quantum_env_logged = 1;
+    printf("[Q-xApp TS] quantum enabled: py=%s script=%s timeout=%ds "
+           "feas_iter=1 qual_iter=1 qual_lambda=4.0 max_per_cell=%d\n",
+           qx_py(), qx_ts_script(), QXAPP_TS_TIMEOUT_S, a1_max_ue_per_cell);
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "sha256sum '%s' 2>/dev/null; '%s' -c 'import qiskit; print(\"qiskit\", qiskit.__version__)' 2>/dev/null",
+             qx_ts_script(), qx_py());
+    FILE *pp = popen(cmd, "r");
+    if (pp) {
+      char line[512];
+      while (fgets(line, sizeof(line), pp))
+        printf("[Q-xApp TS] provenance: %s", line);
+      pclose(pp);
+    }
+  }
+  if (enabled != quantum_ts_enabled)
+    printf("[Q-xApp TS] quantum path %s\n", enabled ? "ON" : "OFF (greedy placeholder)");
+  quantum_ts_enabled = enabled;
+}
+
+/* Run dqna_ts.py on the current sinr_matrix via unique temp files.
+ * Returns 0 and fills assignment (+ q_score/q_elapsed_ms if non-NULL) on
+ * success; -1 on any failure (caller falls back to greedy_match). The
+ * distinction "solver no candidate" vs solver error is logged (Codex 12차). */
+static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elapsed_ms)
+{
+  char fin[]  = "/tmp/qxapp_ts_in_XXXXXX";
+  char fout[] = "/tmp/qxapp_ts_out_XXXXXX";
+  char ferr[] = "/tmp/qxapp_ts_err_XXXXXX";
+  int rc_val = -1;
+  int fdi = mkstemp(fin), fdo = mkstemp(fout), fde = mkstemp(ferr);
+  if (fdi < 0 || fdo < 0 || fde < 0) {
+    fprintf(stderr, "[Q-xApp TS] mkstemp failed\n");
+    goto cleanup;
+  }
+
+  /* 1. SINR matrix -> JSON */
+  {
+    FILE *fi = fdopen(fdi, "w");
+    if (!fi) goto cleanup;
+    fdi = -1; /* owned by stream now */
+    fprintf(fi, "{\"sinr\":[");
+    for (int u = 0; u < NUM_UE; u++) {
+      fprintf(fi, "%s[", u > 0 ? "," : "");
+      for (int c = 0; c < NUM_CELL; c++)
+        fprintf(fi, "%s%.6f", c > 0 ? "," : "", sinr_matrix[u][c]);
+      fprintf(fi, "]");
+    }
+    fprintf(fi, "]}\n");
+    fclose(fi);
+  }
+
+  /* 2. Invoke solver (Stage-0 tuned parameters) */
+  {
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "timeout %d '%s' '%s' --feas-iter=1 --qual-iter=1 --qual-lambda=4.0 "
+             "--max-per-cell=%d < '%s' > '%s' 2> '%s'",
+             QXAPP_TS_TIMEOUT_S, qx_py(), qx_ts_script(), a1_max_ue_per_cell,
+             fin, fout, ferr);
+    int rc = system(cmd);
+    if (rc != 0) {
+      char errbuf[256] = {0};
+      FILE *fe = fopen(ferr, "r");
+      if (fe) {
+        size_t n = fread(errbuf, 1, sizeof(errbuf) - 1, fe);
+        errbuf[n] = '\0';
+        fclose(fe);
+      }
+      if (strstr(errbuf, "no feasible assignment"))
+        fprintf(stderr, "[Q-xApp TS] quantum solver: no candidate in top-20 "
+                        "(rc=%d) — not an infeasibility proof\n", rc);
+      else
+        fprintf(stderr, "[Q-xApp TS] quantum solver error rc=%d stderr: %.200s\n",
+                rc, errbuf);
+      goto cleanup;
+    }
+  }
+
+  /* 3. Parse output JSON */
+  {
+    char buf[1024] = {0};
+    FILE *fo = fopen(fout, "r");
+    if (!fo) goto cleanup;
+    size_t n = fread(buf, 1, sizeof(buf) - 1, fo);
+    buf[n] = '\0';
+    fclose(fo);
+
+    char *p = strstr(buf, "\"assignment\"");
+    if (p) p = strchr(p, '[');
+    int tmp[NUM_UE];
+    if (!p || sscanf(p, "[%d,%d,%d,%d]", &tmp[0], &tmp[1], &tmp[2], &tmp[3]) != NUM_UE) {
+      fprintf(stderr, "[Q-xApp TS] failed to parse solver output: %.100s\n", buf);
+      goto cleanup;
+    }
+
+    /* 4. Sanity check: cap-only, mirroring greedy_match (no per-cell minimum) */
+    int load[NUM_CELL] = {0};
+    for (int u = 0; u < NUM_UE; u++) {
+      if (tmp[u] < 0 || tmp[u] >= NUM_CELL) {
+        fprintf(stderr, "[Q-xApp TS] invalid cell index %d for UE %d\n", tmp[u], u);
+        goto cleanup;
+      }
+      load[tmp[u]]++;
+    }
+    for (int c = 0; c < NUM_CELL; c++) {
+      if (load[c] > a1_max_ue_per_cell) {
+        fprintf(stderr, "[Q-xApp TS] cap violated: cell %d load=%d (max %d)\n",
+                c, load[c], a1_max_ue_per_cell);
+        goto cleanup;
+      }
+    }
+
+    double score = 0.0;
+    char *ps = strstr(buf, "\"score\"");
+    if (ps && (ps = strchr(ps, ':'))) sscanf(ps + 1, "%lf", &score);
+    int elapsed = -1;
+    char *pe = strstr(buf, "\"elapsed_ms\"");
+    if (pe && (pe = strchr(pe, ':'))) sscanf(pe + 1, "%d", &elapsed);
+    double feas_prob = -1.0;
+    char *pf = strstr(buf, "\"feasibility_prob\"");
+    if (pf && (pf = strchr(pf, ':'))) sscanf(pf + 1, "%lf", &feas_prob);
+    char method[64] = "?";
+    char *pm = strstr(buf, "\"method\"");
+    if (pm && (pm = strchr(pm, ':')) && (pm = strchr(pm, '"')))
+      sscanf(pm + 1, "%63[^\"]", method);
+    printf("[Q-xApp TS] solver: method=%s feasibility_prob=%.4f\n", method, feas_prob);
+
+    memcpy(assignment, tmp, NUM_UE * sizeof(int));
+    if (q_score) *q_score = score;
+    if (q_elapsed_ms) *q_elapsed_ms = elapsed;
+    rc_val = 0;
+  }
+
+cleanup:
+  if (fdi >= 0) close(fdi);
+  if (fdo >= 0) close(fdo);
+  if (fde >= 0) close(fde);
+  if (!getenv("QXAPP_TS_DEBUG")) {
+    unlink(fin); unlink(fout); unlink(ferr);
+  }
+  return rc_val;
 }
 
 /* QoS-based Resource Allocation: UE-DRB matching (independent from UE-Cell)
@@ -601,7 +791,32 @@ static void assignment_algorithm(const char *mode,
     *active_cells = NUM_CELL;
     *n_sleep = 0;
   } else {
-    greedy_match(assignment);
+    ts_quantum_state = 0; /* 0=greedy(off) 1=quantum 2=greedy(fallback) */
+    if (quantum_ts_enabled) {
+      double q_score = 0.0;
+      int q_elapsed = -1;
+      if (quantum_ts_match(assignment, &q_score, &q_elapsed) == 0) {
+        ts_quantum_state = 1;
+        quantum_ok_count++;
+        /* verification logging (Codex 12차): greedy comparison per decision */
+        int g[NUM_UE];
+        greedy_match(g);
+        double g_score = 0.0;
+        for (int u = 0; u < NUM_UE; u++) g_score += sinr_matrix[u][g[u]];
+        printf("[Q-xApp TS] quantum decision: assign=[%d,%d,%d,%d] q_score=%.4f "
+               "greedy_score=%.4f solver_ms=%d ok=%ld fallback=%ld\n",
+               assignment[0], assignment[1], assignment[2], assignment[3],
+               q_score, g_score, q_elapsed, quantum_ok_count, quantum_fallback_count);
+      } else {
+        ts_quantum_state = 2;
+        quantum_fallback_count++;
+        fprintf(stderr, "[Q-xApp TS] falling back to greedy_match "
+                        "(ok=%ld fallback=%ld)\n",
+                quantum_ok_count, quantum_fallback_count);
+      }
+    }
+    if (ts_quantum_state != 1)
+      greedy_match(assignment);
     *active_cells = NUM_CELL;
     *n_sleep = 0;
   }
@@ -618,7 +833,10 @@ static void assignment_algorithm(const char *mode,
   } else if (strcmp(mode, "qos") == 0) {
     printf("[Q-xApp QoS-RA] DRB assignment (total rate=%.4f bps/Hz):\n", total_rate);
   } else {
-    printf("[Q-xApp TS] Greedy assignment (total rate=%.4f bps/Hz):\n", total_rate);
+    printf("[Q-xApp TS] %s assignment (total rate=%.4f bps/Hz):\n",
+           ts_quantum_state == 1 ? "Quantum" :
+           ts_quantum_state == 2 ? "Greedy (quantum fallback)" : "Greedy",
+           total_rate);
   }
   for (int u = 0; u < NUM_UE; u++) {
     if (strcmp(mode, "qos") == 0 && ue_drb_assignment[u] >= 0) {
@@ -1303,6 +1521,7 @@ int main(int argc, char *argv[])
     int n_sleep = 0;
 
     use_case_encoder(mode);                                                        /* Stage 1 */
+    read_quantum_config(); /* after Stage 1 so provenance sees this round's A1 policy */
     assignment_algorithm(mode, assignment, &active_cells, sleep_cells, &n_sleep);  /* Stage 2 */
     /* INIT-TS enforcement (auto TS window only): freeze the computed
      * assignment once and drive ACTUAL serving state to it before QoS. */

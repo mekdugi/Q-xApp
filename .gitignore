@@ -55,6 +55,8 @@ saytoclaude.md
 saytocodex_archive*.md
 saytoclaude_archive*.md
 handover_log.md
+HANDOVER_CLAUDE.md
+HANDOVER_CODEX.md
 add_energy_to_xapp.py
 gui_check*.png
 
@@ -72,3 +74,4 @@ fig4_ppt/*.eps
 fig4_ppt/qxapp_fig4_plot_ppt.py
 ns3/scenario/scenario-fig4-qxapp.cc
 scripts/qxapp_batch_v3.sh
+quantum_dev/
