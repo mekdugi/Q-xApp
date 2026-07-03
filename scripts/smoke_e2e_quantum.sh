@@ -36,6 +36,8 @@ rm -f "$NS/drb_control_log.csv" "$NS/scheduler_weights.csv" "$NS/ue_position.txt
   echo "build_cmd: cmake --build . --target xapp_qxapp_unified -j4"
   ls -la /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified
   sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_ts.py
+  sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_42.py
+  sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_qos.py
   sha256sum /mnt/c/Users/Wookjin/Desktop/Q-xApp/scripts/validate_dqna_ts.py 2>/dev/null
   /root/qxapp-venv/bin/python -c 'import qiskit,numpy; print("qiskit",qiskit.__version__,"numpy",numpy.__version__)'
 } > "$OUT/manifest.txt" 2>&1
@@ -86,6 +88,9 @@ g() { grep -cF "$1" "$2" 2>/dev/null; }
   echo "q_fallback=$(g 'falling back to greedy_match' "$X")"
   echo "q_no_candidate=$(g 'no candidate' "$X")"
   echo "q_label_quantum=$(g '[Q-xApp TS] Quantum assignment' "$X")"
+  echo "q_nes42=$(g 'Quantum 4x2 assignment' "$X")"
+  echo "q_qos_drb=$(g '[quantum]' "$X")"
+  echo "fb_any=$(grep -Eci 'falling back|no candidate' "$X")"
 } > "$OUT/smoke_summary.txt"
 
 # PASS/FAIL assert (Codex 14차 답변 기준)
@@ -100,13 +105,15 @@ done
 grep -q complete "$S" || fail="$fail cycle_status"
 if [ "$MODE" = on ]; then
   [ "$(val q_enabled_log)" -ge 1 ] || fail="$fail q_enabled_log"
-  [ "$(val q_decisions)" -ge 1 ] || fail="$fail q_decisions"
-  [ "$(val q_fallback)" = "0" ] || fail="$fail q_fallback=$(val q_fallback)"
-  [ "$(val q_no_candidate)" = "0" ] || fail="$fail q_no_candidate"
-  d=$(val q_decisions); s=$(val q_solver_line); l=$(val q_label_quantum)
-  { [ "$d" = "$s" ] && [ "$d" = "$l" ]; } || fail="$fail q_line_mismatch(d=$d,s=$s,l=$l)"
+  # exact all-3 counters for the Fig.4 auto cycle (Codex 20차 답변)
+  [ "$(val q_decisions)" = "5" ] || fail="$fail q_decisions=$(val q_decisions)"
+  [ "$(val q_solver_line)" = "5" ] || fail="$fail q_solver_line"
+  [ "$(val q_label_quantum)" = "5" ] || fail="$fail q_label_quantum"
+  [ "$(val q_nes42)" = "5" ] || fail="$fail q_nes42=$(val q_nes42)"
+  [ "$(val q_qos_drb)" = "20" ] || fail="$fail q_qos_drb=$(val q_qos_drb)"
+  [ "$(val fb_any)" = "0" ] || fail="$fail fb_any=$(val fb_any)"
 else
-  for m in q_enabled_log q_toggle_on q_decisions q_solver_line q_fallback q_label_quantum; do
+  for m in q_enabled_log q_toggle_on q_decisions q_solver_line q_fallback q_label_quantum q_nes42 q_qos_drb; do
     [ "$(val $m)" = "0" ] || fail="$fail $m=$(val $m)"
   done
 fi

@@ -44,11 +44,13 @@ static drb_profile_t drb_pool[NUM_DRB] = {
     {4, 9, 1.0},
 };
 
-/* Cell-specific DRB availability: each cell offers 3 of 4 DRBs */
+/* Cell-specific DRB availability: every O-RU offers all 4 DRBs (the earlier
+ * 3-of-4 mask never bound for the Fig.4 5QI set, so assignments are
+ * unchanged; full availability matches the 2 UE x 4 DRB QoS matching). */
 static int cell_drb_avail[NUM_CELL][NUM_DRB] = {
-    {1, 0, 1, 1},  /* O-RU 1: DRB 1(5QI=2), DRB 3(5QI=7), DRB 4(5QI=9) */
-    {0, 1, 1, 1},  /* O-RU 2: DRB 2(5QI=4), DRB 3(5QI=7), DRB 4(5QI=9) */
-    {1, 1, 1, 0},  /* O-RU 3: DRB 1(5QI=2), DRB 2(5QI=4), DRB 3(5QI=7) */
+    {1, 1, 1, 1},  /* O-RU 1 */
+    {1, 1, 1, 1},  /* O-RU 2 */
+    {1, 1, 1, 1},  /* O-RU 3 */
 };
 
 static int ue_drb_assignment[NUM_UE]; /* each UE assigned DRB index (0-3), -1=unassigned */
@@ -309,10 +311,148 @@ cleanup:
   return rc_val;
 }
 
-/* QoS-based Resource Allocation: UE-DRB matching (independent from UE-Cell)
- * Runs as a separate xApp alongside TS (greedy_match).
- * Each UE has a 5QI requirement; each cell offers a subset of DRBs.
- * Utility = match quality between UE 5QI and DRB 5QI × SINR. */
+/* Run dqna_42.py (4 UE x 2 active cells, NES) on sinr_matrix columns cA/cB.
+ * On success fills a42[u] in {0,1} (0 -> cA, 1 -> cB) and returns 0; -1 on
+ * any failure (caller falls back to the classical packing). */
+#define QXAPP_42_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_42.py"
+
+static int quantum_42_match(int a42[NUM_UE], int cA, int cB, double *q_score)
+{
+  char fin[]  = "/tmp/qxapp_42_in_XXXXXX";
+  char fout[] = "/tmp/qxapp_42_out_XXXXXX";
+  char ferr[] = "/tmp/qxapp_42_err_XXXXXX";
+  int rc_val = -1;
+  int fdi = mkstemp(fin), fdo = mkstemp(fout), fde = mkstemp(ferr);
+  if (fdi < 0 || fdo < 0 || fde < 0) goto cleanup;
+  {
+    FILE *fi = fdopen(fdi, "w");
+    if (!fi) goto cleanup;
+    fdi = -1;
+    fprintf(fi, "{\"sinr\":[");
+    for (int u = 0; u < NUM_UE; u++)
+      fprintf(fi, "%s[%.6f,%.6f]", u > 0 ? "," : "",
+              sinr_matrix[u][cA], sinr_matrix[u][cB]);
+    fprintf(fi, "]}\n");
+    fclose(fi);
+  }
+  {
+    const char *script = getenv("QXAPP_42_SCRIPT");
+    if (!script) script = QXAPP_42_SCRIPT_DEFAULT;
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "timeout %d '%s' '%s' --qual-lambda=4.0 --max-per-cell=%d "
+             "< '%s' > '%s' 2> '%s'",
+             QXAPP_TS_TIMEOUT_S, qx_py(), script, a1_max_ue_per_cell,
+             fin, fout, ferr);
+    if (system(cmd) != 0) {
+      fprintf(stderr, "[Q-xApp NES] quantum 4x2 solver failed, see stderr file\n");
+      goto cleanup;
+    }
+  }
+  {
+    char buf[1024] = {0};
+    FILE *fo = fopen(fout, "r");
+    if (!fo) goto cleanup;
+    size_t n = fread(buf, 1, sizeof(buf) - 1, fo);
+    buf[n] = '\0';
+    fclose(fo);
+    char *p = strstr(buf, "\"assignment\"");
+    if (p) p = strchr(p, '[');
+    int t[NUM_UE];
+    if (!p || sscanf(p, "[%d,%d,%d,%d]", &t[0], &t[1], &t[2], &t[3]) != NUM_UE)
+      goto cleanup;
+    int load = 0;
+    for (int u = 0; u < NUM_UE; u++) {
+      if (t[u] != 0 && t[u] != 1) goto cleanup;
+      load += t[u];
+    }
+    if (load > a1_max_ue_per_cell || (NUM_UE - load) > a1_max_ue_per_cell)
+      goto cleanup;
+    if (q_score) {
+      char *ps = strstr(buf, "\"score\"");
+      if (ps && (ps = strchr(ps, ':'))) sscanf(ps + 1, "%lf", q_score);
+    }
+    memcpy(a42, t, sizeof(t));
+    rc_val = 0;
+  }
+cleanup:
+  if (fdi >= 0) close(fdi);
+  if (fdo >= 0) close(fdo);
+  if (fde >= 0) close(fde);
+  if (!getenv("QXAPP_TS_DEBUG")) {
+    unlink(fin); unlink(fout); unlink(ferr);
+  }
+  return rc_val;
+}
+
+/* Run dqna_qos.py on one cell's 2-UE x 4-DRB utility rows. Fills d1/d2
+ * (distinct DRB indices) and returns 0; -1 on failure (classical fallback). */
+#define QXAPP_QOS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_qos.py"
+
+static int quantum_qos_pair(int u1, int u2, double util[NUM_UE][NUM_DRB],
+                            int *d1, int *d2)
+{
+  char fin[]  = "/tmp/qxapp_qos_in_XXXXXX";
+  char fout[] = "/tmp/qxapp_qos_out_XXXXXX";
+  char ferr[] = "/tmp/qxapp_qos_err_XXXXXX";
+  int rc_val = -1;
+  int fdi = mkstemp(fin), fdo = mkstemp(fout), fde = mkstemp(ferr);
+  if (fdi < 0 || fdo < 0 || fde < 0) goto cleanup;
+  {
+    FILE *fi = fdopen(fdi, "w");
+    if (!fi) goto cleanup;
+    fdi = -1;
+    fprintf(fi, "{\"utility\":[[");
+    for (int d = 0; d < NUM_DRB; d++)
+      fprintf(fi, "%s%.6f", d ? "," : "", util[u1][d] > 0 ? util[u1][d] : 0.0);
+    fprintf(fi, "],[");
+    for (int d = 0; d < NUM_DRB; d++)
+      fprintf(fi, "%s%.6f", d ? "," : "", util[u2][d] > 0 ? util[u2][d] : 0.0);
+    fprintf(fi, "]]}\n");
+    fclose(fi);
+  }
+  {
+    const char *script = getenv("QXAPP_QOS_SCRIPT");
+    if (!script) script = QXAPP_QOS_SCRIPT_DEFAULT;
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "timeout %d '%s' '%s' --qual-lambda=4.0 < '%s' > '%s' 2> '%s'",
+             QXAPP_TS_TIMEOUT_S, qx_py(), script, fin, fout, ferr);
+    if (system(cmd) != 0) {
+      fprintf(stderr, "[Q-xApp QoS-RA] quantum 2x4 solver failed\n");
+      goto cleanup;
+    }
+  }
+  {
+    char buf[512] = {0};
+    FILE *fo = fopen(fout, "r");
+    if (!fo) goto cleanup;
+    size_t n = fread(buf, 1, sizeof(buf) - 1, fo);
+    buf[n] = '\0';
+    fclose(fo);
+    char *p = strstr(buf, "\"assignment\"");
+    if (p) p = strchr(p, '[');
+    int a, b;
+    if (!p || sscanf(p, "[%d,%d]", &a, &b) != 2) goto cleanup;
+    if (a < 0 || a >= NUM_DRB || b < 0 || b >= NUM_DRB || a == b) goto cleanup;
+    *d1 = a; *d2 = b;
+    rc_val = 0;
+  }
+cleanup:
+  if (fdi >= 0) close(fdi);
+  if (fdo >= 0) close(fdo);
+  if (fde >= 0) close(fde);
+  if (!getenv("QXAPP_TS_DEBUG")) {
+    unlink(fin); unlink(fout); unlink(ferr);
+  }
+  return rc_val;
+}
+
+/* QoS-based Resource Allocation: UE-DRB matching.
+ * Quantum path (default): per-cell matching — every O-RU offers all 4 DRBs;
+ * the 2 UEs inside one cell take distinct DRBs (dqna_qos.py), a lone UE takes
+ * its best DRB. Classical fallback: the original global greedy matching.
+ * Utility = match quality between UE 5QI and DRB 5QI x SINR. */
 static void drb_match(int assignment[NUM_UE])
 {
   for (int u = 0; u < NUM_UE; u++)
@@ -346,6 +486,45 @@ static void drb_match(int assignment[NUM_UE])
     }
     printf("\n");
   }
+
+  /* Quantum per-cell matching first (classical global greedy as fallback) */
+  int used_quantum_qos = 0;
+  if (quantum_ts_enabled) {
+    int ok = 1;
+    for (int c = 0; c < NUM_CELL && ok; c++) {
+      int us[NUM_UE], nu = 0;
+      for (int u = 0; u < NUM_UE; u++)
+        if (assignment[u] == c) us[nu++] = u;
+      if (nu == 0) continue;
+      if (nu == 1) {
+        int u = us[0], best = 0;
+        for (int d = 1; d < NUM_DRB; d++)
+          if (utility[u][d] > utility[u][best]) best = d;
+        ue_drb_assignment[u] = best;
+      } else if (nu == 2) {
+        int d1, d2;
+        if (quantum_qos_pair(us[0], us[1], utility, &d1, &d2) == 0) {
+          ue_drb_assignment[us[0]] = d1;
+          ue_drb_assignment[us[1]] = d2;
+        } else ok = 0;
+      } else ok = 0; /* >cap UEs in a cell: let the classical matcher handle it */
+    }
+    for (int u = 0; u < NUM_UE && ok; u++)
+      if (assignment[u] < 0 || ue_drb_assignment[u] < 0) ok = 0;
+    if (ok) {
+      used_quantum_qos = 1;
+      for (int u = 0; u < NUM_UE; u++) {
+        int d = ue_drb_assignment[u];
+        printf("[Q-xApp QoS-RA]   UE %d (5QI=%d) -> DRB %d (5QI=%d, weight=%.1f, "
+               "util=%.1f) [quantum]\n", u, ue_fiveqi[u], drb_pool[d].drb_id,
+               drb_pool[d].fiveqi, drb_pool[d].weight, utility[u][d]);
+      }
+    } else {
+      for (int u = 0; u < NUM_UE; u++) ue_drb_assignment[u] = -1;
+      fprintf(stderr, "[Q-xApp QoS-RA] falling back to classical DRB matching\n");
+    }
+  }
+  if (used_quantum_qos) return;
 
   /* Greedy matching: sort all (UE, DRB) pairs by utility descending */
   typedef struct { double util; int ue; int drb; } pair_t;
@@ -442,6 +621,33 @@ static void energy_aware_match(int assignment[NUM_UE],
   for (int u = 0; u < NUM_UE; u++)
     assignment[u] = -1;
 
+  /* Quantum 4x2 path: lowest-capacity cell (forced-sleep aware, since forced
+   * cells were ranked at -1) is the sleep candidate; the remaining two cells
+   * are the 4x2 columns. Fallback = classical packing below. */
+  int used_quantum = 0;
+  if (quantum_ts_enabled) {
+    int cs = caps[NUM_CELL - 1].cell_idx, cA = -1, cB = -1;
+    for (int c = 0; c < NUM_CELL; c++) {
+      if (c == cs) continue;
+      if (cA < 0) cA = c; else cB = c;
+    }
+    int a42[NUM_UE];
+    double q_score = 0.0;
+    if (quantum_42_match(a42, cA, cB, &q_score) == 0) {
+      for (int u = 0; u < NUM_UE; u++) {
+        assignment[u] = a42[u] ? cB : cA;
+        cell_load[assignment[u]]++;
+      }
+      used_quantum = 1;
+      printf("[Q-xApp NES] Quantum 4x2 assignment: [%d,%d,%d,%d] score=%.4f "
+             "(sleep candidate %s)\n", assignment[0], assignment[1],
+             assignment[2], assignment[3], q_score, ORU_NAMES[cs]);
+    } else {
+      fprintf(stderr, "[Q-xApp NES] falling back to classical packing\n");
+    }
+  }
+
+  if (!used_quantum)
   for (int ci = 0; ci < NUM_CELL; ci++) {
     int c = caps[ci].cell_idx;
     typedef struct { double rate; int ue; } ue_rate_t;

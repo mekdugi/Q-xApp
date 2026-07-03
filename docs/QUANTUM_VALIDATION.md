@@ -1,6 +1,10 @@
-# Quantum TS Solver Validation (Stage 0 + E2E Smoke)
+# Quantum Solver Validation (Stage 0 + E2E Smoke)
 
 Date: 2026-07-03
+
+Sections 2–8 document the TS solver (`dqna_ts.py`, 4 UE × 3 cells); section 9
+documents the NES (`dqna_42.py`) and QoS-RA (`dqna_qos.py`) solvers and the
+all-three-quantum end-to-end run.
 
 ## 1. Scope
 
@@ -89,7 +93,12 @@ Total: 13 → 15 qubits. Grover iterations retuned (2,2) → (1,1) for the
   xApp falls back to `greedy_match` (logged as `solver: no candidate`). Runs
   containing any fallback are excluded from quantum-result reporting.
 
-## 7. E2E Smoke (2026-07-03)
+## 7. E2E Smoke — historical TS-only integration stage (2026-07-03)
+
+This section records the first integration stage, when only the TS branch
+dispatched to a quantum solver; statements below about QoS/NES/post-wake
+having no quantum decisions describe that stage. The final all-three-quantum
+state is section 8.
 
 Orchestration replicates the frozen 50-run batch (`run_once()` timings);
 script `quantum_dev/smoke_e2e.sh`; artifacts under
@@ -123,7 +132,52 @@ the QoS/NES (4x2) circuit lands. This validation demonstrates the engine
 running inside the full xApp workflow; no comparison-with-greedy dataset is
 produced.
 
-## 8. Reproduce
+## 8. NES and QoS-RA Solvers (all-three-quantum)
+
+Both use a **constraint-gated utility oracle**: a feasibility flag ancilla is
+computed reversibly and gates the utility kickback (`mcx(flag + cost → sf)`),
+so infeasible states can never be quality-marked. One Grover iteration of
+this combined oracle is the whole algorithm (`--feas-iter 0 --qual-iter 1`);
+this removes the residual failure mode of the ungated TS design (the stage-2
+diffuser re-amplifying infeasible states).
+
+- **`dqna_42.py` (NES, 4 UE × 2 awake cells, 10 qubits)**: 1 bit/UE — no
+  invalid encodings exist; cap-only feasibility via an exact 3-bit counter.
+  Random suite (uniform + 40%-sparse, seed 20260703): **300/300
+  brute-optimal score**, 0 no-candidates, including all-zero / dead-column
+  matrices.
+- **`dqna_qos.py` (QoS-RA, 2 UEs × 4 DRBs inside one O-RU, 8 qubits)**:
+  2 bits/UE = DRB index; distinct-DRB feasibility via an in-place-XOR flag;
+  utility = the xApp's 5QI-fit values, encoded with **per-UE row
+  normalization** (each UE's best DRB gets full weight, so the marking is not
+  destroyed for UEs whose utilities are small on an absolute scale); the
+  amplification therefore orders by the row-normalized sum, and the final
+  answer is selected by classical top-8 re-scoring on the **raw** summed
+  utility. Degenerate inputs where a UE's utility row is completely flat
+  (incl. all-zero) reduce classically — every DRB choice of that UE ties, so
+  the reduction is exact by definition. Validation: the **exhaustive
+  {0,1,10}^8 input grid, 6,561/6,561 brute-optimal score**, plus 500 random
+  matrices (seed 20260704, forced flat rows + 40% sparsity + row scale skew),
+  0 no-candidates, 0 suboptimal; the Fig.4 pair (5QI 2 vs 9) yields
+  [DRB1, DRB4] — the published 8:1 weight structure.
+- **C integration** (`qxapp_unified.c`): NES — the lowest-capacity cell
+  (forced-sleep aware) is the sleep candidate and the remaining two cells
+  form the 4×2 columns; QoS — per-cell matching (each O-RU offers all 4
+  DRBs; a lone UE takes its best DRB classically, which is trivially
+  optimal). Both paths keep the same temp-file IPC/timeout/sanity contract
+  as TS.
+- **Fallback semantics**: the classical matchers are *legacy emergency
+  fallbacks* only. Note the QoS fallback uses the original global-unique-DRB
+  matching, while the quantum path uses the per-cell model — a run containing
+  QoS fallbacks is not comparable to the quantum DRB model and must be
+  excluded from quantum-result reporting.
+- **All-three E2E** (RngRun 1, quantum ON): SMOKE=PASS — full Fig.4 cycle
+  markers preserved, TS 5/5 quantum decisions, NES 5/5 "Quantum 4x2"
+  assignments (sleep candidate O-RU 2, the Fig.4 evacuation pattern), QoS 20
+  "[quantum]" DRB assignments (UE0→DRB1 w4.0 … UE3→DRB4 w1.0, identical to
+  the published assignment), 0 fallbacks, 0 crashes.
+
+## 9. Reproduce
 
 ```bash
 # Stage-0 (Windows or any host with qiskit 1.2.x)

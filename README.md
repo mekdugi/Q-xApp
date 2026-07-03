@@ -47,16 +47,27 @@ Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_sum
 
 ## 3. Quantum Assignment Engine
 
-Traffic Steering assignments are computed by a quantum solver
-([`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py)): a 15-qubit two-stage
-Grover-style circuit (feasibility oracle + sum-monotone quality oracle) that
-the xApp invokes each TS round. It returned the brute-force-optimal score on
-all 1,060 cases of the offline validation suite and ran the full Fig.4 cycle
-end-to-end without a single fallback — see
-[`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md). A classical greedy
-placeholder remains only as the automatic fallback and will be removed once
-the QoS-RA/NES circuit lands. Requires Python with `qiskit` (validated with
-qiskit 1.2.4); the solver path is set via `QXAPP_PY`.
+All three use cases are computed by Grover-style quantum solvers with
+constraint oracles and utility-weighted amplification:
+
+| Use case | Solver | Problem | Qubits |
+|----------|--------|---------|--------|
+| TS | [`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py) | 4 UE × 3 cells | 15 |
+| NES | [`flexric/xApp/dqna_42.py`](flexric/xApp/dqna_42.py) | 4 UE × 2 awake cells | 10 |
+| QoS-RA | [`flexric/xApp/dqna_qos.py`](flexric/xApp/dqna_qos.py) | 2 UE × 4 DRBs per O-RU | 8 |
+
+Constraints (per-cell UE caps, distinct DRBs) are enforced by a feasibility
+oracle that gates the utility kickback; utilities use an exponential encoding
+(sum-monotone for TS/NES, per-UE-normalized for QoS-RA with classical
+re-scoring on the raw objective). Each solver returned the brute-force-optimal
+score on its full offline validation suite — for QoS-RA including the
+exhaustive {0,1,10}^8 input grid (6,561 cases) —
+and the Fig.4 cycle runs end-to-end with all three quantum paths active and
+zero fallbacks — see
+[`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md). The classical
+matchers remain only as automatic legacy fallbacks. Requires Python with
+`qiskit` (validated with qiskit 1.2.4); the solver interpreter path is set
+via `QXAPP_PY`.
 
 ---
 
