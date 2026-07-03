@@ -45,7 +45,22 @@ Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_sum
 
 ---
 
-## 3. Architecture
+## 3. Quantum Assignment Engine
+
+Traffic Steering assignments are computed by a quantum solver
+([`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py)): a 15-qubit two-stage
+Grover-style circuit (feasibility oracle + sum-monotone quality oracle) that
+the xApp invokes each TS round. It returned the brute-force-optimal score on
+all 1,060 cases of the offline validation suite and ran the full Fig.4 cycle
+end-to-end without a single fallback — see
+[`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md). A classical greedy
+placeholder remains only as the automatic fallback and will be removed once
+the QoS-RA/NES circuit lands. Requires Python with `qiskit` (validated with
+qiskit 1.2.4); the solver path is set via `QXAPP_PY`.
+
+---
+
+## 4. Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -90,7 +105,7 @@ Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_sum
 
 ---
 
-## 4. Prerequisites
+## 5. Prerequisites
 
 | Component | Repository | Branch |
 |-----------|-----------|--------|
@@ -102,7 +117,7 @@ Install ns-O-RAN and FlexRIC following their respective guides first. Tested on 
 
 ---
 
-## 5. Installation
+## 6. Installation
 
 After the base platform is installed, apply Q-xApp modifications:
 
@@ -118,6 +133,7 @@ cp ns3/mmwave-flex-tti-pf-mac-scheduler.h              <ns-O-RAN>/src/mmwave/mod
 cp flexric/xApp/qxapp_common.h      <FlexRIC>/examples/xApp/c/ctrl/
 cp flexric/xApp/qxapp_unified.c     <FlexRIC>/examples/xApp/c/ctrl/
 cp flexric/xApp/qxapp_*.c           <FlexRIC>/examples/xApp/c/ctrl/
+cp flexric/xApp/dqna_ts.py          <FlexRIC>/examples/xApp/c/ctrl/   # quantum TS solver
 
 # 3. Add build target to <FlexRIC>/examples/xApp/c/ctrl/CMakeLists.txt:
 #    add_executable(xapp_qxapp_unified qxapp_unified.c)
@@ -146,7 +162,7 @@ cd <ns-O-RAN>/GUI && sudo docker compose up -d
 
 ---
 
-## 6. Running the Simulation
+## 7. Running the Simulation
 
 Open **three terminals** and run in order:
 
@@ -170,7 +186,7 @@ Switch use cases from the GUI at any time. The default mode is Traffic Steering.
 
 ---
 
-## 7. Using the GUI
+## 8. Using the GUI
 
 ### Network Settings (top bar)
 Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, inter-site distance.
@@ -190,7 +206,7 @@ Switch use cases and configure policies in real-time:
 
 ---
 
-## 8. Technical Details
+## 9. Technical Details
 
 ### Use Case Details
 
@@ -268,7 +284,7 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
 
 ---
 
-## 9. Project Structure
+## 10. Project Structure
 
 ```
 Q-xApp/
@@ -310,7 +326,7 @@ Q-xApp/
 
 ---
 
-## 10. References
+## 11. References
 
 - O-RAN Alliance, "O-RAN Architecture Description", O-RAN.WG1.O-RAN-Architecture-Description
 - O-RAN WG3, "Use Cases and Requirements", O-RAN.WG3.TS.UCR-R004-v09.00
