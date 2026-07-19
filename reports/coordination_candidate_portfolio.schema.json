@@ -1,0 +1,227 @@
+{
+ "$schema": "http://json-schema.org/draft-07/schema#",
+ "title": "Q-xApp coordination candidate portfolio",
+ "type": "object",
+ "required": [
+  "portfolio_meta",
+  "candidates"
+ ],
+ "properties": {
+  "portfolio_meta": {
+   "type": "object",
+   "required": [
+    "instance_id",
+    "instance_manifest_sha256",
+    "solver_mode",
+    "constraint_mode",
+    "backend_mode",
+    "qiskit_version",
+    "code_commit_sha",
+    "qual_lambda",
+    "top_m",
+    "test_fixture"
+   ],
+   "properties": {
+    "instance_id": {
+     "type": "string"
+    },
+    "instance_manifest_sha256": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "solver_mode": {
+     "enum": [
+      "weighted-aa",
+      "gated-heuristic"
+     ]
+    },
+    "constraint_mode": {
+     "enum": [
+      "unit-count",
+      "weighted-prb"
+     ]
+    },
+    "backend_mode": {
+     "enum": [
+      "statevector",
+      "shots"
+     ]
+    },
+    "backend_name": {
+     "type": "string"
+    },
+    "backend_version": {
+     "type": "string"
+    },
+    "backend_target": {
+     "type": "string"
+    },
+    "backend_provenance_sha256": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "qiskit_version": {
+     "type": "string"
+    },
+    "code_commit_sha": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "code_dirty": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "provenance_error": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "source_sha256": {
+     "type": "object"
+    },
+    "sampling_seed": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "seed_transpiler": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "shots_total": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "accepted_shots": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "qual_lambda": {
+     "type": "number"
+    },
+    "analytic_a": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "amplification_rounds_used": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "top_m": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "test_fixture": {
+     "type": "boolean"
+    }
+   },
+   "allOf": [
+    {
+     "if": {
+      "properties": {
+       "backend_mode": {
+        "const": "statevector"
+       }
+      }
+     },
+     "then": {
+      "properties": {
+       "shots_total": {
+        "type": "null"
+       },
+       "accepted_shots": {
+        "type": "null"
+       },
+       "sampling_seed": {
+        "type": "null"
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "properties": {
+       "backend_mode": {
+        "const": "shots"
+       }
+      }
+     },
+     "then": {
+      "properties": {
+       "shots_total": {
+        "type": "integer",
+        "minimum": 1
+       }
+      }
+     }
+    }
+   ]
+  },
+  "candidates": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "candidate_rank",
+     "assignment",
+     "utility",
+     "feasible"
+    ],
+    "properties": {
+     "candidate_rank": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "assignment": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 2
+      }
+     },
+     "utility": {
+      "type": "number"
+     },
+     "feasible": {
+      "const": true
+     },
+     "sample_count": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "exact_probability": {
+      "type": [
+       "number",
+       "null"
+      ]
+     }
+    }
+   }
+  }
+ }
+}

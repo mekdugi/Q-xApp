@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dqna_ts.py - Quantum Traffic Steering matching for Q-xApp.  (v4.1, 2026-07-02)
+dqna_ts.py - Quantum Traffic Steering matching for Q-xApp.  (v6, 2026-07-18)
 
 Problem: 4 UE x 3 Cell assignment
   - Each UE -> exactly one cell (2 bits/UE encoding: 00=c0, 01=c1, 10=c2, 11=invalid)
@@ -41,10 +41,22 @@ v2 changes vs the original 13-qubit design (blob 8ab5a345):
      always exists even when every feasible assignment contains a zero-rate UE
      (the v4 sparse no-candidate cases). Only the invalid `11` pattern keeps the
      hard theta = pi exclusion.
+  9. (v5a/v5b/v6, 2026-07-18) Section-16 solver-mode contract added: optional
+     solver_mode = legacy-two-stage | gated-heuristic | weighted-aa and
+     constraint_mode = unit-count | weighted-prb, via CLI flags or stdin JSON
+     fields. The bare no-flag contract is unchanged: it runs exactly this
+     file's legacy v4.1 two-stage circuit (the in-file circuit code above is
+     untouched). gated-heuristic (v5a) and formal weighted-aa (v6) live in
+     dqna_modes.py + dqna_constraints.py (same directory; deploy all three
+     files together). Invalid mode/argument combinations exit nonzero with an
+     empty stdout per the section-16 contract.
 
 Usage:
     echo '{"sinr":[[...],[...],[...],[...]]}' | python dqna_ts.py
     # Or --brute to compare against enumeration, --verbose for details.
+    # Solver modes (section-16): --solver-mode=weighted-aa
+    #   --max-amplification-rounds=32 [--constraint-mode=weighted-prb
+    #   --prb-demand='[[...]]' --cell-prb-budget='[...]']
 """
 
 import argparse
@@ -411,20 +423,79 @@ def main():
     parser.add_argument('--brute', action='store_true',
                         help='Also run brute-force optimum and compare.')
     parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--feas-iter', type=int, default=1)
-    parser.add_argument('--qual-iter', type=int, default=1)
-    parser.add_argument('--max-per-cell', type=int, default=2,
+    # legacy-shared flags: default None so presence is detectable; the
+    # no-flag defaults (1/1/2/4.0) are applied below, unchanged.
+    parser.add_argument('--feas-iter', type=int, default=None)
+    parser.add_argument('--qual-iter', type=int, default=None)
+    parser.add_argument('--max-per-cell', type=int, default=None,
                         help='Per-cell UE cap (mirror of the xApp A1 policy).')
-    parser.add_argument('--qual-lambda', type=float, default=4.0,
+    parser.add_argument('--qual-lambda', type=float, default=None,
                         help='Exponential quality-encoding contrast.')
     parser.add_argument('--test', action='store_true',
                         help='Use builtin test cases instead of stdin.')
+    # v5a/v6 solver-mode contract (section-16). All optional; when none of
+    # these appear in CLI or stdin, behavior is exactly legacy v4.1.
+    parser.add_argument('--solver-mode', default=None,
+                        choices=['legacy-two-stage', 'gated-heuristic',
+                                 'weighted-aa'])
+    parser.add_argument('--constraint-mode', default=None,
+                        choices=['unit-count', 'weighted-prb'])
+    parser.add_argument('--prb-demand', default=None,
+                        help='JSON 4x3 integer matrix of PRB demands.')
+    parser.add_argument('--cell-prb-budget', default=None,
+                        help='JSON length-3 integer vector of PRB budgets.')
+    parser.add_argument('--amplification-rounds', type=int, default=None)
+    parser.add_argument('--max-amplification-rounds', type=int, default=None)
+    parser.add_argument('--aa-mode', default=None,
+                        choices=['calibrated', 'explicit'])
+    parser.add_argument('--gated-iterations', type=int, default=None)
+    parser.add_argument('--shots', type=int, default=None)
+    parser.add_argument('--sampling-seed', type=int, default=None)
+    parser.add_argument('--backend-mode', default=None,
+                        choices=['statevector', 'shots'])
     args = parser.parse_args()
-    if not 1 <= args.max_per_cell <= N_UE:
+
+    try:
+        prb_demand = json.loads(args.prb_demand) if args.prb_demand else None
+        cell_prb_budget = (json.loads(args.cell_prb_budget)
+                           if args.cell_prb_budget else None)
+    except ValueError:
+        sys.stderr.write("[dqna_ts] --prb-demand/--cell-prb-budget must be "
+                         "valid JSON\n")
+        sys.exit(1)
+    new_cli = {
+        "solver_mode": args.solver_mode,
+        "constraint_mode": args.constraint_mode,
+        "prb_demand": prb_demand,
+        "cell_prb_budget": cell_prb_budget,
+        "amplification_rounds": args.amplification_rounds,
+        "max_amplification_rounds": args.max_amplification_rounds,
+        "aa_mode": args.aa_mode,
+        "gated_iterations": args.gated_iterations,
+        "shots": args.shots,
+        "sampling_seed": args.sampling_seed,
+        "backend_mode": args.backend_mode,
+        "seed": None,
+        "qual_lambda": args.qual_lambda,
+        "max_per_cell": args.max_per_cell,
+        "feas_iter": args.feas_iter,
+        "qual_iter": args.qual_iter,
+    }
+    cli_has_new = any(new_cli[k] is not None for k in new_cli
+                      if k not in ("qual_lambda", "max_per_cell",
+                                   "feas_iter", "qual_iter"))
+
+    if args.max_per_cell is not None and not 1 <= args.max_per_cell <= N_UE:
         sys.stderr.write("[dqna_ts] --max-per-cell must be in [1, %d]\n" % N_UE)
         sys.exit(1)
-    MAX_PER_CELL = args.max_per_cell
-    QUAL_LAMBDA = args.qual_lambda
+    MAX_PER_CELL = args.max_per_cell if args.max_per_cell is not None else 2
+    QUAL_LAMBDA = args.qual_lambda if args.qual_lambda is not None else 4.0
+    feas_iter = args.feas_iter if args.feas_iter is not None else 1
+    qual_iter = args.qual_iter if args.qual_iter is not None else 1
+    if args.test and cli_has_new:
+        sys.stderr.write("[dqna_ts] --test only runs the legacy builtin "
+                         "cases; solver-mode flags are not accepted\n")
+        sys.exit(1)
 
     if args.test:
         test_cases = [
@@ -453,7 +524,7 @@ def main():
 
             t0 = time.time()
             best_q, score_q, feas_total, qc = quantum_solve(
-                rate, args.feas_iter, args.qual_iter, args.verbose)
+                rate, feas_iter, qual_iter, args.verbose)
             t1 = time.time()
             print("\nQuantum result: assign=%s, score=%.3f, elapsed=%.0fms"
                   % (best_q, score_q, 1000 * (t1 - t0)))
@@ -477,9 +548,45 @@ def main():
         sys.stderr.write("[dqna_ts] rate matrix has non-finite or negative entries\n")
         sys.exit(1)
 
+    # section-16 dispatch: only entered when a solver-mode key is present in
+    # CLI or stdin; the bare legacy contract never reaches this block.
+    if cli_has_new or any(k in data for k in (
+            "solver_mode", "constraint_mode", "prb_demand", "cell_prb_budget",
+            "amplification_rounds", "max_amplification_rounds", "aa_mode",
+            "gated_iterations", "shots", "sampling_seed", "backend_mode",
+            "seed")):
+        import dqna_modes as dmod
+        try:
+            cfg = dmod.resolve_config(new_cli, data)
+        except dmod.ConfigError as e:
+            sys.stderr.write("[dqna_ts] %s\n" % e)
+            sys.exit(1)
+        if cfg["solver_mode"] == "legacy-two-stage":
+            # continue the untouched legacy path with the resolved values
+            if cfg["feas_iter"] is not None:
+                feas_iter = cfg["feas_iter"]
+            if cfg["qual_iter"] is not None:
+                qual_iter = cfg["qual_iter"]
+            MAX_PER_CELL = cfg["params"]["cap"]
+            QUAL_LAMBDA = cfg["qual_lambda"]
+        else:
+            t0 = time.time()
+            try:
+                result = dmod.run_from_config(cfg, rate)
+            except dmod.ConfigError as e:
+                sys.stderr.write("[dqna_ts] %s\n" % e)
+                sys.exit(1)
+            except (ValueError, RuntimeError) as e:
+                sys.stderr.write("[dqna_ts] %s\n" % e)
+                sys.exit(1)
+            result["elapsed_ms"] = int(1000 * (time.time() - t0))
+            json.dump(result, sys.stdout)
+            sys.stdout.write("\n")
+            return
+
     t0 = time.time()
     best_q, score_q, feas_total, _ = quantum_solve(
-        rate, args.feas_iter, args.qual_iter, False)
+        rate, feas_iter, qual_iter, False)
     elapsed_ms = int(1000 * (time.time() - t0))
 
     if best_q is None:

@@ -1,0 +1,254 @@
+{
+ "n_cases": 49,
+ "n_failures": 0,
+ "failures": [],
+ "results": [
+  {
+   "name": "bare_legacy_regression",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "legacy_c_caller_form",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "explicit_legacy_cli",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "explicit_legacy_stdin",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "gated_unit_count",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "weighted_aa_unit_count_calibrated",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "weighted_aa_stdin_config",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "cli_stdin_duplicate_equal",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "weighted_aa_weighted_prb",
+   "ok": true,
+   "detail": "classical optimum [0, 0, 1, 2] 41.11"
+  },
+  {
+   "name": "gated_weighted_prb_diagnostic",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "weighted_aa_explicit_rounds",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "shots_reproducible",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "shots_seed_alias",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "err_legacy_plus_weighted_prb",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_weighted_prb_without_solver",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_weighted_prb_with_max_per_cell",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_weighted_prb_missing_params",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_unit_count_with_prb_params",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_non_legacy_feas_iter",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_legacy_with_aa_mode",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_gated_with_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_weighted_aa_with_gated_iterations",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_weighted_aa_missing_max_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_explicit_without_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_calibrated_with_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_budget_exceeded_r_star_over_max",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_statevector_with_shots",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_shots_backend_without_shots",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_shots_zero",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_seed_conflict",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_cli_stdin_value_conflict",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_legacy_shots_backend",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_gated_shots_backend",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_negative_budget",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_unknown_stdin_field",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_test_with_solver_mode",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_amplification_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_max_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_gated_iterations",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_string_amplification_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_string_max_rounds",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_shots_regression",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_bool_shots",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_sampling_seed",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_string_seed_alias",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_bool_max_per_cell",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_max_per_cell",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_bool_qual_lambda",
+   "ok": true,
+   "detail": "rc=1"
+  },
+  {
+   "name": "err_int_fractional_feas_iter_stdin",
+   "ok": true,
+   "detail": "rc=1"
+  }
+ ],
+ "elapsed_s": 421.6,
+ "verdict": "PASS"
+}

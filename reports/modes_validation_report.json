@@ -1,0 +1,438 @@
+{
+ "env": {
+  "python": "3.12.3",
+  "qiskit": "1.2.4",
+  "numpy": "1.26.4"
+ },
+ "f1": {
+  "single_ue_ok": "True",
+  "n_valid": 81,
+  "invalid_mass": 0.0,
+  "uniform_err": 1.9081958235744878e-17,
+  "inverse_fidelity": 0.9999999999999992,
+  "verdict": "PASS"
+ },
+ "f2": {
+  "n_weight_errors": 0,
+  "errors": [],
+  "scratch_mass": 0.0,
+  "order_preserved": true,
+  "AdagA_fidelity": 0.9999999999999952,
+  "verdict": "PASS"
+ },
+ "f3": {
+  "rows": [
+   {
+    "shift": "global",
+    "prep": "h8",
+    "a": 2.1005770479321456e-05,
+    "r_star": 171,
+    "p_star": 0.9999984410438342,
+    "golden_a": 2.100577048e-05,
+    "golden_r": 171,
+    "golden_p": 0.99999844,
+    "ok": true
+   },
+   {
+    "shift": "global",
+    "prep": "v3",
+    "a": 6.638860793464559e-05,
+    "r_star": 96,
+    "p_star": 0.9999968680812272,
+    "golden_a": 6.638860793e-05,
+    "golden_r": 96,
+    "golden_p": 0.99999687,
+    "ok": true
+   },
+   {
+    "shift": "row",
+    "prep": "h8",
+    "a": 0.01181993307065781,
+    "r_star": 7,
+    "p_star": 0.9960077640691439,
+    "golden_a": 0.01181993307066,
+    "golden_r": 7,
+    "golden_p": 0.99600776,
+    "ok": true
+   },
+   {
+    "shift": "row",
+    "prep": "v3",
+    "a": 0.03735682550726419,
+    "r_star": 4,
+    "p_star": 0.9680425481439207,
+    "golden_a": 0.03735682550726,
+    "golden_r": 4,
+    "golden_p": 0.96804255,
+    "ok": true
+   }
+  ],
+  "formal_constants_ok": "True",
+  "p_opt_given_good": 0.33047987468702367,
+  "verdict": "PASS"
+ },
+ "f4": {
+  "s_good_sq_fidelity": 0.9999999999999822,
+  "s_zero_cases_ok": true,
+  "s_zero_details": [
+   {
+    "basis": 0,
+    "flipped": true,
+    "want": true
+   },
+   {
+    "basis": 1,
+    "flipped": false,
+    "want": false
+   },
+   {
+    "basis": 256,
+    "flipped": false,
+    "want": false
+   },
+   {
+    "basis": 2048,
+    "flipped": false,
+    "want": false
+   },
+   {
+    "basis": 4096,
+    "flipped": false,
+    "want": false
+   },
+   {
+    "basis": 520,
+    "flipped": false,
+    "want": false
+   },
+   {
+    "basis": 4097,
+    "flipped": false,
+    "want": false
+   }
+  ],
+  "target_factorization_err": 0.0,
+  "synth_residue_mass": 8.27871154783734e-32,
+  "verdict": "PASS"
+ },
+ "f5": {
+  "rows": [
+   {
+    "r": 0,
+    "measured": 0.037356825507263915,
+    "golden": 0.03735682550726419,
+    "scratch": 0.0,
+    "ok": true,
+    "s": 3.9
+   },
+   {
+    "r": 1,
+    "measured": 0.3035527742507,
+    "golden": 0.30355277425071847,
+    "scratch": 0.0,
+    "ok": true,
+    "s": 17.8
+   },
+   {
+    "r": 2,
+    "measured": 0.6827806632008986,
+    "golden": 0.6827806632009781,
+    "scratch": 0.0,
+    "ok": true,
+    "s": 26.0
+   },
+   {
+    "r": 3,
+    "measured": 0.956840088126742,
+    "golden": 0.9568400881269055,
+    "scratch": 0.0,
+    "ok": true,
+    "s": 39.1
+   },
+   {
+    "r": 4,
+    "measured": 0.968042548143702,
+    "golden": 0.9680425481439207,
+    "scratch": 0.0,
+    "ok": true,
+    "s": 66.5,
+    "cond_ratio_err": 1.1934897514720433e-15,
+    "p_opt_given_good": 0.3304798746870227,
+    "cond_ok": true
+   },
+   {
+    "r": 5,
+    "measured": 0.709942364082862,
+    "golden": 0.7099423640830621,
+    "scratch": 0.0,
+    "ok": true,
+    "s": 123.1
+   }
+  ],
+  "layout": {
+   "n_qubits": 17,
+   "pool_bits": 4,
+   "bad_bits": 3,
+   "cost": "pool[0:4]",
+   "s_zero_controls": 15
+  },
+  "verdict": "PASS"
+ },
+ "f6": {
+  "round7_r_star": {
+   "a": 0.03735682550726419,
+   "r_cont": 3.5379701362868676,
+   "candidates": [
+    3,
+    4
+   ],
+   "r_star": 4,
+   "p_star": 0.9680425481439207
+  },
+  "verdict": "PASS"
+ },
+ "f7": {
+  "reproducible": true,
+  "accept_rate": 0.965,
+  "expected": 0.9680425481439207,
+  "unique_accepted": 35,
+  "classical_safety_pass": true,
+  "verdict": "PASS"
+ },
+ "g1": {
+  "n_checked": 256,
+  "mark_errors": [],
+  "leak_errors": [],
+  "grid": [
+   {
+    "lambda": 2.0,
+    "k": 1,
+    "feasible_mass": 0.21688206884984385,
+    "invalid_mass": 0.6784437522340186,
+    "p_optimum": 0.005097898750088325,
+    "cost_leak_mass": 0.004360111673967322
+   },
+   {
+    "lambda": 2.0,
+    "k": 2,
+    "feasible_mass": 0.2229503130045051,
+    "invalid_mass": 0.6725619766808295,
+    "p_optimum": 0.006875534293104398,
+    "cost_leak_mass": 0.016093378545089156
+   },
+   {
+    "lambda": 2.0,
+    "k": 3,
+    "feasible_mass": 0.22603495956518319,
+    "invalid_mass": 0.6667863472099127,
+    "p_optimum": 0.008558963843773597,
+    "cost_leak_mass": 0.031989420537044844
+   },
+   {
+    "lambda": 2.0,
+    "k": 4,
+    "feasible_mass": 0.2273184671550006,
+    "invalid_mass": 0.6600188025575141,
+    "p_optimum": 0.009868939614986725,
+    "cost_leak_mass": 0.04886671079290628
+   },
+   {
+    "lambda": 3.0,
+    "k": 1,
+    "feasible_mass": 0.2117239608091154,
+    "invalid_mass": 0.6829124101900953,
+    "p_optimum": 0.004158912705365459,
+    "cost_leak_mass": 0.0005533960960150134
+   },
+   {
+    "lambda": 3.0,
+    "k": 2,
+    "feasible_mass": 0.2127584683686941,
+    "invalid_mass": 0.6819659191767005,
+    "p_optimum": 0.004571397431946752,
+    "cost_leak_mass": 0.0020988950634197538
+   },
+   {
+    "lambda": 3.0,
+    "k": 3,
+    "feasible_mass": 0.21360447847198352,
+    "invalid_mass": 0.680950159135799,
+    "p_optimum": 0.005026413636556989,
+    "cost_leak_mass": 0.004350147047410899
+   },
+   {
+    "lambda": 3.0,
+    "k": 4,
+    "feasible_mass": 0.21420606379617171,
+    "invalid_mass": 0.679771925458608,
+    "p_optimum": 0.005454726650626423,
+    "cost_leak_mass": 0.006986452392543048
+   },
+   {
+    "lambda": 4.0,
+    "k": 1,
+    "feasible_mass": 0.21105993660596087,
+    "invalid_mass": 0.6834876786829279,
+    "p_optimum": 0.003958934680038325,
+    "cost_leak_mass": 8.393795643550231e-05
+   },
+   {
+    "lambda": 4.0,
+    "k": 2,
+    "feasible_mass": 0.2112411052114918,
+    "invalid_mass": 0.6833256495925859,
+    "p_optimum": 0.004048917588350958,
+    "cost_leak_mass": 0.00032288546408077714
+   },
+   {
+    "lambda": 4.0,
+    "k": 3,
+    "feasible_mass": 0.21141918376571928,
+    "invalid_mass": 0.6831399000719041,
+    "p_optimum": 0.004155668142203332,
+    "cost_leak_mass": 0.0006836536952532935
+   },
+   {
+    "lambda": 4.0,
+    "k": 4,
+    "feasible_mass": 0.21157717943372353,
+    "invalid_mass": 0.682919028019614,
+    "p_optimum": 0.004265516931379942,
+    "cost_leak_mass": 0.0011261772204103284
+   }
+  ],
+  "legacy_11_feasible_mass": 0.2112,
+  "k1_lam4_improves_legacy": false,
+  "no_collapse_below_legacy": true,
+  "verdict": "PASS"
+ },
+ "resources": [
+  {
+   "config": "legacy two-stage (1x1) representative",
+   "scope": "full-circuit",
+   "solver_mode": "legacy-two-stage",
+   "constraint_mode": "unit-count",
+   "qubits": 15,
+   "work_bits": 6,
+   "bad_bits": 0,
+   "iterations": "feas=1 qual=1",
+   "shots": "",
+   "logical_depth": 882,
+   "transpiled_depth": 9360,
+   "cx": 5532,
+   "one_qubit_gates": 8135,
+   "total_gates": 13667,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "qiskit default (no-ancilla)",
+   "source_sha256": "22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39"
+  },
+  {
+   "config": "gated-heuristic k=1 (unit-count)",
+   "scope": "full-circuit",
+   "solver_mode": "gated-heuristic",
+   "constraint_mode": "unit-count",
+   "qubits": 17,
+   "work_bits": 4,
+   "bad_bits": 3,
+   "iterations": "k=1",
+   "shots": "",
+   "logical_depth": 873,
+   "transpiled_depth": 9111,
+   "cx": 5366,
+   "one_qubit_gates": 7917,
+   "total_gates": 13283,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "recursion(1 clean ancilla) for >4 ctrl",
+   "source_sha256": "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930"
+  },
+  {
+   "config": "formal weighted-aa r=4 (unit-count)",
+   "scope": "full-circuit",
+   "solver_mode": "weighted-aa",
+   "constraint_mode": "unit-count",
+   "qubits": 17,
+   "work_bits": 4,
+   "bad_bits": 3,
+   "iterations": "r=4",
+   "shots": "",
+   "logical_depth": 1093,
+   "transpiled_depth": 41001,
+   "cx": 23320,
+   "one_qubit_gates": 34614,
+   "total_gates": 57934,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "recursion(1 clean ancilla) for >4 ctrl",
+   "source_sha256": "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930"
+  },
+  {
+   "config": "formal weighted-aa r=3 (weighted-prb rep)",
+   "scope": "full-circuit",
+   "solver_mode": "weighted-aa",
+   "constraint_mode": "weighted-prb",
+   "qubits": 18,
+   "work_bits": 5,
+   "bad_bits": 3,
+   "iterations": "r=3",
+   "shots": "",
+   "logical_depth": 2904,
+   "transpiled_depth": 10726,
+   "cx": 9355,
+   "one_qubit_gates": 12537,
+   "total_gates": 21892,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "recursion(1 clean ancilla) for >4 ctrl",
+   "source_sha256": "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930"
+  },
+  {
+   "config": "gated-heuristic k=1 (weighted-prb rep, diagnostic)",
+   "scope": "full-circuit",
+   "solver_mode": "gated-heuristic",
+   "constraint_mode": "weighted-prb",
+   "qubits": 18,
+   "work_bits": 5,
+   "bad_bits": 3,
+   "iterations": "k=1",
+   "shots": "",
+   "logical_depth": 3044,
+   "transpiled_depth": 3088,
+   "cx": 2854,
+   "one_qubit_gates": 3800,
+   "total_gates": 6654,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "recursion(1 clean ancilla) for >4 ctrl",
+   "source_sha256": "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930"
+  }
+ ],
+ "verdicts": {
+  "f1": "PASS",
+  "f2": "PASS",
+  "f3": "PASS",
+  "f4": "PASS",
+  "f5": "PASS",
+  "f6": "PASS",
+  "f7": "PASS",
+  "g1": "PASS"
+ },
+ "overall": "PASS",
+ "elapsed_s": 560.7
+}

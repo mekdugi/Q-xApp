@@ -188,3 +188,19 @@ python scripts/validate_dqna_ts.py --feas-iter 1 --qual-iter 1 --qual-lambda 4 \
 echo '{"sinr":[[17.01,0,1.19],[4.55,0,2.58],[0,5.78,1.8],[1.4,0,13.77]]}' | \
     python flexric/xApp/dqna_ts.py --feas-iter=1 --qual-iter=1 --qual-lambda=4.0
 ```
+
+## 10. Solver-Mode Extension (v5a/v5b/v6, 2026-07-18)
+
+The TS solver gained the section-16 solver-mode contract while preserving the
+legacy circuit unchanged. Full validation evidence lives in
+`reports/combined_oracle_prb_validation.md`; this section is the index.
+
+| Item | Value |
+|------|-------|
+| `dqna_ts.py` (v6 wiring) | SHA-256 `22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39` — the legacy v4.1 circuit code inside is untouched; only CLI/stdin dispatch was added. Bare no-flag runs regress byte-identically (field-level golden + full 1,060-case suite re-run). |
+| `dqna_constraints.py` (v5b) | modular reversible constraints: validity, unit-count, weighted-PRB (Draper QFT adder + sign-bit comparator), shared violation-count `bad` accumulator. 256-state truth tables, 54/43 goldens, WeightedAdder/IntegerComparator cross-check 768/768. |
+| `dqna_modes.py` (v5a/v6) | gated-heuristic (single combined kickback + one diffuser per iteration) and formal weighted-AA (`A = U_cost(row-shift) . C_constraints . V3^x4`, `S_good`, full-domain `S_zero`). Round7 golden: `a = 0.03735682550726419`, `P_G(0..5)` matched to 1e-12; four-encoding a/r* table matched. |
+| Modes | `legacy-two-stage` (default, unchanged) / `gated-heuristic` / `weighted-aa`; `unit-count` / `weighted-prb`. `legacy + weighted-prb` and every invalid argument combination exit nonzero with empty stdout (36/36 contract tests). |
+| Shot path | `weighted-aa` only: fixed-seed sampling from the exact statevector distribution; accepted iff measured `bad==0 AND cost==0`, plus an independent classical feasibility check. Not a hardware-QPU claim. |
+| Gated finding | With the legacy global-max shift the good-subspace weight on Round7 is `a ~ 2.1e-5` (first peak r* ~ 171), so k = 1..4 gated iterations cannot lift the feasible mass above the 21.1% baseline — measured and consistent with the analytic table. The gated mode's value is the removal of the two-stage diffuser cancellation, not a mass gain at small k. |
+| WSL deploy note | the runtime script path needs all three files (`dqna_ts.py`, `dqna_constraints.py`, `dqna_modes.py`) in the same directory; legacy behavior does not require the two new files unless solver-mode keys are used. |

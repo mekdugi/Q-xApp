@@ -1,0 +1,425 @@
+{
+ "env": {
+  "python": "3.12.3",
+  "qiskit": "1.2.4",
+  "numpy": "1.26.4",
+  "dqna_constraints_sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9",
+  "harness_sha256": "8c5f17d1419ce53028df63705f412df36a1c8507ff3c3813107039d5ed8f1634"
+ },
+ "t1_t2_unit_count": {
+  "truth_table": {
+   "n_states": 256,
+   "n_amp_errors": 0,
+   "stray_mass": 5.065674424071728e-29,
+   "amp_errors": [],
+   "verdict": "PASS"
+  },
+  "golden": {
+   "quantum_feasible": 54,
+   "classical_feasible": 54,
+   "expected": 54,
+   "sets_match": true,
+   "verdict": "PASS"
+  },
+  "bad_bits": 3,
+  "v_max": 7
+ },
+ "t6_phase_parity": {
+  "n_multi_violation_states": 79,
+  "max_violations_seen": 4,
+  "all_counted_nonzero": true,
+  "note": "violation-count accumulator: parity cancellation impossible; each event adds +1, verified state-by-state in T1/T2/T4",
+  "verdict": "PASS"
+ },
+ "t3_qft_adder": {
+  "n_checked": 596,
+  "n_failures": 0,
+  "failures": [],
+  "verdict": "PASS"
+ },
+ "t4_weighted_prb": {
+  "demand": [
+   [
+    1,
+    2,
+    3
+   ],
+   [
+    2,
+    1,
+    2
+   ],
+   [
+    1,
+    3,
+    2
+   ],
+   [
+    2,
+    2,
+    1
+   ]
+  ],
+  "budget": [
+   4,
+   4,
+   4
+  ],
+  "truth_table": {
+   "n_states": 256,
+   "n_amp_errors": 0,
+   "stray_mass": 2.2445360445573563e-28,
+   "amp_errors": [],
+   "verdict": "PASS"
+  },
+  "golden": {
+   "quantum_feasible": 43,
+   "classical_feasible": 43,
+   "expected": 43,
+   "sets_match": true,
+   "verdict": "PASS"
+  },
+  "counter_bits": 4,
+  "sum_max": [
+   6,
+   8,
+   8
+  ],
+  "active_cells": [
+   0,
+   1,
+   2
+  ],
+  "bad_bits": 3,
+  "v_max": 7
+ },
+ "t4_boundaries": {
+  "rows": [
+   {
+    "cell": 0,
+    "budget": 0,
+    "sum_max": 6,
+    "bypassed": false,
+    "active_cells": [
+     0
+    ],
+    "quantum_feasible": 16,
+    "classical_feasible": 16,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 0,
+    "budget": 5,
+    "sum_max": 6,
+    "bypassed": false,
+    "active_cells": [
+     0
+    ],
+    "quantum_feasible": 80,
+    "classical_feasible": 80,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 0,
+    "budget": 6,
+    "sum_max": 6,
+    "bypassed": true,
+    "active_cells": [],
+    "quantum_feasible": 81,
+    "classical_feasible": 81,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 0,
+    "budget": 9,
+    "sum_max": 6,
+    "bypassed": true,
+    "active_cells": [],
+    "quantum_feasible": 81,
+    "classical_feasible": 81,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 1,
+    "budget": 0,
+    "sum_max": 8,
+    "bypassed": false,
+    "active_cells": [
+     1
+    ],
+    "quantum_feasible": 16,
+    "classical_feasible": 16,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 1,
+    "budget": 7,
+    "sum_max": 8,
+    "bypassed": false,
+    "active_cells": [
+     1
+    ],
+    "quantum_feasible": 80,
+    "classical_feasible": 80,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 1,
+    "budget": 8,
+    "sum_max": 8,
+    "bypassed": true,
+    "active_cells": [],
+    "quantum_feasible": 81,
+    "classical_feasible": 81,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 1,
+    "budget": 11,
+    "sum_max": 8,
+    "bypassed": true,
+    "active_cells": [],
+    "quantum_feasible": 81,
+    "classical_feasible": 81,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 2,
+    "budget": 0,
+    "sum_max": 8,
+    "bypassed": false,
+    "active_cells": [
+     2
+    ],
+    "quantum_feasible": 16,
+    "classical_feasible": 16,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 2,
+    "budget": 7,
+    "sum_max": 8,
+    "bypassed": false,
+    "active_cells": [
+     2
+    ],
+    "quantum_feasible": 80,
+    "classical_feasible": 80,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 2,
+    "budget": 8,
+    "sum_max": 8,
+    "bypassed": true,
+    "active_cells": [],
+    "quantum_feasible": 81,
+    "classical_feasible": 81,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "cell": 2,
+    "budget": 11,
+    "sum_max": 8,
+    "bypassed": true,
+    "active_cells": [],
+    "quantum_feasible": 81,
+    "classical_feasible": 81,
+    "truth_table": "PASS",
+    "ok": true
+   },
+   {
+    "case": "all_zero_demand",
+    "quantum_feasible": 81,
+    "truth_table": "PASS",
+    "active_cells": [],
+    "ok": true
+   },
+   {
+    "case": "negative_budget",
+    "rejected": true,
+    "ok": true,
+    "error": "cell_prb_budget must be non-negative"
+   }
+  ],
+  "verdict": "PASS"
+ },
+ "t7_unit_demand_regression": {
+  "truth_table": {
+   "n_states": 256,
+   "n_amp_errors": 0,
+   "stray_mass": 2.430340281427534e-28,
+   "amp_errors": [],
+   "verdict": "PASS"
+  },
+  "quantum_feasible": 54,
+  "matches_unit_count_set": true,
+  "bad_values_match_unit_count": true,
+  "verdict": "PASS"
+ },
+ "t5_clean_uncompute": {
+  "unit_count": {
+   "fidelity": 0.9999999999999931,
+   "verdict": "PASS"
+  },
+  "weighted_prb": {
+   "fidelity": 0.999999999999982,
+   "verdict": "PASS"
+  },
+  "unit_demand_regression": {
+   "fidelity": 0.9999999999999851,
+   "verdict": "PASS"
+  }
+ },
+ "phase_marking": {
+  "unit_count": {
+   "max_abs_error": 1.7333494645124121e-15,
+   "n_feasible": 54,
+   "verdict": "PASS"
+  },
+  "weighted_prb": {
+   "max_abs_error": 4.273364085192624e-15,
+   "n_feasible": 43,
+   "verdict": "PASS"
+  }
+ },
+ "per_module": {
+  "validity_only": {
+   "truth_table": "PASS",
+   "clean_uncompute": "PASS"
+  },
+  "unit_count_only": {
+   "truth_table": "PASS",
+   "clean_uncompute": "PASS"
+  },
+  "weighted_prb_only": {
+   "truth_table": "PASS",
+   "clean_uncompute": "PASS"
+  }
+ },
+ "ref_weighted_adder": {
+  "n_checked": 768,
+  "n_mismatch": 0,
+  "mismatches": [],
+  "verdict": "PASS"
+ },
+ "resources": [
+  {
+   "config": "validity+unit-count(cap=2)",
+   "scope": "compute",
+   "solver_mode": "constraint-only",
+   "constraint_mode": "unit-count",
+   "qubits": 14,
+   "work_bits": 3,
+   "bad_bits": 3,
+   "iterations": "",
+   "shots": "",
+   "logical_depth": 104,
+   "transpiled_depth": 4135,
+   "cx": 2348,
+   "one_qubit_gates": 3382,
+   "total_gates": 5730,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "qiskit default (no-ancilla)",
+   "source_sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9"
+  },
+  {
+   "config": "validity+unit-count(cap=2)",
+   "scope": "oracle",
+   "solver_mode": "constraint-only",
+   "constraint_mode": "unit-count",
+   "qubits": 15,
+   "work_bits": 3,
+   "bad_bits": 3,
+   "iterations": "",
+   "shots": "",
+   "logical_depth": 208,
+   "transpiled_depth": 8330,
+   "cx": 4696,
+   "one_qubit_gates": 6794,
+   "total_gates": 11490,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "qiskit default (no-ancilla)",
+   "source_sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9"
+  },
+  {
+   "config": "validity+weighted-prb(rep)",
+   "scope": "compute",
+   "solver_mode": "constraint-only",
+   "constraint_mode": "weighted-prb",
+   "qubits": 16,
+   "work_bits": 5,
+   "bad_bits": 3,
+   "iterations": "",
+   "shots": "",
+   "logical_depth": 403,
+   "transpiled_depth": 1115,
+   "cx": 1089,
+   "one_qubit_gates": 1323,
+   "total_gates": 2412,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "qiskit default (no-ancilla)",
+   "source_sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9"
+  },
+  {
+   "config": "validity+weighted-prb(rep)",
+   "scope": "oracle",
+   "solver_mode": "constraint-only",
+   "constraint_mode": "weighted-prb",
+   "qubits": 17,
+   "work_bits": 5,
+   "bad_bits": 3,
+   "iterations": "",
+   "shots": "",
+   "logical_depth": 808,
+   "transpiled_depth": 2238,
+   "cx": 2144,
+   "one_qubit_gates": 2617,
+   "total_gates": 4761,
+   "qiskit": "1.2.4",
+   "basis_gates": "rz sx x cx",
+   "optimization_level": 3,
+   "seed_transpiler": 11,
+   "coupling": "all-to-all",
+   "mcx_synthesis": "qiskit default (no-ancilla)",
+   "source_sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9"
+  }
+ ],
+ "verdicts": {
+  "t1_t2": "PASS",
+  "t3": "PASS",
+  "t4_rep": "PASS",
+  "t4_boundaries": "PASS",
+  "t5": "PASS",
+  "t6": "PASS",
+  "t7": "PASS",
+  "ref": "PASS",
+  "phase_marking": "PASS",
+  "per_module": "PASS"
+ },
+ "overall": "PASS",
+ "elapsed_s": 74.9
+}

@@ -1,0 +1,394 @@
+{
+ "env": {
+  "python": "3.12.3",
+  "qiskit": "1.2.4",
+  "numpy": "1.26.4",
+  "seed": 20260702,
+  "feas_iter": 1,
+  "qual_iter": 1,
+  "qual_lambda": 4.0,
+  "dqna_path": "/mnt/c/Users/Wookjin/desktop/Q-xApp/flexric/xApp/dqna_ts.py",
+  "dqna_sha256": "22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39",
+  "validate_script_sha256": "69145f46b2b053745e7ddac27dd2e0487368473ceac4ff4de28a57c4cb026b87",
+  "args": {
+   "quick": false,
+   "skip": []
+  }
+ },
+ "s01": {
+  "n_states": 256,
+  "n_mismatch": 0,
+  "n_dirty": 0,
+  "mismatches": [],
+  "dirty": [],
+  "verdict": "PASS"
+ },
+ "s02_crosscheck": {
+  "round7": {
+   "quantum_solve": [
+    [
+     "0",
+     "0",
+     "1",
+     "2"
+    ],
+    41.11,
+    0.21117502146826173
+   ],
+   "harness": [
+    [
+     0,
+     0,
+     1,
+     2
+    ],
+    41.11
+   ],
+   "agree": true
+  },
+  "uniform": {
+   "quantum_solve": [
+    [
+     "1",
+     "2",
+     "2",
+     "1"
+    ],
+    4.0,
+    0.4296863134950293
+   ],
+   "harness": [
+    [
+     1,
+     2,
+     2,
+     1
+    ],
+    4.0
+   ],
+   "agree": true
+  },
+  "strong_pref": {
+   "quantum_solve": [
+    [
+     "0",
+     "0",
+     "1",
+     "2"
+    ],
+    40.0,
+    0.27191915018960083
+   ],
+   "harness": [
+    [
+     0,
+     0,
+     1,
+     2
+    ],
+    40.0
+   ],
+   "agree": true
+  }
+ },
+ "s02": {
+  "n_cases": 1060,
+  "summary_by_cat": {
+   "builtin_round7": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21117502146826173,
+    "invalid_mass_mean": 0.6833864472208164,
+    "invalid_mass_max": 0.6833864472208164,
+    "elapsed_ms_mean": 3185.5928897857666
+   },
+   "builtin_strong_pref": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.27191915018960083,
+    "invalid_mass_mean": 0.6306255628540721,
+    "invalid_mass_max": 0.6306255628540721,
+    "elapsed_ms_mean": 2763.829469680786
+   },
+   "builtin_uniform": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.4296863134950293,
+    "invalid_mass_mean": 0.5357149755582076,
+    "invalid_mass_max": 0.5357149755582076,
+    "elapsed_ms_mean": 2397.4769115448
+   },
+   "dominant_cell": {
+    "n": 100,
+    "exact_match": 100,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21209673805364215,
+    "invalid_mass_mean": 0.6809463163052288,
+    "invalid_mass_max": 0.6820491789338505,
+    "elapsed_ms_mean": 2565.2409625053406
+   },
+   "lognormal": {
+    "n": 200,
+    "exact_match": 200,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21171431723713027,
+    "invalid_mass_mean": 0.6829045894476845,
+    "invalid_mass_max": 0.6835882992083765,
+    "elapsed_ms_mean": 2571.209855079651
+   },
+   "near_equal": {
+    "n": 100,
+    "exact_match": 100,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.43000125346767804,
+    "invalid_mass_mean": 0.5352933992850013,
+    "invalid_mass_max": 0.5359337960026674,
+    "elapsed_ms_mean": 2617.0861864089966
+   },
+   "regression_all_zero": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": null,
+    "score_ratio_mean": null,
+    "feasible_mass_mean": 0.21093752461693113,
+    "invalid_mass_mean": 0.6835937333584187,
+    "invalid_mass_max": 0.6835937333584187,
+    "elapsed_ms_mean": 809.7226619720459
+   },
+   "regression_col_zero": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.2163778442197655,
+    "invalid_mass_mean": 0.678822535770647,
+    "invalid_mass_max": 0.678822535770647,
+    "elapsed_ms_mean": 2526.601791381836
+   },
+   "regression_row_zero": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21190894680847497,
+    "invalid_mass_mean": 0.682749819564618,
+    "invalid_mass_max": 0.682749819564618,
+    "elapsed_ms_mean": 2694.471597671509
+   },
+   "regression_v4_nc_1": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21098071325278947,
+    "invalid_mass_mean": 0.6835557843306567,
+    "invalid_mass_max": 0.6835557843306567,
+    "elapsed_ms_mean": 2749.9892711639404
+   },
+   "regression_v4_nc_2": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.2122599526702916,
+    "invalid_mass_mean": 0.6824397207433983,
+    "invalid_mass_max": 0.6824397207433983,
+    "elapsed_ms_mean": 2672.4495887756348
+   },
+   "regression_v4_nc_3": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21105835559413583,
+    "invalid_mass_mean": 0.6834880592703823,
+    "invalid_mass_max": 0.6834880592703823,
+    "elapsed_ms_mean": 2716.3190841674805
+   },
+   "regression_zero_tie": {
+    "n": 1,
+    "exact_match": 1,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.4184973713296515,
+    "invalid_mass_mean": 0.5034940535688698,
+    "invalid_mass_max": 0.5034940535688698,
+    "elapsed_ms_mean": 2439.6426677703857
+   },
+   "scale_skew": {
+    "n": 100,
+    "exact_match": 100,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21191286505513932,
+    "invalid_mass_mean": 0.6827315207038235,
+    "invalid_mass_max": 0.6835900664402059,
+    "elapsed_ms_mean": 2642.1501207351685
+   },
+   "sparse": {
+    "n": 150,
+    "exact_match": 150,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21482589831811183,
+    "invalid_mass_mean": 0.6801480193080053,
+    "invalid_mass_max": 0.6835878465751795,
+    "elapsed_ms_mean": 2637.4824603398642
+   },
+   "ue_pref": {
+    "n": 100,
+    "exact_match": 100,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.21094264319608924,
+    "invalid_mass_mean": 0.6835892237114294,
+    "invalid_mass_max": 0.6835897062983353,
+    "elapsed_ms_mean": 2541.362805366516
+   },
+   "uniform": {
+    "n": 300,
+    "exact_match": 300,
+    "none_returned": 0,
+    "top20_miss": 0,
+    "score_ratio_min": 1.0,
+    "score_ratio_mean": 1.0,
+    "feasible_mass_mean": 0.225245876759701,
+    "invalid_mass_mean": 0.6709588089163211,
+    "invalid_mass_max": 0.6835060609434527,
+    "elapsed_ms_mean": 3494.8803861935935
+   }
+  },
+  "n_exact": 1060,
+  "n_failures": 0,
+  "failure_samples": []
+ },
+ "s03": {
+  "results": [
+   {
+    "case": "valid_input",
+    "expect": "rc0_json",
+    "rc": 0,
+    "ok": true,
+    "schema_ok": true,
+    "parsed": {
+     "assignment": [
+      0,
+      0,
+      1,
+      2
+     ],
+     "score": 41.11,
+     "feasible": true,
+     "feasibility_prob": 0.21117502146826173,
+     "method": "quantum-2stage-15q-caponly-expenc-v41",
+     "elapsed_ms": 2852
+    },
+    "stderr_tail": "",
+    "elapsed_ms": 3331.851005554199
+   },
+   {
+    "case": "malformed_json",
+    "expect": "nonzero_rc",
+    "rc": 1,
+    "ok": true,
+    "schema_ok": false,
+    "parsed": null,
+    "stderr_tail": "         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.12/json/decoder.py\", line 353, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ^^^^^^^^^^^^^^^^^^^^^^\njson.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\n",
+    "elapsed_ms": 468.40405464172363
+   },
+   {
+    "case": "wrong_shape",
+    "expect": "nonzero_rc",
+    "rc": 1,
+    "ok": true,
+    "schema_ok": false,
+    "parsed": null,
+    "stderr_tail": "ookjin/desktop/Q-xApp/flexric/xApp/dqna_ts.py\", line 609, in <module>\n    main()\n  File \"/mnt/c/Users/Wookjin/desktop/Q-xApp/flexric/xApp/dqna_ts.py\", line 545, in main\n    assert rate.shape == (N_UE, N_CELL), \\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: expected 4x3 matrix, got (2, 2)\n",
+    "elapsed_ms": 458.6451053619385
+   },
+   {
+    "case": "missing_key",
+    "expect": "nonzero_rc",
+    "rc": 1,
+    "ok": true,
+    "schema_ok": false,
+    "parsed": null,
+    "stderr_tail": "call last):\n  File \"/mnt/c/Users/Wookjin/desktop/Q-xApp/flexric/xApp/dqna_ts.py\", line 609, in <module>\n    main()\n  File \"/mnt/c/Users/Wookjin/desktop/Q-xApp/flexric/xApp/dqna_ts.py\", line 544, in main\n    rate = np.array(data['sinr'], dtype=float)\n                    ~~~~^^^^^^^^\nKeyError: 'sinr'\n",
+    "elapsed_ms": 457.05366134643555
+   },
+   {
+    "case": "nan_value",
+    "expect": "observe",
+    "rc": 1,
+    "ok": null,
+    "schema_ok": false,
+    "parsed": null,
+    "stderr_tail": "[dqna_ts] rate matrix has non-finite or negative entries\n",
+    "elapsed_ms": 440.8864974975586
+   },
+   {
+    "case": "negative_value",
+    "expect": "observe",
+    "rc": 1,
+    "ok": null,
+    "schema_ok": false,
+    "parsed": null,
+    "stderr_tail": "[dqna_ts] rate matrix has non-finite or negative entries\n",
+    "elapsed_ms": 448.40383529663086
+   },
+   {
+    "case": "bad_max_per_cell",
+    "expect": "nonzero_rc",
+    "rc": 1,
+    "ok": true,
+    "schema_ok": false,
+    "parsed": null,
+    "stderr_tail": "[dqna_ts] --max-per-cell must be in [1, 4]\n",
+    "elapsed_ms": 453.5682201385498
+   }
+  ],
+  "n_blockers": 0,
+  "verdict": "PASS"
+ }
+}

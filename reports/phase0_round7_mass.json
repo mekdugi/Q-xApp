@@ -1,0 +1,83 @@
+{
+ "rate": [
+  [
+   17.01,
+   0.0,
+   1.19
+  ],
+  [
+   4.55,
+   0.0,
+   2.58
+  ],
+  [
+   0.0,
+   5.78,
+   1.8
+  ],
+  [
+   1.4,
+   0.0,
+   13.77
+  ]
+ ],
+ "max_per_cell": 2,
+ "qual_lambda": 4.0,
+ "mass_table": [
+  {
+   "feas_iter": 0,
+   "qual_iter": 0,
+   "feasible_mass": 0.2109374999999999,
+   "invalid_mass": 0.6835937499999999,
+   "valid_overcap_mass": 0.10546874999999989
+  },
+  {
+   "feas_iter": 1,
+   "qual_iter": 0,
+   "feasible_mass": 0.9807357788085754,
+   "invalid_mass": 0.016689300537108945,
+   "valid_overcap_mass": 0.0025749206542967787
+  },
+  {
+   "feas_iter": 2,
+   "qual_iter": 0,
+   "feasible_mass": 0.4702933654188969,
+   "invalid_mass": 0.4589042626321212,
+   "valid_overcap_mass": 0.0708023719489556
+  },
+  {
+   "feas_iter": 1,
+   "qual_iter": 1,
+   "feasible_mass": 0.21117502146826173,
+   "invalid_mass": 0.6833864472208164,
+   "valid_overcap_mass": 0.10543853131089852
+  }
+ ],
+ "resources_representative_1_1": {
+  "qiskit_version": "1.2.4",
+  "num_qubits": 15,
+  "logical_depth": 260,
+  "logical_ops": {
+   "x": 267,
+   "mcx": 152,
+   "ccx": 116,
+   "ry": 60,
+   "h": 45
+  },
+  "transpiled_depth": 9360,
+  "cx": 5532,
+  "one_qubit_gates": 8135,
+  "total_gates": 13667,
+  "transpiled_ops": {
+   "rz": 6738,
+   "cx": 5532,
+   "sx": 1217,
+   "x": 180
+  },
+  "basis_gates": "rz,sx,x,cx",
+  "optimization_level": 3,
+  "seed_transpiler": 11,
+  "coupling": "all-to-all (none)",
+  "transpile_s": 3.0
+ }
+}
