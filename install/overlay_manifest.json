@@ -1,0 +1,138 @@
+{
+  "manifest_version": 1,
+  "manifest_type": "overlay",
+  "generated": "2026-07-19",
+  "description": "All Git-tracked ns3/ overlay files with exact destinations in the pinned mmwave-LENA-oran submodule (remediation R3.2). Destinations were confirmed against the validated WSL installation, not guessed. SHA-256 values are computed over LF-normalized content; upstream_preimage_sha256 is the pristine file content at the pinned (sub)module commit (null = file does not exist upstream, i.e. new). The last two entries were recovered from the validated WSL working tree during R3: they existed nowhere in version control before (scenario-zero.cc pins the GUI flags=false topology to 4 UEs; ric-control-message.h nullptr-initializes two E2SM RC pointers) and live in the nested contrib/oran-interface submodule and scratch/ respectively.",
+  "sha_normalization": "lf",
+  "upstream_manifest": "upstream_manifest.json",
+  "upstream_repository": "ns-o-ran",
+  "upstream_submodule": "mmwave-LENA-oran",
+  "destination_root": "mmwave-LENA-oran",
+  "install_tool": "install_overlay.py",
+  "additional_pins": [
+    {
+      "name": "contrib/oran-interface",
+      "path": "mmwave-LENA-oran/contrib/oran-interface",
+      "commit": "0eedb5ff8e3597e88356b0af005ad144344c6f38"
+    },
+    {
+      "name": "src/nr",
+      "path": "mmwave-LENA-oran/src/nr",
+      "commit": "09a044894e8aa1025cca2e2984ad2431bdcd6c40"
+    }
+  ],
+  "files": [
+    {
+      "source": "ns3/epc-x2.cc",
+      "destination": "src/lte/model/epc-x2.cc",
+      "purpose": "X2 handover-path changes used by the RC-triggered TS handover",
+      "source_sha256": "79681d37ca7f285236a1c3f17cbfd1a24941385a6c1468b557428ff669c5ef22",
+      "upstream_preimage_sha256": "bf730ecadc343b54b2af37a9df62e868d88d59a8812a170e3945e5e8bfbb052e",
+      "post_install_sha256": "79681d37ca7f285236a1c3f17cbfd1a24941385a6c1468b557428ff669c5ef22"
+    },
+    {
+      "source": "ns3/lte-enb-net-device.cc",
+      "destination": "src/lte/model/lte-enb-net-device.cc",
+      "purpose": "LTE anchor eNB device: handover/energy/DRB control hooks",
+      "source_sha256": "6b0be2228030b993e737b71bff87815a4810880f471b451c9d357ea5d3d55493",
+      "upstream_preimage_sha256": "fbb1b5b7bcebc80c26e5830817c0024668cf184ae0d60322750b5cc3b11a2612",
+      "post_install_sha256": "6b0be2228030b993e737b71bff87815a4810880f471b451c9d357ea5d3d55493"
+    },
+    {
+      "source": "ns3/lte-enb-net-device.h",
+      "destination": "src/lte/model/lte-enb-net-device.h",
+      "purpose": "Header for the LTE anchor eNB handover hooks",
+      "source_sha256": "f5f8b000b578726fa60bff5ba640ae2dfb0ee4cb1eec0d85da1a276bdcd299e4",
+      "upstream_preimage_sha256": "768eacef7562d9d608ba62849e6c0432793812310139e49b1458ea0778841fbe",
+      "post_install_sha256": "f5f8b000b578726fa60bff5ba640ae2dfb0ee4cb1eec0d85da1a276bdcd299e4"
+    },
+    {
+      "source": "ns3/lte-enb-rrc.cc",
+      "destination": "src/lte/model/lte-enb-rrc.cc",
+      "purpose": "RRC handover handling and scheduler-weight propagation",
+      "source_sha256": "8aa4fa46f24de64c53be8c2b5df4f1b9089ad3aea8a3737816fcfab982c9aa32",
+      "upstream_preimage_sha256": "3d497fbba27689325ff665e56e6edda6865aeffdb9ee66b0acb8e1af65d4a3a5",
+      "post_install_sha256": "8aa4fa46f24de64c53be8c2b5df4f1b9089ad3aea8a3737816fcfab982c9aa32"
+    },
+    {
+      "source": "ns3/mc-enb-pdcp.cc",
+      "destination": "src/lte/model/mc-enb-pdcp.cc",
+      "purpose": "One-line dual-connectivity PDCP fix",
+      "source_sha256": "7437b3902e6f4053dc9a016806edcdf97c76a49033290e5cd98e6c9781f0b87d",
+      "upstream_preimage_sha256": "45d1ca741c31ed6dca8511a0269276d82486626c6d24760e232dfa7095ca12e6",
+      "post_install_sha256": "7437b3902e6f4053dc9a016806edcdf97c76a49033290e5cd98e6c9781f0b87d"
+    },
+    {
+      "source": "ns3/mmwave-enb-mac.cc",
+      "destination": "src/mmwave/model/mmwave-enb-mac.cc",
+      "purpose": "mmWave MAC scheduler/handover hooks",
+      "source_sha256": "8d6f4d5a989dc5ef4e5ae02951f34b717192cb2b5ad357539f6ec62255cf4da2",
+      "upstream_preimage_sha256": "12bcdd922349775cef3a5583e128a81238ee235ec787b0c50e3652b239c0789f",
+      "post_install_sha256": "8d6f4d5a989dc5ef4e5ae02951f34b717192cb2b5ad357539f6ec62255cf4da2"
+    },
+    {
+      "source": "ns3/mmwave-enb-net-device.cc",
+      "destination": "src/mmwave/model/mmwave-enb-net-device.cc",
+      "purpose": "mmWave O-RU device: DRB scheduler-weight control and CSV metric export",
+      "source_sha256": "cb194249814c0e802bc0091a6b817b519c52151e43d1077bd48d22b329594401",
+      "upstream_preimage_sha256": "51831ccae7e41649a933d6c83e6693f2eacd55b13078f0a41e673cd59045f111",
+      "post_install_sha256": "cb194249814c0e802bc0091a6b817b519c52151e43d1077bd48d22b329594401"
+    },
+    {
+      "source": "ns3/mmwave-flex-tti-pf-mac-scheduler.cc",
+      "destination": "src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.cc",
+      "purpose": "PF MAC scheduler with per-UE/DRB weight control consumed by xApp RC (QoS-RA, TS scheduler-weight reset)",
+      "source_sha256": "16075e92f25f2adfd4ec3eadd73eb1e7182b380381369aef9897bcea442bf175",
+      "upstream_preimage_sha256": "d9c4c86ce4cb51d3530ae129db0aa209cd7adce52ad1af0690ca1754d4d06c37",
+      "post_install_sha256": "16075e92f25f2adfd4ec3eadd73eb1e7182b380381369aef9897bcea442bf175"
+    },
+    {
+      "source": "ns3/mmwave-flex-tti-pf-mac-scheduler.h",
+      "destination": "src/mmwave/model/mmwave-flex-tti-pf-mac-scheduler.h",
+      "purpose": "Header for the weighted PF MAC scheduler",
+      "source_sha256": "e8aaff31849a7ef7c7a1783ea592c1cfd9e70edd336cca930c3a33e76797a718",
+      "upstream_preimage_sha256": "25788f1dfaa1b68348250d8c8fc59188370936db5b11857077eb162595528f20",
+      "post_install_sha256": "e8aaff31849a7ef7c7a1783ea592c1cfd9e70edd336cca930c3a33e76797a718"
+    },
+    {
+      "source": "ns3/mmwave-helper.cc",
+      "destination": "src/mmwave/helper/mmwave-helper.cc",
+      "purpose": "mmWave helper wiring for the Q-xApp scenario",
+      "source_sha256": "8d10cd6e764eadce73a0593990683509d4eea15e35727519e32bee25bc183823",
+      "upstream_preimage_sha256": "42ef8cf1509e31651a15c40d16b2eda592a88ec096ed4f2145fade9fb5dc945e",
+      "post_install_sha256": "8d10cd6e764eadce73a0593990683509d4eea15e35727519e32bee25bc183823"
+    },
+    {
+      "source": "ns3/scenario-fig4-qxapp.cc",
+      "destination": "scratch/scenario-fig4-qxapp.cc",
+      "purpose": "Fig.4 Q-xApp scenario (4 UE x 3 mmWave O-RU + 1 LTE anchor); new file",
+      "source_sha256": "1cd1d9193a0cdd926f0058ea37e6529e82a4f9e7e7a211679b4271e45e508cdc",
+      "upstream_preimage_sha256": null,
+      "post_install_sha256": "1cd1d9193a0cdd926f0058ea37e6529e82a4f9e7e7a211679b4271e45e508cdc"
+    },
+    {
+      "source": "ns3/scenario/scenario-zero-with_parallel_loging.cc",
+      "destination": "scratch/scenario-zero-with_parallel_loging.cc",
+      "purpose": "Baseline scenario with parallel logging (modified upstream file)",
+      "source_sha256": "5184defc37b6b4e690e5d01cdfee349c6defa017d67efa91ea3ccd2817dd2f12",
+      "upstream_preimage_sha256": "3060ef2809d7ad6a91f741b29b308df9a91b9cd1988321fa15dcd3176cef291e",
+      "post_install_sha256": "5184defc37b6b4e690e5d01cdfee349c6defa017d67efa91ea3ccd2817dd2f12"
+    },
+    {
+      "source": "ns3/scenario/scenario-zero.cc",
+      "destination": "scratch/scenario-zero.cc",
+      "purpose": "GUI default scenario: pins the flags=false topology to 4 UEs (upstream default was 5), matching the fixed 4-UE xApp/GUI contract (R1/R2); recovered from the validated WSL tree in R3",
+      "source_sha256": "46bd8c207ef269696d5664de57618a277393c65ad0dc61665a09d807c3cc5f94",
+      "upstream_preimage_sha256": "448f1d36bd91d94e7d985f21fc457c3587b0c212cc26bc001a9a6c7f20bc5f56",
+      "post_install_sha256": "46bd8c207ef269696d5664de57618a277393c65ad0dc61665a09d807c3cc5f94"
+    },
+    {
+      "source": "ns3/oran-interface/ric-control-message.h",
+      "destination": "contrib/oran-interface/model/ric-control-message.h",
+      "purpose": "nullptr-initializes the two E2SM RC control header/message pointers (crash safety on the RC control path); lives in the nested contrib/oran-interface submodule (pinned in additional_pins); recovered from the validated WSL tree in R3",
+      "source_sha256": "d0143b3ecaafa3549eec197e9383b7395cd15bf2bc8f4621786f153009309fd1",
+      "upstream_preimage_sha256": "24af1394227fbd6f3ec3ef8317f2f8126b09af06e291b2a339ebfb1ba99dda05",
+      "post_install_sha256": "d0143b3ecaafa3549eec197e9383b7395cd15bf2bc8f4621786f153009309fd1"
+    }
+  ]
+}

@@ -11,18 +11,20 @@
 
 static int a1_max_ue_per_cell = 2;
 
-#define MODE_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_mode.txt"
-#define SLEEP_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_sleep_config.txt"
-#define A1_POLICY_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_a1_policy.txt"
-#define QOS_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_qos_config.txt"
+/* Config files live in qx_data_dir() (env QXAPP_DATA_DIR, default = historical
+ * WSL path; see qxapp_common.h). Only the file names are fixed here. */
+#define MODE_FILE_NAME "xapp_mode.txt"
+#define SLEEP_CONFIG_FILE_NAME "xapp_sleep_config.txt"
+#define A1_POLICY_FILE_NAME "xapp_a1_policy.txt"
+#define QOS_CONFIG_FILE_NAME "xapp_qos_config.txt"
 
 /* == Quantum TS assignment (dqna_ts.py, Stage-0 validated) ==================
- * Quantum is the default assignment engine (Q-xApp). QUANTUM_CONFIG_FILE
+ * Quantum is the default assignment engine (Q-xApp). The quantum config file
  * first line "0"/"off" forces the legacy greedy placeholder (debug / historic
  * Fig.4 reproduction); missing file = quantum ON. Paths can be overridden via
  * env QXAPP_PY / QXAPP_TS_SCRIPT. TS uses the 4x3 circuit now; QoS/NES switch
  * to a 4x2 circuit when it lands, after which greedy is removed. */
-#define QUANTUM_CONFIG_FILE "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/xapp_quantum.txt"
+#define QUANTUM_CONFIG_FILE_NAME "xapp_quantum.txt"
 #define QXAPP_PY_DEFAULT        "/root/qxapp-venv/bin/python"
 #define QXAPP_TS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_ts.py"
 #define QXAPP_TS_TIMEOUT_S 10
@@ -59,7 +61,8 @@ static int ue_fiveqi[NUM_UE] = {2, 4, 7, 9}; /* per-UE 5QI requirement (from GUI
 /* read QoS config: per-UE 5QI values from file */
 static void read_qos_config(void)
 {
-  FILE *fp = fopen(QOS_CONFIG_FILE, "r");
+  char cfg_path[512];
+  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path), QOS_CONFIG_FILE_NAME), "r");
   if (!fp) {
     printf("[Q-xApp QoS-RA] Config file not found, using defaults (2,4,7,9)\n");
     ue_fiveqi[0] = 2; ue_fiveqi[1] = 4; ue_fiveqi[2] = 7; ue_fiveqi[3] = 9;
@@ -82,8 +85,60 @@ static void read_qos_config(void)
   printf("\n");
 }
 
-/* greedy matching: assign UEs to cells maximising total rate */
-static void greedy_match(int assignment[NUM_UE])
+/* Is the assignment problem feasible? NUM_UE UEs fit in `awake_cells` cells
+ * under the per-cell cap iff NUM_UE <= awake_cells*cap. For TS/QoS every cell
+ * is awake (awake_cells = NUM_CELL); for NES the forced-sleep cells are not
+ * available, so awake_cells = NUM_CELL - n_forced_sleep (Codex §18). cap=1
+ * (any mode) and cap=2 + 2 forced-sleep cells are both infeasible. */
+static int assignment_feasible_awake(int awake_cells)
+{
+  return awake_cells >= 1 && NUM_UE <= awake_cells * a1_max_ue_per_cell;
+}
+
+/* Common post-hoc validator (Codex re-review blocker 5): every assignment the
+ * controller acts on — greedy, quantum TS, quantum 4x2 NES, frozen INIT-TS —
+ * must be checked against the per-cell cap here, so a solver result that
+ * exceeds the cap is caught in the controller (the quantum math source is not
+ * modified). Returns 1 if within cap. `active_only` counts only awake cells
+ * for NES (a sleeping cell must carry 0 UEs). */
+static int assignment_within_cap(const int assignment[NUM_UE],
+                                 const int sleep_cells[], int n_sleep)
+{
+  int load[NUM_CELL] = {0};
+  for (int u = 0; u < NUM_UE; u++) {
+    int c = assignment[u];
+    if (c < 0 || c >= NUM_CELL) return 0;      /* unassigned/out of range */
+    load[c]++;
+  }
+  for (int c = 0; c < NUM_CELL; c++) {
+    if (load[c] > a1_max_ue_per_cell) return 0;
+    for (int s = 0; s < n_sleep; s++)
+      if (CELL_IDS[c] == sleep_cells[s] && load[c] > 0) return 0; /* on sleep */
+  }
+  return 1;
+}
+
+/* Stage 2 outcome (Codex re-review blocker 4): distinguish "not ready / stale"
+ * (transient -> pending) from "mathematically infeasible" (error). */
+#define STAGE2_OK        0
+#define STAGE2_INFEASIBLE (-1)
+#define STAGE2_NOT_READY  (-2)
+
+/* A measurement is usable only if this scan produced a row for the UE AND
+ * that row is strictly newer than the anchor captured at the recompute /
+ * mode-entry event. read_sinr_from_csv re-reads the last CSV row every scan,
+ * so meas_valid alone can be a stale repeat; requiring meas_ts > anchor
+ * prevents freezing/converging/controlling on stale data (Codex blocker 5). */
+static int meas_fresh_since(int u, uint64_t anchor)
+{
+  return meas_valid[u] && meas_ts[u] > anchor;
+}
+
+/* greedy matching: assign UEs to cells maximising total rate.
+ * Returns 0 on success, -1 if the cap cannot be honoured. Unlike the old
+ * version it NEVER force-assigns an over-cap UE to cell 0 (R2.4): an
+ * infeasible input is reported, not silently violated. */
+static int greedy_match(int assignment[NUM_UE])
 {
   int cell_load[NUM_CELL] = {0};
 
@@ -126,10 +181,17 @@ static void greedy_match(int assignment[NUM_UE])
       if (cell_load[c] >= a1_max_ue_per_cell) continue;
       if (best < 0 || cell_load[c] < cell_load[best]) best = c;
     }
-    if (best < 0) best = 0;
+    if (best < 0) {
+      /* every cell is at cap: infeasible, do not violate the cap */
+      fprintf(stderr, "[Q-xApp TS] greedy_match: UE %d has no feasible cell "
+                      "under cap %d (assignment infeasible)\n",
+              u, a1_max_ue_per_cell);
+      return -1;
+    }
     assignment[u] = best;
     cell_load[best]++;
   }
+  return 0;
 }
 
 /* == Quantum TS matching implementation ==================================== */
@@ -158,7 +220,8 @@ static const char *qx_ts_script(void)
 static void read_quantum_config(void)
 {
   int enabled = 1;
-  FILE *fp = fopen(QUANTUM_CONFIG_FILE, "r");
+  char cfg_path[512];
+  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path), QUANTUM_CONFIG_FILE_NAME), "r");
   if (fp) {
     char buf[64] = {0};
     if (fgets(buf, sizeof(buf), fp))
@@ -584,9 +647,22 @@ static void drb_match(int assignment[NUM_UE])
 static int forced_sleep_cells[NUM_CELL];
 static int n_forced_sleep = 0;
 
+/* Is cell index c an operator-forced-sleep cell? Such cells are excluded from
+ * NES assignment entirely (not merely deprioritised) so a forced cell always
+ * ends up with 0 UEs and in the sleep set (Codex §18). */
+static int is_forced_sleep_cell(int c)
+{
+  for (int fs = 0; fs < n_forced_sleep; fs++)
+    if (CELL_IDS[c] == forced_sleep_cells[fs]) return 1;
+  return 0;
+}
+
 /* energy-aware matching: pack UEs into minimum cells */
-static void energy_aware_match(int assignment[NUM_UE],
-                               int *out_active, int sleep_cells[], int *out_n_sleep)
+/* Returns 0 on success, -1 if the awake cells cannot hold all UEs under the
+ * cap (R2.6): infeasible NES packing fails closed instead of forcing an
+ * over-cap UE onto (possibly sleeping) cell 0. */
+static int energy_aware_match(int assignment[NUM_UE],
+                              int *out_active, int sleep_cells[], int *out_n_sleep)
 {
   typedef struct { double capacity; int cell_idx; } cell_cap_t;
   cell_cap_t caps[NUM_CELL];
@@ -650,6 +726,7 @@ static void energy_aware_match(int assignment[NUM_UE],
   if (!used_quantum)
   for (int ci = 0; ci < NUM_CELL; ci++) {
     int c = caps[ci].cell_idx;
+    if (is_forced_sleep_cell(c)) continue;  /* never assign to a forced cell */
     typedef struct { double rate; int ue; } ue_rate_t;
     ue_rate_t candidates[NUM_UE];
     int nc = 0;
@@ -678,10 +755,15 @@ static void energy_aware_match(int assignment[NUM_UE],
     if (assignment[u] >= 0) continue;
     int best = -1;
     for (int c = 0; c < NUM_CELL; c++) {
+      if (is_forced_sleep_cell(c)) continue;   /* forced cells stay empty */
       if (cell_load[c] >= a1_max_ue_per_cell) continue;
       if (best < 0 || cell_load[c] < cell_load[best]) best = c;
     }
-    if (best < 0) best = 0;
+    if (best < 0) {
+      fprintf(stderr, "[Q-xApp NES] no awake cell can hold UE %d under cap %d "
+                      "(NES packing infeasible)\n", u, a1_max_ue_per_cell);
+      return -1;
+    }
     assignment[u] = best;
     cell_load[best]++;
   }
@@ -700,6 +782,7 @@ static void energy_aware_match(int assignment[NUM_UE],
 
   *out_active = active;
   *out_n_sleep = n_sleep;
+  return 0;
 }
 
 
@@ -709,7 +792,8 @@ static void energy_aware_match(int assignment[NUM_UE],
 static void read_sleep_config(void)
 {
   n_forced_sleep = 0;
-  FILE *fp = fopen(SLEEP_CONFIG_FILE, "r");
+  char cfg_path[512];
+  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path), SLEEP_CONFIG_FILE_NAME), "r");
   if (!fp) return;
   char buf[256];
   if (!fgets(buf, sizeof(buf), fp)) { fclose(fp); return; }
@@ -736,7 +820,8 @@ static int energy_initialized = 0;
 
 static void read_a1_policy(void)
 {
-  FILE *fp = fopen(A1_POLICY_FILE, "r");
+  char cfg_path[512];
+  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path), A1_POLICY_FILE_NAME), "r");
   if (!fp) { a1_max_ue_per_cell = 2; return; }
   char buf[64];
   if (fgets(buf, sizeof(buf), fp)) {
@@ -749,7 +834,7 @@ static void read_a1_policy(void)
 static double read_net_energy_from_csv(int cell_id, double *out_time)
 {
   char path[512];
-  sprintf(path, "%s/energyfilecell%d.csv", CSV_DIR, cell_id);
+  snprintf(path, sizeof(path), "%s/energyfilecell%d.csv", qx_data_dir(), cell_id);
   FILE *fp = fopen(path, "r");
   if (!fp) return 0.0;
   char last_line[256] = "";
@@ -800,7 +885,14 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
                                       const char *mode,
                                       int active_cells, int sleep_cells[], int n_sleep)
 {
-  FILE *fp = fopen(RESULT_JSON, "w");
+  /* Atomic publish (R4.5, pulled forward): finish a temp file in the same
+   * directory then rename() over RESULT_JSON, so the GUI never reads a
+   * half-written document. */
+  char rj_path[512];
+  qx_data_path(rj_path, sizeof(rj_path), RESULT_JSON_NAME);
+  char tmp_path[600];
+  snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%d", rj_path, (int)getpid());
+  FILE *fp = fopen(tmp_path, "w");
   if (!fp) return;
   fprintf(fp, "{\n");
   fprintf(fp, "  \"mode\": \"%s\",\n", mode);
@@ -849,14 +941,22 @@ static void write_result_json_unified(int assignment[NUM_UE], double total_rate,
   fprintf(fp, "  \"cycle_finished\": %s,\n", g_cycle_finished ? "true" : "false");
   fprintf(fp, "  \"cycle_status\": \"%s\",\n", g_cycle_status);
   fprintf(fp, "  \"energy_sample_time\": %.3f\n}\n", g_energy_sample_time);
+  fflush(fp);
+  fsync(fileno(fp));
   fclose(fp);
-  printf("[Q-xApp] Result written to %s\n", RESULT_JSON);
+  if (rename(tmp_path, rj_path) != 0) {
+    fprintf(stderr, "[Q-xApp] atomic rename to %s failed\n", rj_path);
+    unlink(tmp_path);
+    return;
+  }
+  printf("[Q-xApp] Result written to %s\n", rj_path);
 }
 
 /* read mode from file */
 static void read_mode(char *mode_buf, size_t buf_sz)
 {
-  FILE *fp = fopen(MODE_FILE, "r");
+  char cfg_path[512];
+  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path), MODE_FILE_NAME), "r");
   if (!fp) {
     strncpy(mode_buf, "ts", buf_sz);
     return;
@@ -956,6 +1056,10 @@ static void use_case_encoder(const char *mode)
     printf(", max_ue_per_cell=%d\n", a1_max_ue_per_cell);
   } else {
     read_sleep_config();
+    /* NES also honours the A1 cap so its awake-cell packing / feasibility
+     * gate uses the current policy, not a stale value (Codex §16). */
+    read_a1_policy();
+    printf("[Q-xApp NES] max_ue_per_cell=%d\n", a1_max_ue_per_cell);
     if (n_forced_sleep > 0) {
       printf("[Q-xApp NES] Forced sleep cells:");
       for (int i = 0; i < n_forced_sleep; i++)
@@ -969,28 +1073,62 @@ static void use_case_encoder(const char *mode)
  * frozen assignment; the state machine itself lives below Stage 2. */
 static int init_ts_converged = 0;
 static int init_ts_target[NUM_UE] = {-1, -1, -1, -1};
+/* Manual-QoS freshness anchor (Codex blocker 5): captured on qos entry so
+ * grouping only trusts a measurement scan newer than the anchor. */
+static uint64_t qos_meas_anchor[NUM_UE] = {0};
 
-/* Stage 2: Quantum Assignment Algorithm (Fig. 2) */
-static void assignment_algorithm(const char *mode,
-                                 int assignment[NUM_UE],
-                                 int *active_cells,
-                                 int sleep_cells[],
-                                 int *n_sleep)
+/* Stage 2: Quantum Assignment Algorithm (Fig. 2).
+ * Returns STAGE2_OK, STAGE2_INFEASIBLE (mathematically over-cap / no packing),
+ * or STAGE2_NOT_READY (transient stale/not-ready measurement) — the caller
+ * maps these to infeasible vs pending status (Codex blocker 4). */
+static int assignment_algorithm(const char *mode, int is_auto,
+                                int assignment[NUM_UE],
+                                int *active_cells,
+                                int sleep_cells[],
+                                int *n_sleep)
 {
   printf("[Q-xApp] --- Stage 2: Quantum Assignment Algorithm ---\n");
 
   if (strcmp(mode, "nes") == 0) {
-    energy_aware_match(assignment, active_cells, sleep_cells, n_sleep);
+    if (energy_aware_match(assignment, active_cells, sleep_cells, n_sleep) != 0)
+      return STAGE2_INFEASIBLE;   /* NES packing infeasible under cap (R2.6) */
+    /* validate the (possibly quantum 4x2) result against the cap (blocker 5) */
+    if (!assignment_within_cap(assignment, sleep_cells, *n_sleep)) {
+      fprintf(stderr, "[Q-xApp NES] assignment exceeds cap or lands on a sleep "
+                      "cell — rejecting (fail-closed)\n");
+      return STAGE2_INFEASIBLE;
+    }
   } else if (strcmp(mode, "qos") == 0) {
-    /* QoS must not re-steer: use the converged frozen INIT-TS assignment.
-     * Re-running greedy_match here could diverge from actual serving state
-     * mid-cycle (Codex INIT-TS review §3). Manual qos mode (no INIT-TS)
-     * falls back to greedy. */
-    if (init_ts_converged) {
+    /* QoS must not re-steer. Only AUTO qos reuses the converged frozen
+     * INIT-TS assignment. MANUAL qos ALWAYS groups by the ACTUAL measured
+     * serving cell, never a stale frozen target — `init_ts_converged` is a
+     * global that is not reset after an auto cycle, so keying on it alone
+     * would leak the old target into a later manual qos in the same process
+     * (Codex blocker 3). */
+    if (is_auto && init_ts_converged) {
       for (int u = 0; u < NUM_UE; u++) assignment[u] = init_ts_target[u];
-      printf("[Q-xApp QoS-RA] Using frozen INIT-TS assignment\n");
+      printf("[Q-xApp QoS-RA] Using frozen INIT-TS assignment (auto)\n");
     } else {
-      greedy_match(assignment);
+      /* fresh (newer-than-anchor) serving row required for every UE */
+      int all_fresh = 1;
+      for (int u = 0; u < NUM_UE; u++)
+        if (!meas_fresh_since(u, qos_meas_anchor[u]) || serving_cell[u] < 0)
+          all_fresh = 0;
+      if (!all_fresh) {
+        fprintf(stderr, "[Q-xApp QoS-RA] measured serving state not-ready/stale "
+                        "— withholding DRB control this round (pending)\n");
+        return STAGE2_NOT_READY;   /* transient, not a math infeasibility */
+      }
+      for (int u = 0; u < NUM_UE; u++) assignment[u] = serving_cell[u];
+      printf("[Q-xApp QoS-RA] Grouping by measured serving cells (manual)\n");
+    }
+    /* validate the QoS cell assignment (frozen auto target or measured
+     * serving) against the cap before any DRB control (Codex §15-3): a cell
+     * carrying more than cap UEs must fail closed, not proceed to RC. */
+    if (!assignment_within_cap(assignment, NULL, 0)) {
+      fprintf(stderr, "[Q-xApp QoS-RA] cell assignment exceeds cap — "
+                      "withholding DRB control (fail-closed)\n");
+      return STAGE2_INFEASIBLE;
     }
     /* QoS-RA xApp: UE-DRB assignment (runs in parallel with TS) */
     drb_match(assignment);
@@ -1006,9 +1144,9 @@ static void assignment_algorithm(const char *mode,
         quantum_ok_count++;
         /* verification logging (Codex 12차): greedy comparison per decision */
         int g[NUM_UE];
-        greedy_match(g);
         double g_score = 0.0;
-        for (int u = 0; u < NUM_UE; u++) g_score += sinr_matrix[u][g[u]];
+        if (greedy_match(g) == 0)
+          for (int u = 0; u < NUM_UE; u++) g_score += sinr_matrix[u][g[u]];
         printf("[Q-xApp TS] quantum decision: assign=[%d,%d,%d,%d] q_score=%.4f "
                "greedy_score=%.4f solver_ms=%d ok=%ld fallback=%ld\n",
                assignment[0], assignment[1], assignment[2], assignment[3],
@@ -1021,8 +1159,16 @@ static void assignment_algorithm(const char *mode,
                 quantum_ok_count, quantum_fallback_count);
       }
     }
-    if (ts_quantum_state != 1)
-      greedy_match(assignment);
+    if (ts_quantum_state != 1) {
+      if (greedy_match(assignment) != 0)
+        return STAGE2_INFEASIBLE;   /* infeasible: fail closed */
+    }
+    /* validate the (possibly quantum TS) result against the cap (blocker 5) */
+    if (!assignment_within_cap(assignment, NULL, 0)) {
+      fprintf(stderr, "[Q-xApp TS] assignment exceeds cap — rejecting "
+                      "(fail-closed)\n");
+      return STAGE2_INFEASIBLE;
+    }
     *active_cells = NUM_CELL;
     *n_sleep = 0;
   }
@@ -1056,8 +1202,52 @@ static void assignment_algorithm(const char *mode,
     }
   }
 
-  /* Write result JSON */
-  write_result_json_unified(assignment, total_rate, mode, *active_cells, sleep_cells, *n_sleep);
+  /* Write result JSON — EXCEPT for manual ts, where the intended target must
+   * not be published as an achieved serving state (Codex blocker 4). The main
+   * loop publishes the achieved serving state with an honest status after the
+   * MANUAL-TS state machine runs. */
+  if (!(!is_auto && strcmp(mode, "ts") == 0))
+    write_result_json_unified(assignment, total_rate, mode, *active_cells, sleep_cells, *n_sleep);
+  return STAGE2_OK;
+}
+
+/* ── mode-entry side effects (Codex §16): reset scheduler weights / wake all
+ *    cells. Extracted so the SINGLE effective-entry detector runs them exactly
+ *    once for every entry — first process entry, mode-string change, and the
+ *    auto->manual boundary alike — with no duplicate RC. ────────────────── */
+static void entry_reset_scheduler_weights(e2_node_arr_xapp_t *nodes)
+{
+  printf("[Q-xApp] Resetting all UE scheduling weights...\n");
+  for (int u = 0; u < NUM_UE; u++) {
+    uint64_t imsi = (uint64_t)(u + 1);
+    ue_id_e2sm_t rst_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
+    rc_ctrl_req_data_t rst_ctrl = {0};
+    rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
+    rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
+    for (size_t i = 0; i < nodes->len; i++) {
+      control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &rst_ctrl);
+      usleep(100000);
+    }
+    free_rc_ctrl_req_data(&rst_ctrl);
+  }
+}
+
+static void entry_wake_all_cells(e2_node_arr_xapp_t *nodes)
+{
+  printf("[Q-xApp] Waking up all cells...\n");
+  for (int c = 0; c < NUM_CELL; c++) {
+    char wake_cell = '0' + CELL_IDS[c];
+    ue_id_e2sm_t wake_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
+    rc_ctrl_req_data_t wake_ctrl = {0};
+    wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
+    wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
+    for (size_t i = 0; i < nodes->len; i++) {
+      control_sm_xapp_api(&nodes->n[i].id, SM_RC_ID, &wake_ctrl);
+      usleep(100000);
+    }
+    free_rc_ctrl_req_data(&wake_ctrl);
+    printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
+  }
 }
 
 /* ── common HO send + fresh-measurement confirmation (Codex INIT-TS design):
@@ -1174,6 +1364,139 @@ static void init_ts_enforce(int assignment[NUM_UE], e2_node_arr_xapp_t *nodes, i
   }
 }
 
+/* ── MANUAL-TS state machine (R2.1): makes manual `ts` mode an actual control
+ *    path instead of an assignment preview. Reuses the SAME verified
+ *    primitives as INIT-TS (send_rc_ho_tagged + ho_confirmed_fresh) so the
+ *    two paths cannot drift apart. Unlike INIT-TS there is no fixed auto
+ *    round window; the target is frozen on an explicit recompute EVENT
+ *    (manual-ts entry, or an A1-policy change) and driven to serving state
+ *    with a bounded retry. It never declares convergence on stale data and
+ *    never publishes success on a timeout — it fails closed and keeps
+ *    watching until the next recompute event. */
+/* MANUAL-TS status returned each round (Codex blocker 4). */
+#define MTS_WAIT      0   /* no fresh-measurement freeze yet */
+#define MTS_PENDING   1   /* frozen, HO in flight / not yet confirmed */
+#define MTS_CONVERGED 2   /* all UEs confirmed serving == target (fresh) */
+#define MTS_TIMEOUT   3   /* deadline reached without convergence */
+
+static int manual_ts_frozen = 0;
+static int manual_ts_state = MTS_WAIT;
+static int manual_ts_target[NUM_UE] = {-1, -1, -1, -1};
+static int manual_ts_ho_count[NUM_UE] = {0};
+static uint64_t manual_ts_send_ts[NUM_UE] = {0};
+static int manual_ts_sent_round[NUM_UE] = {0};
+static int manual_ts_confirmed[NUM_UE] = {0};
+static uint64_t manual_ts_anchor[NUM_UE] = {0};   /* freshness anchor per UE */
+static int manual_ts_freeze_round = 0;
+static int manual_ts_cap_seen = -1;
+#define MANUAL_TS_RETRY_AFTER 3   /* rounds after freeze before the one retry */
+#define MANUAL_TS_DEADLINE 6      /* rounds after freeze -> fail-closed */
+
+/* Reset so the next manual_ts_enforce() refreezes the target. Called on
+ * manual-ts entry and on an A1-policy (cap) change. Captures a per-UE
+ * freshness anchor at the event time so freeze/convergence require a NEWER
+ * measurement scan. */
+static void manual_ts_reset(const char *why)
+{
+  manual_ts_frozen = 0;
+  manual_ts_state = MTS_WAIT;
+  for (int u = 0; u < NUM_UE; u++) {
+    manual_ts_target[u] = -1;
+    manual_ts_ho_count[u] = 0;
+    manual_ts_send_ts[u] = 0;
+    manual_ts_sent_round[u] = 0;
+    manual_ts_confirmed[u] = 0;
+    manual_ts_anchor[u] = meas_ts[u];   /* only newer scans count from here */
+  }
+  printf("[MANUAL-TS] recompute event (%s): target will refreeze on a fresh "
+         "measurement scan\n", why);
+}
+
+/* Returns the MANUAL-TS status this round. */
+static int manual_ts_enforce(int assignment[NUM_UE], e2_node_arr_xapp_t *nodes,
+                             int round)
+{
+  /* An A1-policy change is an explicit recompute event. */
+  if (manual_ts_cap_seen != a1_max_ue_per_cell) {
+    if (manual_ts_cap_seen != -1) manual_ts_reset("A1 cap changed");
+    manual_ts_cap_seen = a1_max_ue_per_cell;
+  }
+
+  /* Freeze once per event, only when EVERY UE has a fresh (newer-than-anchor)
+   * measurement — never on a stale repeat of the previous scan. */
+  if (!manual_ts_frozen) {
+    int all_fresh = 1;
+    for (int u = 0; u < NUM_UE; u++)
+      if (!meas_fresh_since(u, manual_ts_anchor[u])) all_fresh = 0;
+    if (!all_fresh) {
+      printf("[MANUAL-TS] waiting for a fresh measurement scan (round %d)\n",
+             round);
+      manual_ts_state = MTS_WAIT;
+      return MTS_WAIT;
+    }
+    for (int u = 0; u < NUM_UE; u++) {
+      manual_ts_target[u] = assignment[u];
+      printf("[MANUAL-TS] target frozen: UE %d -> %s (serving=%s)\n", u,
+             (manual_ts_target[u] >= 0) ? ORU_NAMES[manual_ts_target[u]] : "none",
+             (serving_cell[u] >= 0) ? ORU_NAMES[serving_cell[u]] : "n/a");
+    }
+    manual_ts_frozen = 1;
+    manual_ts_freeze_round = round;
+    manual_ts_state = MTS_PENDING;
+  }
+  if (manual_ts_state == MTS_CONVERGED || manual_ts_state == MTS_TIMEOUT)
+    return manual_ts_state;
+
+  int all_conv = 1;
+  for (int u = 0; u < NUM_UE; u++) {
+    int tgt = manual_ts_target[u];
+    if (tgt < 0) continue;
+    if (manual_ts_ho_count[u] == 0) {
+      /* "already there" only counts with a FRESH row, not a stale repeat */
+      if (meas_fresh_since(u, manual_ts_anchor[u]) && serving_cell[u] == tgt) {
+        manual_ts_confirmed[u] = 1;
+        continue;
+      }
+      manual_ts_send_ts[u] = send_rc_ho_tagged(nodes, u, tgt, "MANUAL-TS");
+      manual_ts_ho_count[u] = 1;
+      manual_ts_sent_round[u] = round;
+      all_conv = 0;
+      continue;
+    }
+    if (manual_ts_confirmed[u]) continue;
+    if (ho_confirmed_fresh(u, tgt, manual_ts_send_ts[u])) {
+      manual_ts_confirmed[u] = 1;
+      printf("[MANUAL-TS] HO confirmed IMSI=%d serving=%s (fresh measurement)\n",
+             u + 1, ORU_NAMES[tgt]);
+      continue;
+    }
+    all_conv = 0;
+    if (manual_ts_ho_count[u] == 1 &&
+        round >= manual_ts_freeze_round + MANUAL_TS_RETRY_AFTER &&
+        round > manual_ts_sent_round[u]) {
+      printf("[MANUAL-TS] retry: UE %d not confirmed, resending\n", u);
+      manual_ts_send_ts[u] = send_rc_ho_tagged(nodes, u, tgt, "MANUAL-TS");
+      manual_ts_ho_count[u] = 2;
+      manual_ts_sent_round[u] = round;
+    }
+  }
+  if (all_conv) {
+    manual_ts_state = MTS_CONVERGED;
+    printf("[MANUAL-TS] converged at round %d (all UEs serving==target, "
+           "fresh)\n", round);
+  } else if (round >= manual_ts_freeze_round + MANUAL_TS_DEADLINE) {
+    manual_ts_state = MTS_TIMEOUT;
+    printf("[MANUAL-TS] TIMEOUT — not confirmed by deadline (fail-closed):");
+    for (int u = 0; u < NUM_UE; u++)
+      if (manual_ts_target[u] >= 0 && !manual_ts_confirmed[u])
+        printf(" UE%d", u);
+    printf("\n");
+  } else {
+    manual_ts_state = MTS_PENDING;
+  }
+  return manual_ts_state;
+}
+
 /* NES evacuation confirmation state */
 static uint64_t nes_send_ts[NUM_UE] = {0};
 static int nes_evac_failed = 0;
@@ -1199,9 +1522,13 @@ static void output_interpreter(const char *mode,
   /* ho_sent moved to file scope */
   /* sleep_sent moved to file scope */
   /* qos_sent moved to file scope */
-  /* RC HO only in NES mode, only for UEs on sleeping cells */
+  /* This gate is for NES *evacuation* HO only. In ts mode the actual RC-HO is
+   * driven separately by the INIT-TS (auto) / MANUAL-TS (manual) state
+   * machines before this stage, so "no evacuation HO here" does NOT mean the
+   * xApp is only previewing (R2.1). */
   if (strcmp(mode, "nes") != 0) {
-    printf("[Q-xApp] Skipping RC HO (not NES mode)\n");
+    printf("[Q-xApp] No NES evacuation HO this stage (mode=%s; ts HO is "
+           "handled by the INIT-TS/MANUAL-TS state machine)\n", mode);
     for (int i=0;i<NUM_UE;i++) ho_sent[i]=0;
     sleep_sent = 0;
     nes_round_count = 0;
@@ -1404,6 +1731,10 @@ skip_sleep:
  * ========================================================================= */
 int main(int argc, char *argv[])
 {
+  /* Validate an injected QXAPP_DATA_DIR before connecting to the RIC or
+   * sending any control: a bad path must fail the process immediately. */
+  qx_data_dir();
+
   fr_args_t args = init_fr_args(argc, argv);
 
   init_xapp_api(&args);
@@ -1572,9 +1903,20 @@ int main(int argc, char *argv[])
           continue;
         }
         if (!post_wake_ho_done) {
-          /* TS recompute on fresh measurements */
+          /* TS recompute on fresh measurements (classical recovery, R2.3
+           * choice B). The cap was validated at the TS-window gate, so this
+           * is expected to succeed; on infeasibility abort the recovery
+           * instead of publishing an over-cap assignment. */
           int rec_assign[NUM_UE];
-          greedy_match(rec_assign);
+          if (greedy_match(rec_assign) != 0) {
+            printf("[POST-WAKE] recompute infeasible under cap %d — abort recovery\n",
+                   a1_max_ue_per_cell);
+            g_cycle_finished = 1; g_cycle_status = "infeasible";
+            { int ns_fin[1] = {0}; write_result_json_unified(prev_assignment, 0.0, "ts", NUM_CELL, ns_fin, 0); }
+            post_wake_ts_done = 1;
+            sleep(10);
+            continue;
+          }
           for (int u = 0; u < NUM_UE; u++) rec_final_assign[u] = rec_assign[u]; /* preserve for final publish */
           for (int u = 0; u < NUM_UE; u++)
             printf("[POST-WAKE] UE %d measured serving=%s computed assignment=%s\n", u,
@@ -1639,83 +1981,10 @@ int main(int argc, char *argv[])
       }
     }
 
-    /* Handle mode transitions — skip on initial startup (prev_mode empty) */
-    if (strcmp(mode, prev_mode) != 0 && strlen(prev_mode) > 0) {
-      if (strcmp(mode, "nes") == 0) {
-        printf("[Q-xApp] Mode switched to: NES\n");
-      /* Reset all UE scheduling weights to default */
-      for (int u = 0; u < NUM_UE; u++) {
-        uint64_t imsi = (uint64_t)(u + 1);
-        ue_id_e2sm_t rst_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
-        rc_ctrl_req_data_t rst_ctrl = {0};
-        rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
-        rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
-        for (size_t i = 0; i < nodes.len; i++) {
-          control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rst_ctrl);
-          usleep(100000);
-        }
-        free_rc_ctrl_req_data(&rst_ctrl);
-      }
-      } else if (strcmp(mode, "qos") == 0) {
-        printf("[Q-xApp] Mode switched to: QoS-based Resource Allocation\n");
-        qos_sent = 0; /* reset gate on QoS entry */
-        /* Wake up ALL cells when switching to QoS-RA */
-        printf("[Q-xApp] Waking up all cells...\n");
-        for (int c = 0; c < NUM_CELL; c++) {
-          char wake_cell = '0' + CELL_IDS[c];
-          ue_id_e2sm_t wake_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
-          rc_ctrl_req_data_t wake_ctrl = {0};
-          wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
-          wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
-          for (size_t i = 0; i < nodes.len; i++) {
-            control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
-            usleep(100000);
-          }
-          free_rc_ctrl_req_data(&wake_ctrl);
-          printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
-        }
-      } else {
-        printf("[Q-xApp] Mode switched to: Traffic Steering\n");
-        /* Reset all UE scheduling weights to default */
-        printf("[Q-xApp] Resetting all UE scheduling weights...\n");
-        for (int u = 0; u < NUM_UE; u++) {
-          uint64_t imsi = (uint64_t)(u + 1);
-          ue_id_e2sm_t rst_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, imsi);
-          rc_ctrl_req_data_t rst_ctrl = {0};
-          rst_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, rst_ue_id, 1, 4);
-          rst_ctrl.msg = gen_rc_ctrl_msg_drb(FORMAT_1_E2SM_RC_CTRL_MSG, '2');
-          for (size_t i = 0; i < nodes.len; i++) {
-            control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &rst_ctrl);
-            usleep(100000);
-          }
-          free_rc_ctrl_req_data(&rst_ctrl);
-        }
-        /* Wake up ALL cells when switching to TS */
-        printf("[Q-xApp] Waking up all cells...\n");
-        for (int c = 0; c < NUM_CELL; c++) {
-          char wake_cell = '0' + CELL_IDS[c];
-          ue_id_e2sm_t wake_ue_id = gen_rc_ue_id(GNB_UE_ID_E2SM, 1);
-          rc_ctrl_req_data_t wake_ctrl = {0};
-          wake_ctrl.hdr = gen_rc_ctrl_hdr(FORMAT_1_E2SM_RC_CTRL_HDR, wake_ue_id, 300, 2);
-          wake_ctrl.msg = gen_rc_ctrl_msg_energy(FORMAT_1_E2SM_RC_CTRL_MSG, wake_cell);
-          for (size_t i = 0; i < nodes.len; i++) {
-            control_sm_xapp_api(&nodes.n[i].id, SM_RC_ID, &wake_ctrl);
-            usleep(100000);
-          }
-          free_rc_ctrl_req_data(&wake_ctrl);
-          printf("[Q-xApp] Wake up cell ID=%d\n", CELL_IDS[c]);
-        }
-      }
-      /*
-       * Keep the previous TS/QoS serving assignment when entering NES.
-       * NES HO uses prev_assignment to identify UEs that are currently on
-       * the cell that will sleep; resetting it here makes every NES HO skip.
-       */
-      if (strcmp(mode, "nes") != 0) {
-        for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
-      }
-    }
-    /* Always update prev_mode (outside transition block so it works on first round too) */
+    /* Mode-entry side effects are now handled by the SINGLE effective-entry
+     * detector below (Codex §16), so there is no separate mode-string
+     * transition block here (which used to miss first-process entry and the
+     * auto->manual boundary). prev_mode is still tracked for other uses. */
     strncpy(prev_mode, mode, sizeof(prev_mode));
 
     printf("===== Q-xApp Round %d [mode=%s] =====\n", round, mode);
@@ -1728,12 +1997,152 @@ int main(int argc, char *argv[])
 
     use_case_encoder(mode);                                                        /* Stage 1 */
     read_quantum_config(); /* after Stage 1 so provenance sees this round's A1 policy */
-    assignment_algorithm(mode, assignment, &active_cells, sleep_cells, &n_sleep);  /* Stage 2 */
-    /* INIT-TS enforcement (auto TS window only): freeze the computed
-     * assignment once and drive ACTUAL serving state to it before QoS. */
-    if (is_auto && strcmp(mode, "ts") == 0 && round <= AUTO_TS_ROUNDS && !init_ts_failed)
+
+    /* EARLY infeasible-policy gate (Codex §17/§18): runs BEFORE any entry side
+     * effect, so an infeasible policy sends ZERO CONTROL-REQUEST — including
+     * entry scheduler-reset / wake. For NES the forced-sleep cells reduce the
+     * awake capacity, so the check uses awake_cells = NUM_CELL - n_forced_sleep
+     * (use_case_encoder already read the sleep config this round). TS/QoS keep
+     * all NUM_CELL awake. cap=1 (any mode) and cap=2 with 2 forced-sleep cells
+     * both fail closed. Result JSON is all-unassigned, cycle_status=infeasible. */
+    static int was_infeasible = 0;
+    int awake_cells = (strcmp(mode, "nes") == 0)
+                      ? (NUM_CELL - n_forced_sleep) : NUM_CELL;
+    if (!assignment_feasible_awake(awake_cells)) {
+      fprintf(stderr, "[Q-xApp] infeasible policy: %d UEs cannot fit %d awake "
+                      "cells x cap %d — control suspended before any RC "
+                      "(mode=%s)\n",
+              NUM_UE, awake_cells, a1_max_ue_per_cell, mode);
+      g_cycle_status = "infeasible";
+      was_infeasible = 1;
+      int no_sleep[1] = {0};
+      int err_assign[NUM_UE];
+      for (int u = 0; u < NUM_UE; u++) err_assign[u] = -1;
+      write_result_json_unified(err_assign, 0.0, mode, NUM_CELL, no_sleep, 0);
+      printf("[Q-xApp] Round %d complete (infeasible). [mode=%s]\n", round, mode);
+      sleep(10);
+      continue;
+    }
+
+    /* SINGLE effective-mode entry handler (Codex §16), runs ONLY for a feasible
+     * policy so no entry RC precedes an infeasible fail-closed. An "entry" is
+     * any change of (effective mode, is_auto) — including the FIRST process
+     * round and the auto->manual boundary where the mode string does not
+     * change. Every entry runs its side effects EXACTLY ONCE (no duplicate RC).
+     *   ts  entry: manual target reset (manual only) + scheduler reset + wake all
+     *   qos entry: freshness anchor (manual only) + qos_sent=0 + wake all
+     *   nes entry: scheduler reset (prev_assignment kept for evacuation) */
+    {
+      static char prev_eff_mode[32] = "";
+      static int prev_eff_is_auto = -1;
+      int is_entry = (strcmp(prev_eff_mode, mode) != 0 ||
+                      prev_eff_is_auto != is_auto);
+      if (is_entry) {
+        if (strcmp(mode, "ts") == 0) {
+          printf("[Q-xApp] Mode entry: Traffic Steering (%s)\n",
+                 is_auto ? "auto" : "manual");
+          if (!is_auto) manual_ts_reset("manual-ts entry (effective mode)");
+          entry_reset_scheduler_weights(&nodes);
+          entry_wake_all_cells(&nodes);
+          for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
+        } else if (strcmp(mode, "qos") == 0) {
+          printf("[Q-xApp] Mode entry: QoS-RA (%s)\n",
+                 is_auto ? "auto" : "manual");
+          qos_sent = 0;   /* DRB control gate: allow a real send this entry */
+          if (!is_auto) {
+            for (int u = 0; u < NUM_UE; u++) qos_meas_anchor[u] = meas_ts[u];
+            printf("[Q-xApp QoS-RA] manual-qos entry: freshness anchor set\n");
+          }
+          entry_wake_all_cells(&nodes);
+          for (int u = 0; u < NUM_UE; u++) prev_assignment[u] = -1;
+        } else if (strcmp(mode, "nes") == 0) {
+          printf("[Q-xApp] Mode entry: NES\n");
+          entry_reset_scheduler_weights(&nodes);
+          /* keep prev_assignment: NES evacuation needs the serving cells */
+        }
+      }
+      strncpy(prev_eff_mode, mode, sizeof(prev_eff_mode) - 1);
+      prev_eff_mode[sizeof(prev_eff_mode) - 1] = 0;
+      prev_eff_is_auto = is_auto;
+    }
+    if (was_infeasible) {
+      /* cap recovered to a feasible value: clear the error state and force a
+       * target recompute so we don't reuse a stale/frozen target (R2.6). */
+      was_infeasible = 0;
+      g_cycle_status = "running";
+      manual_ts_reset("cap recovered to feasible");
+      printf("[Q-xApp] policy feasible again (cap=%d) — status running, "
+             "recomputing targets\n", a1_max_ue_per_cell);
+    }
+
+    /* Publish the live status from the FIRST successful decision's JSON, not a
+     * round late (Codex §15-2). assignment_algorithm writes the result JSON
+     * for qos/nes/auto-ts, so g_cycle_status must already be "running" when it
+     * does. Set it optimistically here and overwrite it below if Stage 2
+     * withholds control. (manual ts suppresses that JSON and sets its own
+     * honest status after the state machine runs.) */
+    if (!(!is_auto && strcmp(mode, "ts") == 0))
+      g_cycle_status = "running";
+
+    int stage2_rc = assignment_algorithm(mode, is_auto, assignment,
+                                         &active_cells, sleep_cells,
+                                         &n_sleep);                  /* Stage 2 */
+    if (stage2_rc != STAGE2_OK) {
+      /* Distinguish transient not-ready (pending) from math infeasibility
+       * (error). Either way send no RC control and publish an explicit,
+       * non-success status so the GUI never shows a stale success (blocker 4). */
+      const char *st = (stage2_rc == STAGE2_NOT_READY) ? "pending" : "infeasible";
+      if (stage2_rc == STAGE2_INFEASIBLE) was_infeasible = 1;
+      fprintf(stderr, "[Q-xApp] Stage 2 withheld control (mode=%s, status=%s)\n",
+              mode, st);
+      g_cycle_status = st;
+      int no_sleep[1] = {0};
+      int err_assign[NUM_UE];
+      for (int u = 0; u < NUM_UE; u++) err_assign[u] = -1;
+      write_result_json_unified(err_assign, 0.0, mode, NUM_CELL, no_sleep, 0);
+      printf("[Q-xApp] Round %d complete (%s). [mode=%s]\n", round, st, mode);
+      sleep(10);
+      continue;
+    }
+
+    if (is_auto && strcmp(mode, "ts") == 0 && round <= AUTO_TS_ROUNDS && !init_ts_failed) {
+      /* INIT-TS enforcement (auto TS window only). */
       init_ts_enforce(assignment, &nodes, round);
-    output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
+      output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes);
+    } else if (!is_auto && strcmp(mode, "ts") == 0) {
+      /* MANUAL-TS (R2.1/2.4): the intended target from Stage 2 was NOT
+       * published (assignment_algorithm suppresses the ts JSON in manual
+       * mode); we publish the ACHIEVED serving state with an honest status
+       * and only run the output interpreter once converged. */
+      int mts = manual_ts_enforce(assignment, &nodes, round);
+      int serving_assign[NUM_UE];
+      double serving_rate = 0.0;
+      for (int u = 0; u < NUM_UE; u++) {
+        serving_assign[u] = (meas_valid[u] ? serving_cell[u] : -1);
+        if (serving_assign[u] >= 0)
+          serving_rate += sinr_matrix[u][serving_assign[u]];
+      }
+      int no_sleep[1] = {0};
+      if (mts == MTS_CONVERGED) {
+        g_cycle_status = "running";
+        output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes);
+        /* publish the ACHIEVED serving state with the running status (the
+         * intended-target JSON was suppressed; output_interpreter itself does
+         * not write the result JSON in ts mode) */
+        write_result_json_unified(serving_assign, serving_rate, mode, NUM_CELL, no_sleep, 0);
+      } else if (mts == MTS_TIMEOUT) {
+        g_cycle_status = "error";
+        fprintf(stderr, "[MANUAL-TS] fail-closed: publishing serving state, "
+                        "no further RC control this event\n");
+        write_result_json_unified(serving_assign, serving_rate, mode, NUM_CELL, no_sleep, 0);
+      } else {
+        /* WAIT/PENDING: do not present the intended target as achieved */
+        g_cycle_status = "pending";
+        write_result_json_unified(serving_assign, serving_rate, mode, NUM_CELL, no_sleep, 0);
+      }
+    } else {
+      output_interpreter(mode, assignment, prev_assignment, sleep_cells, n_sleep, &nodes); /* Stage 3 */
+    }
 
     printf("[Q-xApp] Round %d complete. [mode=%s]\n", round, mode);
     sleep(10);

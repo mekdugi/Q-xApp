@@ -1,19 +1,23 @@
 #!/bin/bash
-# Start data pusher in background (retries until InfluxDB is ready)
+# Start data pusher in background (restarts if it ever exits; the pusher's
+# durable cursor in /host_data/.pusher_cursor.json makes restarts
+# duplicate-free). Connection settings come from the container environment
+# (INFLUXDB_HOST etc., see docker-compose.yml); the pusher itself removes
+# /app/src from sys.path so the local http/ package cannot shadow stdlib.
 (
   while [ ! -d /host_data ]; do sleep 2; done
   cd /host_data
 
-  # Retry loop: wait for InfluxDB
+  # Log is APPENDED (never truncated on restart) so restart causes and write
+  # failures stay auditable; a simple size-based rotation caps growth.
+  LOG=/tmp/pusher.log
   while true; do
-    PYTHONPATH= python3 -c "
-import sys
-sys.path = [p for p in sys.path if '/app/src' not in p]
-code = open('/app/src/copy_sim_data_pusher.py').read()
-code = code.replace(\"influx_host = 'localhost'\", \"influx_host = 'influxdb'\")
-exec(code)
-" > /tmp/pusher.log 2>&1
-    echo "Pusher exited, restarting in 5s..." >> /tmp/pusher.log
+    if [ -f "$LOG" ] && [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 1048576 ]; then
+      mv -f "$LOG" "$LOG.1"
+    fi
+    echo "=== pusher start $(date -Is) ===" >> "$LOG"
+    PYTHONPATH= python3 /app/src/copy_sim_data_pusher.py >> "$LOG" 2>&1
+    echo "=== pusher exited rc=$? at $(date -Is), restart in 5s ===" >> "$LOG"
     sleep 5
   done
 ) &

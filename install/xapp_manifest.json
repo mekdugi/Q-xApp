@@ -1,0 +1,106 @@
+{
+    "manifest_version":  1,
+    "manifest_type":  "xapp",
+    "generated":  "2026-07-19",
+    "description":  "Q-xApp xApp sources and quantum solver files to deploy into the pinned FlexRIC checkout (remediation R3.3). This is the exact file list; no wildcards. dqna_ts.py imports dqna_modes.py and dqna_constraints.py at runtime, so all three must be deployed together. CMakeLists.txt is the pinned upstream file extended with the three xapp_qxapp_* build targets (the only entry with an upstream preimage). SHA-256 values are computed over LF-normalized content.",
+    "sha_normalization":  "lf",
+    "upstream_manifest":  "upstream_manifest.json",
+    "upstream_repository":  "flexric",
+    "destination_root":  "examples/xApp/c/ctrl",
+    "install_tool":  "install_overlay.py",
+    "build_targets":  [
+                          "xapp_qxapp_unified",
+                          "xapp_qxapp_greedy_handover",
+                          "xapp_qxapp_energy_saving"
+                      ],
+    "runtime_environment":  {
+                                "python_venv":  "created by setup_solver_venv.sh (default /root/qxapp-venv, overridable)",
+                                "env_overrides":  [
+                                                      "QXAPP_PY (solver python, default /root/qxapp-venv/bin/python)",
+                                                      "QXAPP_TS_SCRIPT / QXAPP_42_SCRIPT / QXAPP_QOS_SCRIPT (solver script paths)",
+                                                      "QXAPP_DATA_DIR (ns-3 data dir with CSV metrics, xapp_*.txt configs, qxapp_result.json)"
+                                                  ]
+                            },
+    "files":  [
+                  {
+                      "source":  "flexric/xApp/CMakeLists.txt",
+                      "destination":  "CMakeLists.txt",
+                      "purpose":  "Upstream ctrl CMakeLists extended with the three xapp_qxapp_* targets (47 added lines); required to build the xApp",
+                      "source_sha256":  "afab49f146b9fe04abfb1b2ab2db70cb638d8a1cbb5ddbaf7ec2797fe0d45cd4",
+                      "upstream_preimage_sha256":  "70df5bee36d767b1c6df9b85ce53da51f08cbdd7c10f3f4ba70e220c27638b4d",
+                      "post_install_sha256":  "afab49f146b9fe04abfb1b2ab2db70cb638d8a1cbb5ddbaf7ec2797fe0d45cd4"
+                  },
+                  {
+                      "source":  "flexric/xApp/qxapp_common.h",
+                      "destination":  "qxapp_common.h",
+                      "purpose":  "Shared xApp header: KPM/RC helpers, CSV ingest, result JSON, data-dir resolution",
+                      "source_sha256":  "14486985419fe607d34b1a67f2162b9582c780f125dacecae0fd75a6418aa75a",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "14486985419fe607d34b1a67f2162b9582c780f125dacecae0fd75a6418aa75a"
+                  },
+                  {
+                      "source":  "flexric/xApp/qxapp_unified.c",
+                      "destination":  "qxapp_unified.c",
+                      "purpose":  "Unified Q-xApp controller (TS / NES / QoS-RA)",
+                      "source_sha256":  "77b8e18c788d6417b30bf4eaa8ca192eda9303e6665f5644e4acdea15bc9d0f9",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "77b8e18c788d6417b30bf4eaa8ca192eda9303e6665f5644e4acdea15bc9d0f9"
+                  },
+                  {
+                      "source":  "flexric/xApp/qxapp_energy_saving.c",
+                      "destination":  "qxapp_energy_saving.c",
+                      "purpose":  "Standalone energy-saving xApp (historic)",
+                      "source_sha256":  "4ed6082e9d8cc0c8f00b43c636f7d4aa65ae393c59fd2c187b6a39cf7632a590",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "4ed6082e9d8cc0c8f00b43c636f7d4aa65ae393c59fd2c187b6a39cf7632a590"
+                  },
+                  {
+                      "source":  "flexric/xApp/qxapp_greedy_handover.c",
+                      "destination":  "qxapp_greedy_handover.c",
+                      "purpose":  "Standalone greedy-handover xApp (historic)",
+                      "source_sha256":  "c02033a5c3fcdd2f26af2f26cd1f85d26fa24f5b6564af3e42e3cdabc2cfe658",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "c02033a5c3fcdd2f26af2f26cd1f85d26fa24f5b6564af3e42e3cdabc2cfe658"
+                  },
+                  {
+                      "source":  "flexric/xApp/dqna_ts.py",
+                      "destination":  "dqna_ts.py",
+                      "purpose":  "TS 4x3 quantum solver CLI (stdin {\"sinr\": 4x3} -\u003e stdout JSON); imports dqna_modes/dqna_constraints",
+                      "source_sha256":  "22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39"
+                  },
+                  {
+                      "source":  "flexric/xApp/dqna_42.py",
+                      "destination":  "dqna_42.py",
+                      "purpose":  "NES 4x2 quantum solver CLI (stdin {\"sinr\": 4x2} -\u003e stdout JSON)",
+                      "source_sha256":  "7bbad16d189046587efcfafeab936c362e50c0d332d80c4aff540b4c093d52eb",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "7bbad16d189046587efcfafeab936c362e50c0d332d80c4aff540b4c093d52eb"
+                  },
+                  {
+                      "source":  "flexric/xApp/dqna_qos.py",
+                      "destination":  "dqna_qos.py",
+                      "purpose":  "QoS 2x4 quantum solver CLI (stdin {\"utility\": 2x4} -\u003e stdout JSON)",
+                      "source_sha256":  "3c80283aba24a85e7934dcdcc44b38fb759ab113b881de8a62c650a4caf5fe39",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "3c80283aba24a85e7934dcdcc44b38fb759ab113b881de8a62c650a4caf5fe39"
+                  },
+                  {
+                      "source":  "flexric/xApp/dqna_modes.py",
+                      "destination":  "dqna_modes.py",
+                      "purpose":  "Runtime-required solver-mode module imported by dqna_ts.py (gated / formal weighted-AA)",
+                      "source_sha256":  "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930"
+                  },
+                  {
+                      "source":  "flexric/xApp/dqna_constraints.py",
+                      "destination":  "dqna_constraints.py",
+                      "purpose":  "Runtime-required constraint module imported by dqna_ts.py (unit-count / weighted-PRB oracles)",
+                      "source_sha256":  "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9",
+                      "upstream_preimage_sha256":  null,
+                      "post_install_sha256":  "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9"
+                  }
+              ]
+}

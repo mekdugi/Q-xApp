@@ -1,0 +1,56 @@
+{
+  "manifest_version": 1,
+  "generated": "2026-07-19",
+  "description": "Pinned upstream sources and environment for a reproducible Q-xApp install (remediation R3.1). Commits were measured on the validated working deployment; they are the exact trees the tracked overlay/xApp files were developed and verified against.",
+  "repositories": {
+    "ns-o-ran": {
+      "url": "https://github.com/Orange-OpenSource/ns-O-RAN-flexric",
+      "branch": "main",
+      "commit": "4930827e126ddf5487d7e85326f5000d33db0eb1",
+      "submodules": {
+        "mmwave-LENA-oran": {
+          "url": "https://github.com/MinaYonan123/mmwave-LENA-oran.git",
+          "path": "mmwave-LENA-oran",
+          "commit": "0ae720c977ee3dac61e3d2fde7843cb482ba44f4",
+          "nested_submodules": {
+            "contrib/oran-interface": {
+              "url": "https://github.com/MinaYonan123/oran-interface",
+              "path": "mmwave-LENA-oran/contrib/oran-interface",
+              "commit": "0eedb5ff8e3597e88356b0af005ad144344c6f38"
+            },
+            "src/nr": {
+              "url": "https://github.com/MinaYonan123/ns3-oran-lena-nr.git",
+              "path": "mmwave-LENA-oran/src/nr",
+              "commit": "09a044894e8aa1025cca2e2984ad2431bdcd6c40"
+            }
+          }
+        },
+        "e2sim-kpmv3": {
+          "url": "https://github.com/MinaYonan123/e2sim-kpmv3.git",
+          "path": "e2sim-kpmv3",
+          "commit": "acf4f6b2baa8c645af566ea210146abd97de1f48"
+        }
+      }
+    },
+    "flexric": {
+      "url": "https://gitlab.eurecom.fr/mosaic5g/flexric.git",
+      "branch": "oie-ric-taap-xapps",
+      "commit": "307e1d0a5c26751c9e5595805b668a4f91d09550",
+      "cmake_configuration": {
+        "KPM_VERSION": "KPM_V3_00",
+        "E2AP_VERSION": "E2AP_V1",
+        "note": "Required: the FlexRIC defaults (KPM_V2_03/E2AP_V2) do NOT match the validated deployment. cmake -DKPM_VERSION=KPM_V3_00 -DE2AP_VERSION=E2AP_V1 .."
+      }
+    }
+  },
+  "environment": {
+    "os": "Ubuntu 24.04 LTS (WSL2 on Windows 10)",
+    "python": "3.12.3",
+    "gcc": "13.3.0",
+    "cmake": "3.28.3"
+  },
+  "solver_environment": {
+    "requirements": "solver_requirements.txt",
+    "setup_script": "setup_solver_venv.sh"
+  }
+}

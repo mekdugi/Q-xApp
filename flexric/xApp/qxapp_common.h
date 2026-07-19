@@ -19,14 +19,56 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 /* ── constants ────────────────────────────────────────────────────── */
 #define NUM_UE    4
 #define NUM_CELL  3
 #define MAX_UE_PER_CELL  2
 #define KPM_RAN_FUNCTION  2
-#define CSV_DIR  "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran"
-#define RESULT_JSON "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/qxapp_result.json"
+/* Data directory holding the ns-3 CSV metrics, the xapp_*.txt config files
+ * and qxapp_result.json. Override with env QXAPP_DATA_DIR; unset keeps the
+ * historical WSL deployment path (R3.5 path injection, same getenv pattern
+ * as QXAPP_PY / QXAPP_TS_SCRIPT). */
+#define QXAPP_DATA_DIR_DEFAULT "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran"
+#define RESULT_JSON_NAME "qxapp_result.json"
+
+/* An explicitly injected QXAPP_DATA_DIR is validated fail-fast on first use
+ * (exists, is a directory, read/write/searchable): a bad injected path must
+ * be a fatal startup error, not a silent fall-through to per-file defaults.
+ * Individual metric CSVs may legitimately not exist yet (ns-3 creates them),
+ * so only the directory itself is validated here. */
+static const char *qx_data_dir(void)
+{
+  static int checked = 0;
+  static const char *dir = NULL;
+  if (!checked) {
+    checked = 1;
+    const char *p = getenv("QXAPP_DATA_DIR");
+    dir = p ? p : QXAPP_DATA_DIR_DEFAULT;
+    if (p) {
+      struct stat st;
+      const char *err = NULL;
+      if (stat(p, &st) != 0) err = strerror(errno);
+      else if (!S_ISDIR(st.st_mode)) err = "not a directory";
+      else if (access(p, R_OK | W_OK | X_OK) != 0) err = strerror(errno);
+      if (err) {
+        fprintf(stderr, "[Q-xApp] FATAL: QXAPP_DATA_DIR '%s': %s\n", p, err);
+        exit(1);
+      }
+    }
+    printf("[Q-xApp] data dir: %s (%s)\n", dir,
+           p ? "QXAPP_DATA_DIR" : "default");
+  }
+  return dir;
+}
+
+/* Build "<data dir>/<name>" into buf and return buf. */
+static const char *qx_data_path(char *buf, size_t n, const char *name)
+{
+  snprintf(buf, n, "%s/%s", qx_data_dir(), name);
+  return buf;
+}
 
 static const int CELL_IDS[NUM_CELL] = {2, 3, 4};
 static const char *ORU_NAMES[NUM_CELL] = {"O-RU 1", "O-RU 2", "O-RU 3"};
@@ -92,7 +134,7 @@ static void read_sinr_from_csv(void)
 
   for (int c = 0; c < NUM_CELL; c++) {
     char path[512];
-    sprintf(path, "%s/%s", CSV_DIR, CELL_FILES[c]);
+    qx_data_path(path, sizeof(path), CELL_FILES[c]);
     FILE *fp = fopen(path, "r");
     if (!fp) continue;
 
@@ -175,7 +217,8 @@ static void read_sinr_from_csv(void)
 /* ── write result JSON ────────────────────────────────────────────── */
 static void write_result_json(int assignment[NUM_UE], double total_rate)
 {
-  FILE *fp = fopen(RESULT_JSON, "w");
+  char rj_path[512];
+  FILE *fp = fopen(qx_data_path(rj_path, sizeof(rj_path), RESULT_JSON_NAME), "w");
   if (!fp) return;
   fprintf(fp, "{\n");
   fprintf(fp, "  \"timestamp\": %ld,\n", (long)time(NULL));
@@ -188,14 +231,15 @@ static void write_result_json(int assignment[NUM_UE], double total_rate)
   }
   fprintf(fp, "  ]\n}\n");
   fclose(fp);
-  printf("[Q-xApp] Result written to %s\n", RESULT_JSON);
+  printf("[Q-xApp] Result written to %s\n", rj_path);
 }
 
 /* ── write result JSON with energy saving info ────────────────────── */
 static void write_result_json_energy(int assignment[NUM_UE], double total_rate,
                                      int active_cells, int sleep_cells[], int n_sleep)
 {
-  FILE *fp = fopen(RESULT_JSON, "w");
+  char rj_path[512];
+  FILE *fp = fopen(qx_data_path(rj_path, sizeof(rj_path), RESULT_JSON_NAME), "w");
   if (!fp) return;
   fprintf(fp, "{\n");
   fprintf(fp, "  \"mode\": \"energy_saving\",\n");
@@ -215,7 +259,7 @@ static void write_result_json_energy(int assignment[NUM_UE], double total_rate,
   }
   fprintf(fp, "  ]\n}\n");
   fclose(fp);
-  printf("[Q-xApp] Result written to %s\n", RESULT_JSON);
+  printf("[Q-xApp] Result written to %s\n", rj_path);
 }
 
 /* ══════════════════════════════════════════════════════════════════ */

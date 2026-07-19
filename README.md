@@ -62,12 +62,18 @@ oracle that gates the utility kickback; utilities use an exponential encoding
 re-scoring on the raw objective). Each solver returned the brute-force-optimal
 score on its full offline validation suite — for QoS-RA including the
 exhaustive {0,1,10}^8 input grid (6,561 cases) —
-and the Fig.4 cycle runs end-to-end with all three quantum paths active and
-zero fallbacks — see
-[`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md). The classical
-matchers remain only as automatic legacy fallbacks. Requires Python with
-`qiskit` (validated with qiskit 1.2.4); the solver interpreter path is set
-via `QXAPP_PY`.
+and the Fig.4 cycle runs end-to-end with all three quantum assignment
+subproblems (TS, NES, QoS-RA) active in one cycle and zero solver fallbacks on
+those three paths — see
+[`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md). This is a hybrid
+controller: besides the three quantum solvers it uses classical logic for
+sleep-candidate selection, lone-UE exact DRB handling, top-K re-scoring on the
+raw objective, and **post-wake recovery** — post-wake re-steering is a
+deterministic classical policy by design (not a solver fallback). The classical
+greedy/DRB matchers also serve as automatic fallbacks if a quantum solver fails
+on a given decision, counted separately. Requires Python with `qiskit`
+(validated with qiskit 1.2.4); the solver interpreter path is set via
+`QXAPP_PY`.
 
 ---
 
@@ -118,48 +124,76 @@ via `QXAPP_PY`.
 
 ## 5. Prerequisites
 
-| Component | Repository | Branch |
-|-----------|-----------|--------|
-| **ns-O-RAN** | https://github.com/Orange-OpenSource/ns-O-RAN-flexric | `main` |
-| **FlexRIC** | https://gitlab.eurecom.fr/mosaic5g/flexric | `oie-ric-taap-xapps` |
-| **Docker** | Docker + Docker Compose | — |
+| Component | Repository | Branch | Pinned commit |
+|-----------|-----------|--------|---------------|
+| **ns-O-RAN** | https://github.com/Orange-OpenSource/ns-O-RAN-flexric | `main` | `4930827e126d` |
+| ↳ submodule `mmwave-LENA-oran` | https://github.com/MinaYonan123/mmwave-LENA-oran | — | `0ae720c977ee` |
+| ↳ submodule `e2sim-kpmv3` | https://github.com/MinaYonan123/e2sim-kpmv3 | — | `acf4f6b2baa8` |
+| ↳↳ nested `contrib/oran-interface` | https://github.com/MinaYonan123/oran-interface | — | `0eedb5ff8e35` |
+| ↳↳ nested `src/nr` | https://github.com/MinaYonan123/ns3-oran-lena-nr | — | `09a044894e8a` |
+| **FlexRIC** | https://gitlab.eurecom.fr/mosaic5g/flexric | `oie-ric-taap-xapps` | `307e1d0a5c26` |
+| **Docker** | Docker + Docker Compose | — | — |
 
-Install ns-O-RAN and FlexRIC following their respective guides first. Tested on **Ubuntu 24.04 (WSL2)**.
+Full 40-char commit SHAs, supported OS and toolchain versions are machine-readable in
+[`install/upstream_manifest.json`](install/upstream_manifest.json). Install ns-O-RAN
+(`git submodule update --init --recursive` — the nested `contrib/oran-interface` and
+`src/nr` submodules are required to build) and FlexRIC at the pinned commits following
+their respective guides first. Tested on **Ubuntu 24.04 (WSL2)**, Python 3.12.3,
+gcc 13.3, cmake 3.28.
 
 ---
 
 ## 6. Installation
 
-After the base platform is installed, apply Q-xApp modifications:
+The install is manifest-driven: the exact upstream commits, the full 14-file
+ns-3 overlay (source / destination / preimage / post-install SHA-256), the
+complete xApp + solver file list and the solver environment lock live in
+[`install/`](install/). The installer validates every file before copying
+anything (no partial install) and refuses to overwrite a destination whose
+content matches neither the recorded upstream preimage nor the expected
+post-install hash.
 
 ```bash
-# 1. Copy ns-3 files
-cp ns3/scenario-fig4-qxapp.cc                          <ns-O-RAN>/scratch/   # Fig.4 scenario
-cp ns3/scenario/scenario-zero-with_parallel_loging.cc  <ns-O-RAN>/scratch/   # GUI demo scenario
-cp ns3/mmwave-enb-net-device.cc                        <ns-O-RAN>/src/mmwave/model/
-cp ns3/mmwave-flex-tti-pf-mac-scheduler.cc             <ns-O-RAN>/src/mmwave/model/
-cp ns3/mmwave-flex-tti-pf-mac-scheduler.h              <ns-O-RAN>/src/mmwave/model/
+# 1. ns-3 overlay (all 14 tracked files, preimage-verified; also checks the submodule pins)
+python3 install/install_overlay.py --manifest install/overlay_manifest.json --dest <ns-O-RAN> --check   # dry run
+python3 install/install_overlay.py --manifest install/overlay_manifest.json --dest <ns-O-RAN>
 
-# 2. Copy xApp files
-cp flexric/xApp/qxapp_common.h      <FlexRIC>/examples/xApp/c/ctrl/
-cp flexric/xApp/qxapp_unified.c     <FlexRIC>/examples/xApp/c/ctrl/
-cp flexric/xApp/qxapp_*.c           <FlexRIC>/examples/xApp/c/ctrl/
-cp flexric/xApp/dqna_ts.py          <FlexRIC>/examples/xApp/c/ctrl/   # quantum TS solver
+# 2. xApp + quantum solver files (exact list, incl. dqna_modes.py / dqna_constraints.py
+#    and the ctrl CMakeLists.txt that adds the xapp_qxapp_* build targets)
+python3 install/install_overlay.py --manifest install/xapp_manifest.json --dest <FlexRIC> --check
+python3 install/install_overlay.py --manifest install/xapp_manifest.json --dest <FlexRIC>
 
-# 3. Add build target to <FlexRIC>/examples/xApp/c/ctrl/CMakeLists.txt:
-#    add_executable(xapp_qxapp_unified qxapp_unified.c)
-#    target_link_libraries(xapp_qxapp_unified PRIVATE e42_xapp pthread sctp dl m)
+# 3. Solver venv: locked validated environment (qiskit 1.2.4 / numpy 1.26.4),
+#    runs `pip check` + all three solver CLI smoke tests, prints provenance
+sudo bash install/setup_solver_venv.sh                    # default /root/qxapp-venv
+# or any writable path: bash install/setup_solver_venv.sh <venv-dir> <FlexRIC>/examples/xApp/c/ctrl
 
 # 4. Copy GUI
 cp -r gui/* <ns-O-RAN>/GUI/
 
 # 5. Build everything
 cd <ns-O-RAN> && ./ns3 build
-sudo bash -c 'cd <FlexRIC>/build && cmake .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
+sudo bash -c 'cd <FlexRIC>/build && cmake -DKPM_VERSION=KPM_V3_00 -DE2AP_VERSION=E2AP_V1 .. && cmake --build . --target xapp_qxapp_unified -j$(nproc)'
 cd <ns-O-RAN>/GUI && sudo docker compose up -d
 ```
 
+### Runtime path injection
+
+Host paths are injected via environment variables; unset means the historical
+WSL layout, so existing deployments run unchanged.
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `QXAPP_DATA_DIR` | ns-3 run dir: CSV metrics, `xapp_*.txt` configs, `qxapp_result.json` | `/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran` |
+| `QXAPP_PY` | solver venv python used by the xApp | `/root/qxapp-venv/bin/python` |
+| `QXAPP_TS_SCRIPT` / `QXAPP_42_SCRIPT` / `QXAPP_QOS_SCRIPT` | solver CLI paths | `<FlexRIC>/examples/xApp/c/ctrl/dqna_*.py` |
+| `QXAPP_HOST_DATA` | docker-compose host mount backing the GUI `/host_data` | same as `QXAPP_DATA_DIR` default |
+
 ### What Each Modified File Does
+
+The authoritative per-file list (all 14 ns-3 overlay files with purpose,
+destination and SHA-256) is `install/overlay_manifest.json`; the table below
+summarizes the main ones.
 
 | File | Copies to | What was changed |
 |------|----------|-----------------|

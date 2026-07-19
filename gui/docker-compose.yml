@@ -8,7 +8,10 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - '8000:8000'
+      # research GUI, loopback-only by default: the endpoints are
+      # unauthenticated and can drive the simulation, so they must not listen
+      # on 0.0.0.0. For remote access, front with an authenticating proxy.
+      - '127.0.0.1:8000:8000'
     depends_on:
       - influxdb
     environment:
@@ -19,8 +22,11 @@ services:
       - INFLUXDB_USERNAME=admin
       - NS3_HOST=172.17.0.1
     volumes:
-      - /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran:/host_data
-      - /home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran/GUI/src:/app/src
+      # Host data dir = ns-3 run dir holding CSV metrics, xapp_*.txt configs
+      # and qxapp_result.json. Override with QXAPP_HOST_DATA (R3.5); the
+      # default keeps the historical WSL deployment path.
+      - ${QXAPP_HOST_DATA:-/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran}:/host_data
+      - ${QXAPP_HOST_DATA:-/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran}/GUI/src:/app/src
 
   influxdb:
     restart: unless-stopped
@@ -28,7 +34,11 @@ services:
     env_file: configuration.env
     ports:
       - '127.0.0.1:8086:8086'
-    command: sh -c "influxd & sleep 10 && influx -database influx -execute 'delete from /\w*/'; tail -f /dev/null"
+    # No boot-time wipe (R4): the old command deleted every measurement 10 s
+    # after EVERY container start, which silently lost all ingested data on
+    # any restart while the pusher's durable cursor (correctly) prevented
+    # re-ingestion. Data lifecycle now belongs to explicit user action, not
+    # to service boot.
     volumes:
       - ./:/imports
       - influxdb_data:/var/lib/influxdb
@@ -42,7 +52,9 @@ services:
     links:
       - influxdb
     ports:
-      - '3000:3000'
+      # loopback-only: Grafana runs with the default admin/admin account here
+      # (research-local credentials, NOT production-safe)
+      - '127.0.0.1:3000:3000'
     command: sh -c "echo \"1,2,3\" > provacsv.csv"
     volumes:
       - grafana_data:/var/lib/grafana
