@@ -43,12 +43,14 @@ MAX_PER_CELL = 2
 QUAL_LAMBDA = 4.0
 TOP_K = 4
 
-# Statevector execution backend (feature/aer-statevector-backend): "aer"
-# (default) = qiskit_aer AerSimulator(method="statevector"); "reference" =
-# original Statevector.from_instruction. CLI --sv-backend. Circuits,
-# oracles, top-K, objective and tie-breaks are identical on both; Aer
-# errors propagate (no silent fallback).
-SV_BACKEND = "aer"
+# Statevector execution backend (option A, 2026-07-20): CANONICAL
+# DEFAULT = "reference" (Statevector.from_instruction) — canonical paper
+# results use it. "aer" is opt-in EXPERIMENTAL (--sv-backend aer):
+# fidelity/probabilities equivalent within 1e-12 but NOT bit-identical —
+# exact-tie top-K order/set and equal-score tie-break picks can differ.
+# Circuits, oracles, top-K, objective and tie-break code are identical
+# on both; Aer errors propagate (no silent fallback).
+SV_BACKEND = "reference"
 AER_OPT_LEVEL = 0
 
 
@@ -264,8 +266,9 @@ def main():
     p.add_argument('--max-per-cell', type=int, default=2)
     p.add_argument('--qual-lambda', type=float, default=4.0)
     p.add_argument('--sv-backend', default=None, choices=['aer', 'reference'],
-                   help='Statevector execution engine (default: module '
-                        'SV_BACKEND = aer).')
+                   help='Statevector execution engine (default: reference, '
+                        'the canonical backend; aer is opt-in experimental, '
+                        'equivalent within 1e-12 but not bit-identical).')
     p.add_argument('--test', action='store_true')
     args = p.parse_args()
     if not 1 <= args.max_per_cell <= N_UE:

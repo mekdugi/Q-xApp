@@ -6,530 +6,576 @@
   1,
   3
  ],
- "elapsed_s": 214.6,
+ "elapsed_s": 2696.2,
  "environment": {
   "python": "3.12.3",
   "qiskit": "1.2.4",
   "qiskit_aer": "0.15.1",
   "numpy": "1.26.4"
  },
- "warm_stage_breakdown": {
-  "ts_legacy": {
+ "full_v5_solve": {
+  "workload": "no-flag adaptive default (Round7, cap=2, lambda=3.0, cc=20, budgets 8/500/4000, seed=5)",
+  "warm": {
    "reference": {
-    "build": {
-     "n": 20,
-     "mean_ms": 25.176,
-     "p50_ms": 24.513,
-     "p95_ms": 29.979
-    },
-    "from_instruction": {
-     "n": 20,
-     "mean_ms": 2695.685,
-     "p50_ms": 2662.363,
-     "p95_ms": 3016.055
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 2720.862,
-     "p50_ms": 2686.572,
-     "p95_ms": 3044.998
-    }
+    "n": 20,
+    "mean_ms": 20681.885,
+    "p50_ms": 20602.005,
+    "p95_ms": 21852.926
    },
    "aer_L0": {
-    "build": {
-     "n": 20,
-     "mean_ms": 17.631,
-     "p50_ms": 17.418,
-     "p95_ms": 21.745
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 30.702,
-     "p50_ms": 28.318,
-     "p95_ms": 48.212
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 23.578,
-     "p50_ms": 18.694,
-     "p95_ms": 69.369
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.026,
-     "p50_ms": 0.023,
-     "p95_ms": 0.03
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 71.937,
-     "p50_ms": 65.545,
-     "p95_ms": 111.982
-    }
+    "n": 20,
+    "mean_ms": 19908.099,
+    "p50_ms": 19651.517,
+    "p95_ms": 21430.537
    },
    "aer_L1": {
-    "build": {
-     "n": 20,
-     "mean_ms": 16.181,
-     "p50_ms": 15.137,
-     "p95_ms": 18.9
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 40.398,
-     "p50_ms": 39.493,
-     "p95_ms": 40.271
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 16.782,
-     "p50_ms": 16.965,
-     "p95_ms": 18.593
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.023,
-     "p50_ms": 0.022,
-     "p95_ms": 0.027
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 73.383,
-     "p50_ms": 71.998,
-     "p95_ms": 76.0
-    }
+    "n": 20,
+    "mean_ms": 19851.3,
+    "p50_ms": 19728.111,
+    "p95_ms": 20513.246
    },
    "aer_L3": {
-    "build": {
-     "n": 20,
-     "mean_ms": 16.236,
-     "p50_ms": 15.319,
-     "p95_ms": 18.595
+    "n": 20,
+    "mean_ms": 20451.37,
+    "p50_ms": 20108.655,
+    "p95_ms": 22051.475
+   },
+   "equivalence": "result and all counters exact-matched the reference baseline on every timed repetition (runs=500, oracle=277)"
+  },
+  "cold_cli": {
+   "reference": {
+    "n": 20,
+    "mean_ms": 22295.422,
+    "p50_ms": 22214.342,
+    "p95_ms": 23013.59
+   },
+   "aer": {
+    "n": 20,
+    "mean_ms": 20716.998,
+    "p50_ms": 20436.609,
+    "p95_ms": 22100.103
+   }
+  }
+ },
+ "single_circuit_microbenchmark": {
+  "warm_stage_breakdown": {
+   "ts_legacy": {
+    "reference": {
+     "build": {
+      "n": 20,
+      "mean_ms": 25.303,
+      "p50_ms": 25.214,
+      "p95_ms": 25.843
+     },
+     "from_instruction": {
+      "n": 20,
+      "mean_ms": 1318.132,
+      "p50_ms": 1293.506,
+      "p95_ms": 1443.283
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 1343.435,
+      "p50_ms": 1318.569,
+      "p95_ms": 1469.618
+     }
     },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 63.303,
-     "p50_ms": 59.628,
-     "p95_ms": 80.592
+    "aer_L0": {
+     "build": {
+      "n": 20,
+      "mean_ms": 17.379,
+      "p50_ms": 18.37,
+      "p95_ms": 19.642
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 29.506,
+      "p50_ms": 28.354,
+      "p95_ms": 29.982
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 17.691,
+      "p50_ms": 17.298,
+      "p95_ms": 20.169
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.022,
+      "p50_ms": 0.021,
+      "p95_ms": 0.024
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 64.598,
+      "p50_ms": 63.991,
+      "p95_ms": 67.991
+     }
     },
-    "execute": {
-     "n": 20,
-     "mean_ms": 16.016,
-     "p50_ms": 16.24,
-     "p95_ms": 17.808
+    "aer_L1": {
+     "build": {
+      "n": 20,
+      "mean_ms": 16.955,
+      "p50_ms": 15.758,
+      "p95_ms": 19.895
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 42.247,
+      "p50_ms": 40.532,
+      "p95_ms": 43.387
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 15.976,
+      "p50_ms": 15.799,
+      "p95_ms": 17.067
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.022,
+      "p50_ms": 0.022,
+      "p95_ms": 0.026
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 75.2,
+      "p50_ms": 72.086,
+      "p95_ms": 76.036
+     }
     },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.024,
-     "p50_ms": 0.023,
-     "p95_ms": 0.03
+    "aer_L3": {
+     "build": {
+      "n": 20,
+      "mean_ms": 16.276,
+      "p50_ms": 15.589,
+      "p95_ms": 19.084
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 63.606,
+      "p50_ms": 61.426,
+      "p95_ms": 75.449
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 16.101,
+      "p50_ms": 15.652,
+      "p95_ms": 17.918
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.022,
+      "p50_ms": 0.021,
+      "p95_ms": 0.028
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 96.005,
+      "p50_ms": 92.083,
+      "p95_ms": 107.981
+     }
+    }
+   },
+   "ts_v5_k0": {
+    "reference": {
+     "build": {
+      "n": 20,
+      "mean_ms": 15.706,
+      "p50_ms": 15.635,
+      "p95_ms": 16.449
+     },
+     "from_instruction": {
+      "n": 20,
+      "mean_ms": 872.848,
+      "p50_ms": 840.349,
+      "p95_ms": 1002.533
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 888.554,
+      "p50_ms": 856.353,
+      "p95_ms": 1017.885
+     }
     },
-    "total": {
-     "n": 20,
-     "mean_ms": 95.579,
-     "p50_ms": 91.992,
-     "p95_ms": 116.006
+    "aer_L0": {
+     "build": {
+      "n": 20,
+      "mean_ms": 13.16,
+      "p50_ms": 13.262,
+      "p95_ms": 14.781
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 32.104,
+      "p50_ms": 29.587,
+      "p95_ms": 54.172
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 21.25,
+      "p50_ms": 16.498,
+      "p95_ms": 32.761
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.023,
+      "p50_ms": 0.022,
+      "p95_ms": 0.027
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 66.539,
+      "p50_ms": 60.002,
+      "p95_ms": 83.994
+     }
+    },
+    "aer_L1": {
+     "build": {
+      "n": 20,
+      "mean_ms": 12.536,
+      "p50_ms": 13.449,
+      "p95_ms": 15.656
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 37.137,
+      "p50_ms": 35.231,
+      "p95_ms": 41.441
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 14.903,
+      "p50_ms": 14.151,
+      "p95_ms": 18.849
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.024,
+      "p50_ms": 0.022,
+      "p95_ms": 0.033
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 64.599,
+      "p50_ms": 63.979,
+      "p95_ms": 80.0
+     }
+    },
+    "aer_L3": {
+     "build": {
+      "n": 20,
+      "mean_ms": 13.44,
+      "p50_ms": 13.537,
+      "p95_ms": 14.74
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 47.184,
+      "p50_ms": 45.415,
+      "p95_ms": 62.196
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 12.951,
+      "p50_ms": 13.14,
+      "p95_ms": 13.805
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.025,
+      "p50_ms": 0.021,
+      "p95_ms": 0.043
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 73.6,
+      "p50_ms": 72.001,
+      "p95_ms": 88.023
+     }
+    }
+   },
+   "nes": {
+    "reference": {
+     "build": {
+      "n": 20,
+      "mean_ms": 3.597,
+      "p50_ms": 3.555,
+      "p95_ms": 3.752
+     },
+     "from_instruction": {
+      "n": 20,
+      "mean_ms": 32.611,
+      "p50_ms": 31.682,
+      "p95_ms": 32.283
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 36.207,
+      "p50_ms": 35.402,
+      "p95_ms": 35.881
+     }
+    },
+    "aer_L0": {
+     "build": {
+      "n": 20,
+      "mean_ms": 3.771,
+      "p50_ms": 3.65,
+      "p95_ms": 4.093
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 25.032,
+      "p50_ms": 24.21,
+      "p95_ms": 27.153
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 2.663,
+      "p50_ms": 2.572,
+      "p95_ms": 2.906
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.015,
+      "p50_ms": 0.013,
+      "p95_ms": 0.023
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 31.48,
+      "p50_ms": 30.411,
+      "p95_ms": 34.036
+     }
+    },
+    "aer_L1": {
+     "build": {
+      "n": 20,
+      "mean_ms": 3.715,
+      "p50_ms": 3.628,
+      "p95_ms": 4.037
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 29.661,
+      "p50_ms": 28.586,
+      "p95_ms": 31.406
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 2.534,
+      "p50_ms": 2.492,
+      "p95_ms": 2.617
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.014,
+      "p50_ms": 0.013,
+      "p95_ms": 0.015
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 35.923,
+      "p50_ms": 34.842,
+      "p95_ms": 37.679
+     }
+    },
+    "aer_L3": {
+     "build": {
+      "n": 20,
+      "mean_ms": 3.688,
+      "p50_ms": 3.636,
+      "p95_ms": 3.877
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 33.736,
+      "p50_ms": 33.665,
+      "p95_ms": 34.501
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 1.723,
+      "p50_ms": 1.718,
+      "p95_ms": 1.794
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.014,
+      "p50_ms": 0.014,
+      "p95_ms": 0.016
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 39.161,
+      "p50_ms": 39.153,
+      "p95_ms": 39.992
+     }
+    }
+   },
+   "qos": {
+    "reference": {
+     "build": {
+      "n": 20,
+      "mean_ms": 1.55,
+      "p50_ms": 1.507,
+      "p95_ms": 1.647
+     },
+     "from_instruction": {
+      "n": 20,
+      "mean_ms": 3.001,
+      "p50_ms": 2.979,
+      "p95_ms": 3.107
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 4.551,
+      "p50_ms": 4.528,
+      "p95_ms": 4.692
+     }
+    },
+    "aer_L0": {
+     "build": {
+      "n": 20,
+      "mean_ms": 1.571,
+      "p50_ms": 1.562,
+      "p95_ms": 1.648
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 24.218,
+      "p50_ms": 23.344,
+      "p95_ms": 24.282
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 1.816,
+      "p50_ms": 1.806,
+      "p95_ms": 1.929
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.014,
+      "p50_ms": 0.014,
+      "p95_ms": 0.015
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 27.619,
+      "p50_ms": 26.767,
+      "p95_ms": 27.784
+     }
+    },
+    "aer_L1": {
+     "build": {
+      "n": 20,
+      "mean_ms": 1.613,
+      "p50_ms": 1.576,
+      "p95_ms": 1.735
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 28.851,
+      "p50_ms": 28.207,
+      "p95_ms": 30.792
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 1.842,
+      "p50_ms": 1.813,
+      "p95_ms": 2.043
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.016,
+      "p50_ms": 0.014,
+      "p95_ms": 0.024
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 32.322,
+      "p50_ms": 31.588,
+      "p95_ms": 34.247
+     }
+    },
+    "aer_L3": {
+     "build": {
+      "n": 20,
+      "mean_ms": 1.577,
+      "p50_ms": 1.557,
+      "p95_ms": 1.715
+     },
+     "transpile": {
+      "n": 20,
+      "mean_ms": 33.246,
+      "p50_ms": 32.497,
+      "p95_ms": 33.615
+     },
+     "execute": {
+      "n": 20,
+      "mean_ms": 1.675,
+      "p50_ms": 1.661,
+      "p95_ms": 1.777
+     },
+     "retrieve": {
+      "n": 20,
+      "mean_ms": 0.013,
+      "p50_ms": 0.014,
+      "p95_ms": 0.014
+     },
+     "total": {
+      "n": 20,
+      "mean_ms": 36.511,
+      "p50_ms": 35.815,
+      "p95_ms": 36.993
+     }
     }
    }
   },
-  "ts_v5_k0": {
-   "reference": {
-    "build": {
+  "cold_cli_total": {
+   "ts_legacy": {
+    "reference": {
      "n": 20,
-     "mean_ms": 15.543,
-     "p50_ms": 14.894,
-     "p95_ms": 15.617
+     "mean_ms": 3020.907,
+     "p50_ms": 2990.621,
+     "p95_ms": 3228.986
     },
-    "from_instruction": {
+    "aer": {
      "n": 20,
-     "mean_ms": 1864.077,
-     "p50_ms": 1841.695,
-     "p95_ms": 1990.283
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 1879.62,
-     "p50_ms": 1857.312,
-     "p95_ms": 2023.38
+     "mean_ms": 564.964,
+     "p50_ms": 556.637,
+     "p95_ms": 597.769
     }
    },
-   "aer_L0": {
-    "build": {
+   "nes": {
+    "reference": {
      "n": 20,
-     "mean_ms": 13.467,
-     "p50_ms": 13.167,
-     "p95_ms": 14.593
+     "mean_ms": 486.272,
+     "p50_ms": 482.348,
+     "p95_ms": 503.144
     },
-    "transpile": {
+    "aer": {
      "n": 20,
-     "mean_ms": 29.49,
-     "p50_ms": 28.127,
-     "p95_ms": 30.524
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 16.081,
-     "p50_ms": 15.234,
-     "p95_ms": 22.32
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.029,
-     "p50_ms": 0.024,
-     "p95_ms": 0.028
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 59.068,
-     "p50_ms": 55.997,
-     "p95_ms": 75.99
+     "mean_ms": 504.026,
+     "p50_ms": 505.198,
+     "p95_ms": 518.576
     }
    },
-   "aer_L1": {
-    "build": {
+   "qos": {
+    "reference": {
      "n": 20,
-     "mean_ms": 12.381,
-     "p50_ms": 13.153,
-     "p95_ms": 14.736
+     "mean_ms": 452.536,
+     "p50_ms": 453.821,
+     "p95_ms": 470.21
     },
-    "transpile": {
+    "aer": {
      "n": 20,
-     "mean_ms": 35.847,
-     "p50_ms": 34.142,
-     "p95_ms": 38.232
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 14.706,
-     "p50_ms": 12.87,
-     "p95_ms": 20.896
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.025,
-     "p50_ms": 0.023,
-     "p95_ms": 0.036
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 62.96,
-     "p50_ms": 60.002,
-     "p95_ms": 76.019
-    }
-   },
-   "aer_L3": {
-    "build": {
-     "n": 20,
-     "mean_ms": 12.087,
-     "p50_ms": 13.109,
-     "p95_ms": 14.072
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 45.678,
-     "p50_ms": 43.446,
-     "p95_ms": 61.293
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 13.387,
-     "p50_ms": 13.403,
-     "p95_ms": 14.865
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.023,
-     "p50_ms": 0.022,
-     "p95_ms": 0.027
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 71.175,
-     "p50_ms": 68.006,
-     "p95_ms": 88.018
-    }
-   }
-  },
-  "nes": {
-   "reference": {
-    "build": {
-     "n": 20,
-     "mean_ms": 3.542,
-     "p50_ms": 3.476,
-     "p95_ms": 3.74
-    },
-    "from_instruction": {
-     "n": 20,
-     "mean_ms": 31.814,
-     "p50_ms": 30.822,
-     "p95_ms": 33.095
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 35.356,
-     "p50_ms": 34.287,
-     "p95_ms": 37.52
-    }
-   },
-   "aer_L0": {
-    "build": {
-     "n": 20,
-     "mean_ms": 3.677,
-     "p50_ms": 3.565,
-     "p95_ms": 4.053
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 24.92,
-     "p50_ms": 23.688,
-     "p95_ms": 26.961
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 2.676,
-     "p50_ms": 2.572,
-     "p95_ms": 2.916
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.016,
-     "p50_ms": 0.015,
-     "p95_ms": 0.021
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 31.289,
-     "p50_ms": 29.704,
-     "p95_ms": 33.771
-    }
-   },
-   "aer_L1": {
-    "build": {
-     "n": 20,
-     "mean_ms": 3.635,
-     "p50_ms": 3.575,
-     "p95_ms": 3.917
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 27.824,
-     "p50_ms": 27.608,
-     "p95_ms": 30.144
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 2.517,
-     "p50_ms": 2.466,
-     "p95_ms": 2.698
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.018,
-     "p50_ms": 0.016,
-     "p95_ms": 0.029
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 33.994,
-     "p50_ms": 33.703,
-     "p95_ms": 36.465
-    }
-   },
-   "aer_L3": {
-    "build": {
-     "n": 20,
-     "mean_ms": 3.547,
-     "p50_ms": 3.525,
-     "p95_ms": 3.68
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 33.38,
-     "p50_ms": 32.416,
-     "p95_ms": 33.641
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 1.702,
-     "p50_ms": 1.664,
-     "p95_ms": 1.81
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.015,
-     "p50_ms": 0.015,
-     "p95_ms": 0.017
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 38.645,
-     "p50_ms": 37.659,
-     "p95_ms": 39.076
-    }
-   }
-  },
-  "qos": {
-   "reference": {
-    "build": {
-     "n": 20,
-     "mean_ms": 1.499,
-     "p50_ms": 1.468,
-     "p95_ms": 1.739
-    },
-    "from_instruction": {
-     "n": 20,
-     "mean_ms": 2.949,
-     "p50_ms": 2.904,
-     "p95_ms": 3.174
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 4.449,
-     "p50_ms": 4.38,
-     "p95_ms": 4.745
-    }
-   },
-   "aer_L0": {
-    "build": {
-     "n": 20,
-     "mean_ms": 1.582,
-     "p50_ms": 1.531,
-     "p95_ms": 1.753
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 22.931,
-     "p50_ms": 22.874,
-     "p95_ms": 23.948
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 1.862,
-     "p50_ms": 1.801,
-     "p95_ms": 2.074
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.016,
-     "p50_ms": 0.016,
-     "p95_ms": 0.023
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 26.391,
-     "p50_ms": 26.306,
-     "p95_ms": 27.5
-    }
-   },
-   "aer_L1": {
-    "build": {
-     "n": 20,
-     "mean_ms": 1.546,
-     "p50_ms": 1.532,
-     "p95_ms": 1.615
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 26.932,
-     "p50_ms": 26.797,
-     "p95_ms": 27.222
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 1.702,
-     "p50_ms": 1.698,
-     "p95_ms": 1.76
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.014,
-     "p50_ms": 0.014,
-     "p95_ms": 0.017
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 30.194,
-     "p50_ms": 30.067,
-     "p95_ms": 30.616
-    }
-   },
-   "aer_L3": {
-    "build": {
-     "n": 20,
-     "mean_ms": 1.629,
-     "p50_ms": 1.613,
-     "p95_ms": 1.856
-    },
-    "transpile": {
-     "n": 20,
-     "mean_ms": 34.067,
-     "p50_ms": 32.642,
-     "p95_ms": 36.084
-    },
-    "execute": {
-     "n": 20,
-     "mean_ms": 1.791,
-     "p50_ms": 1.77,
-     "p95_ms": 1.99
-    },
-    "retrieve": {
-     "n": 20,
-     "mean_ms": 0.022,
-     "p50_ms": 0.015,
-     "p95_ms": 0.053
-    },
-    "total": {
-     "n": 20,
-     "mean_ms": 37.508,
-     "p50_ms": 35.788,
-     "p95_ms": 39.929
+     "mean_ms": 510.129,
+     "p50_ms": 507.762,
+     "p95_ms": 523.284
     }
    }
   }
  },
- "cold_cli_total": {
-  "ts_legacy": {
-   "reference": {
-    "n": 20,
-    "mean_ms": 2986.215,
-    "p50_ms": 2972.499,
-    "p95_ms": 3143.236
-   },
-   "aer": {
-    "n": 20,
-    "mean_ms": 561.207,
-    "p50_ms": 549.803,
-    "p95_ms": 614.613
-   }
-  },
-  "nes": {
-   "reference": {
-    "n": 20,
-    "mean_ms": 479.686,
-    "p50_ms": 480.42,
-    "p95_ms": 496.307
-   },
-   "aer": {
-    "n": 20,
-    "mean_ms": 498.189,
-    "p50_ms": 495.293,
-    "p95_ms": 519.703
-   }
-  },
-  "qos": {
-   "reference": {
-    "n": 20,
-    "mean_ms": 432.432,
-    "p50_ms": 427.973,
-    "p95_ms": 451.476
-   },
-   "aer": {
-    "n": 20,
-    "mean_ms": 500.954,
-    "p50_ms": 495.945,
-    "p95_ms": 522.346
-   }
-  }
- },
- "notes": "cold = fresh Python process per repetition (interpreter+imports+one solve via the real CLI stdin contract); TS cold uses --legacy-two-stage (single-circuit, C-caller-shaped). Stage decomposition is warm-path only. No performance improvement is assumed."
+ "notes": "full_v5_solve is the END-TO-END current default solver; the single-circuit microbenchmark numbers (e.g. the k=0 or legacy circuit speedups) must NOT be read as full-solver speedups \u2014 the v5 runtime is dominated by sampling over cached statevectors, so the backends differ little end-to-end. An untimed warm-up precedes every warm configuration. cold = fresh Python process per repetition via the real CLI stdin contract; the single-shot TS cold row uses --legacy-two-stage (C-caller-shaped). No performance improvement is assumed; slower Aer rows stand as measured."
 }

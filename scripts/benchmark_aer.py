@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 """Aer vs reference statevector benchmark (feature/aer-statevector-backend).
 
-Measurements (per the task brief):
-  - WARM: in this single process, >=20 repetitions per configuration of
-    solver circuit x backend x optimization_level {0,1,3}; the Aer path is
-    decomposed into circuit build / transpile / execute (sim.run) /
-    statevector retrieval; the reference path into build /
-    Statevector.from_instruction. p50/p95 reported per stage and total.
-  - COLD: >=20 repetitions per solver CLI x backend, each in a FRESH
-    Python process (subprocess with the solver's real stdin contract);
-    total wall clock per process (interpreter+import+solve). Stage
-    decomposition is a warm-path measurement (the CLIs expose no stage
-    timers); the TS cold run uses --legacy-two-stage (single-circuit
-    execution, the C-caller-shaped workload) — the v5 adaptive default is
-    a multi-run sampler and is benchmarked warm via its k=0 circuit.
+Round 2 (after the Codex Aer HOLD-3): the FULL current-default adaptive
+v5 solve is measured end-to-end, separately from the single-circuit
+microbenchmarks — the two must not be conflated (the ~30-40x k=0 circuit
+speedup does NOT represent the full v5 solver, whose runtime is dominated
+by classical sampling over cached statevectors).
 
-Solver circuits (unchanged algorithm logic):
-  ts_legacy  dqna_ts.build_circuit(round7, 1, 1)          (15 qubits)
-  ts_v5_k0   dqna_ts.v5_build_iteration_circuit(k=0)      (17 qubits)
-  nes        dqna_42.build_circuit(nes_pack, 0, 1)        (10 qubits)
-  qos        dqna_qos.build_circuit(typical, 0, 1)        (8 qubits)
+Measurements:
+  - FULL v5 SOLVE (no-flag adaptive default, Round7, fixed seed 5):
+      warm: >=20 repetitions per backend/config in this process, with an
+        explicit UNTIMED warm-up run before each config; reference, and
+        Aer at optimization_level {0,1,3} (transpile time included in
+        every solve); result + ALL counters asserted exact against the
+        reference baseline on every repetition.
+      cold: >=20 repetitions per backend in a FRESH Python process via
+        the real no-flag CLI stdin contract (interpreter+imports+solve).
+  - SINGLE-CIRCUIT MICROBENCHMARK (kept as a separate table):
+      warm: >=20 reps per circuit x backend x optimization_level {0,1,3};
+      Aer decomposed into build / transpile / execute / retrieval,
+      reference into build / from_instruction. An untimed warm-up run
+      precedes each configuration.
+      circuits: ts_legacy 15q, ts_v5_k0 17q, nes 10q, qos 8q.
+  - COLD single-shot CLIs (ts --legacy-two-stage / nes / qos), >=20 fresh
+    processes per backend (the C-caller-shaped workload).
 
 No performance improvement is assumed; slower Aer numbers are reported
 as-is. Writes reports/aer_benchmark_report.json.
@@ -76,10 +80,85 @@ BUILDERS = {
 }
 
 
+V5_ARGS = (ROUND7, 2, 3.0, "adaptive", None, 8, 20, 500, 4000, 5)
+
+
+def full_v5_once():
+    t0 = time.perf_counter()
+    result, counters = dts.v5_solve(*V5_ARGS)
+    dt = time.perf_counter() - t0
+    result = {k: v for k, v in result.items() if k != "elapsed_ms"}
+    return dt, result, counters
+
+
+def full_v5_warm():
+    """Full adaptive v5 solve, warm, per backend/level; untimed warm-up
+    before each config; result+counters exact-checked every repetition."""
+    out = {}
+    dts.SV_BACKEND = "reference"
+    full_v5_once()  # untimed warm-up
+    _, base_res, base_cnt = full_v5_once()  # untimed equivalence baseline
+    times = []
+    for _ in range(N_WARM):
+        dt, res, cnt = full_v5_once()
+        assert res == base_res and cnt == base_cnt, \
+            "reference full-v5 result/counters drifted"
+        times.append(dt)
+    out["reference"] = stats(times)
+    for lvl in OPT_LEVELS:
+        dts.SV_BACKEND = "aer"
+        dts.AER_OPT_LEVEL = lvl
+        full_v5_once()  # untimed warm-up
+        times = []
+        for _ in range(N_WARM):
+            dt, res, cnt = full_v5_once()
+            assert res == base_res and cnt == base_cnt, \
+                "aer L%d full-v5 result/counters differ from reference" % lvl
+            times.append(dt)
+        out["aer_L%d" % lvl] = stats(times)
+        print("full_v5 warm aer_L%d done" % lvl, flush=True)
+    dts.SV_BACKEND = "aer"
+    dts.AER_OPT_LEVEL = 0
+    out["equivalence"] = ("result and all counters exact-matched the "
+                          "reference baseline on every timed repetition "
+                          "(runs=%d, oracle=%d)"
+                          % (base_cnt["circuit_runs"],
+                             base_cnt["oracle_calls"]))
+    return out
+
+
+def full_v5_cold():
+    """Full adaptive v5 via the real no-flag CLI, fresh process each rep."""
+    out = {}
+    stdin_data = json.dumps({"sinr": ROUND7})
+    for backend in ("reference", "aer"):
+        rows = []
+        for _ in range(N_COLD):
+            t0 = time.perf_counter()
+            p = subprocess.run(
+                [sys.executable, os.path.join(XAPP, "dqna_ts.py"),
+                 "--seed", "5", "--sv-backend", backend],
+                input=stdin_data, capture_output=True, text=True,
+                timeout=1200)
+            rows.append(time.perf_counter() - t0)
+            if p.returncode != 0:
+                raise RuntimeError("full v5 cold rc=%d: %s"
+                                   % (p.returncode, p.stderr[-200:]))
+        out[backend] = stats(rows)
+        print("full_v5 cold %s done" % backend, flush=True)
+    return out
+
+
 def warm_aer(builder, lvl):
     sim = AerSimulator(method="statevector")
     rows = {"build": [], "transpile": [], "execute": [], "retrieve": [],
             "total": []}
+    # untimed warm-up
+    _wq = builder()
+    _wc = _wq.copy()
+    _wc.save_statevector()
+    sim.run(transpile(_wc, sim, optimization_level=lvl),
+            shots=None).result()
     for _ in range(N_WARM):
         t0 = time.perf_counter()
         qc = builder()
@@ -102,6 +181,7 @@ def warm_aer(builder, lvl):
 
 def warm_reference(builder):
     rows = {"build": [], "from_instruction": [], "total": []}
+    Statevector.from_instruction(builder())  # untimed warm-up
     for _ in range(N_WARM):
         t0 = time.perf_counter()
         qc = builder()
@@ -141,6 +221,10 @@ def cold(cli, stdin_data, backend):
 
 def main():
     t0 = time.time()
+    full_warm = full_v5_warm()
+    print("full_v5 warm done", flush=True)
+    full_cold = full_v5_cold()
+
     warm = {}
     for name, builder in BUILDERS.items():
         warm[name] = {"reference": warm_reference(builder)}
@@ -164,13 +248,27 @@ def main():
                         "qiskit": qiskit.__version__,
                         "qiskit_aer": qiskit_aer.__version__,
                         "numpy": np.__version__},
-        "warm_stage_breakdown": warm,
-        "cold_cli_total": cold_res,
-        "notes": ("cold = fresh Python process per repetition (interpreter+"
-                  "imports+one solve via the real CLI stdin contract); TS "
-                  "cold uses --legacy-two-stage (single-circuit, C-caller-"
-                  "shaped). Stage decomposition is warm-path only. No "
-                  "performance improvement is assumed."),
+        "full_v5_solve": {
+            "workload": "no-flag adaptive default (Round7, cap=2, "
+                        "lambda=3.0, cc=20, budgets 8/500/4000, seed=5)",
+            "warm": full_warm,
+            "cold_cli": full_cold,
+        },
+        "single_circuit_microbenchmark": {
+            "warm_stage_breakdown": warm,
+            "cold_cli_total": cold_res,
+        },
+        "notes": ("full_v5_solve is the END-TO-END current default solver; "
+                  "the single-circuit microbenchmark numbers (e.g. the "
+                  "k=0 or legacy circuit speedups) must NOT be read as "
+                  "full-solver speedups — the v5 runtime is dominated by "
+                  "sampling over cached statevectors, so the backends "
+                  "differ little end-to-end. An untimed warm-up precedes "
+                  "every warm configuration. cold = fresh Python process "
+                  "per repetition via the real CLI stdin contract; the "
+                  "single-shot TS cold row uses --legacy-two-stage "
+                  "(C-caller-shaped). No performance improvement is "
+                  "assumed; slower Aer rows stand as measured."),
     }
     out = os.path.join(ROOT, "reports", "aer_benchmark_report.json")
     with open(out, "w") as f:

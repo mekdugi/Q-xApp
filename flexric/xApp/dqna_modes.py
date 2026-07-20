@@ -272,9 +272,31 @@ def build_weighted_aa(rate, qual_lambda, agg, rounds, preparation="v3",
 # ---------------------------------------------------------------------------
 # Measurement-side helpers (statevector)
 # ---------------------------------------------------------------------------
+# Statevector execution backend (option A, 2026-07-20): CANONICAL
+# DEFAULT = "reference" (Statevector.from_instruction) — canonical paper
+# results use it. "aer" is opt-in EXPERIMENTAL: equivalent within 1e-12
+# but NOT bit-identical (exact-tie order/tie-break picks can differ).
+# dqna_ts.py forwards its --sv-backend value here before section-16
+# dispatch. Circuits, oracles and diffusers in this file are unchanged;
+# Aer errors propagate (no silent fallback).
+SV_BACKEND = "reference"
+AER_OPT_LEVEL = 0
+
+
 def formal_statevector(qc):
     from qiskit.quantum_info import Statevector
-    return Statevector.from_instruction(qc)
+    if SV_BACKEND == "reference":
+        return Statevector.from_instruction(qc)
+    if SV_BACKEND != "aer":
+        raise ValueError("unknown statevector backend: %r" % (SV_BACKEND,))
+    from qiskit import transpile
+    from qiskit_aer import AerSimulator
+    sim = AerSimulator(method="statevector")
+    c = qc.copy()
+    c.save_statevector()
+    tqc = transpile(c, sim, optimization_level=AER_OPT_LEVEL)
+    result = sim.run(tqc, shots=None).result()
+    return Statevector(result.data(0)["statevector"])
 
 
 def formal_probabilities(qc, agg):

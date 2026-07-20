@@ -76,15 +76,22 @@ v2 changes vs the original 13-qubit design (blob 8ab5a345):
      max_circuit_runs=500, max_oracle_calls=4000, cap=2 (V5_DEFAULTS).
      Legacy/section-16 lambda defaults stay 4.0; the Stage-A Round7 fixed
      reference stays lambda=4.
- 12. (Aer backend, 2026-07-20, feature/aer-statevector-backend) The
-     statevector execution engine for the legacy and v5 paths is
-     sv_from_circuit(): default "aer" = qiskit_aer AerSimulator
-     (method="statevector", shots=None, no noise) on a save_statevector()
-     copy; --sv-backend reference keeps the original
-     Statevector.from_instruction. Circuits, oracle/diffusion, top-K,
-     objective and tie-breaks are unchanged; Aer errors propagate (no
-     silent fallback). The section-16 solver-mode path (dqna_modes)
-     keeps its own execution.
+ 12. (Aer backend, 2026-07-20, feature/aer-statevector-backend; user
+     decision "option A") The statevector execution engine is
+     sv_from_circuit(). CANONICAL DEFAULT = "reference"
+     (Statevector.from_instruction) — canonical paper results use it.
+     "--sv-backend aer" is an opt-in EXPERIMENTAL backend (qiskit_aer
+     AerSimulator, method="statevector", shots=None, no noise, on a
+     save_statevector() copy): fidelity/probabilities equivalent within
+     1e-12, but NOT bit-identical — exact-tie top-K order/set and
+     equal-score tie-break picks can differ (strict A/B validator
+     records these failures honestly). Circuits, oracle/diffusion,
+     top-K, objective and tie-break code are unchanged; Aer errors
+     propagate (no silent fallback). The section-16 solver-mode path
+     receives the forwarded backend (dqna_modes.formal_statevector).
+     Follow-up (documented only, NOT implemented): backend-independent
+     deterministic tie-breaking — resolve equal-objective candidates by
+     canonical candidate index/bitstring instead of float rank order.
 
 Usage:
     echo '{"sinr":[[...],[...],[...],[...]]}' | python dqna_ts.py
@@ -116,14 +123,19 @@ N_TOTAL = N_ASSIGN + N_AUX + N_SF  # 15
 MAX_PER_CELL = 2           # cap-only constraint (module global, CLI-settable)
 QUAL_LAMBDA = 4.0          # exponential quality-encoding contrast (CLI-settable)
 
-# Statevector execution backend (feature/aer-statevector-backend):
-# "aer" (default) runs qiskit_aer.AerSimulator(method="statevector");
-# "reference" keeps the original qiskit.quantum_info
-# Statevector.from_instruction. CLI-settable via --sv-backend. Circuit
-# construction, oracle/diffusion structure, top-K ranking, objective and
-# tie-breaks are IDENTICAL on both backends; only the statevector
-# execution engine differs. Aer errors propagate (no silent fallback).
-SV_BACKEND = "aer"
+# Statevector execution backend (feature/aer-statevector-backend,
+# user decision "option A" 2026-07-20): the CANONICAL DEFAULT is
+# "reference" = qiskit.quantum_info Statevector.from_instruction —
+# canonical paper results use this backend. "aer" (opt-in EXPERIMENTAL,
+# --sv-backend aer only) runs qiskit_aer.AerSimulator(
+# method="statevector"): state fidelity and probability distributions
+# are equivalent within 1e-12, but Aer is NOT a bit-identical drop-in
+# replacement — on exact-tie boundaries floating-point last-bit
+# differences can change top-K order/set and equal-score tie-break
+# picks. Circuit construction, oracle/diffusion structure, top-K
+# ranking, objective and tie-break CODE are identical on both backends;
+# Aer errors propagate (no silent fallback).
+SV_BACKEND = "reference"
 AER_OPT_LEVEL = 0  # transpile optimization_level for the Aer path
                    # (benchmark-selected; levels 0/1/3 A/B-validated by
                    # scripts/validate_aer_ab.py)
@@ -958,13 +970,15 @@ def main():
     parser.add_argument('--sampling-seed', type=int, default=None)
     parser.add_argument('--sv-backend', default=None,
                         choices=['aer', 'reference'],
-                        help='Statevector execution engine for the legacy '
-                             'and v5 paths (default: module SV_BACKEND = '
-                             'aer). "reference" keeps the original '
-                             'Statevector.from_instruction. Neutral flag: '
-                             'usable with either argument family; the '
-                             'section-16 solver-mode path (dqna_modes) has '
-                             'its own execution and ignores it.')
+                        help='Statevector execution engine (default: '
+                             'reference = Statevector.from_instruction, '
+                             'the canonical backend). "aer" is an opt-in '
+                             'EXPERIMENTAL AerSimulator backend: equivalent '
+                             'within 1e-12 but not bit-identical (exact-tie '
+                             'order/tie-break picks may differ). Neutral '
+                             'flag: usable with either argument family and '
+                             'forwarded to the section-16 solver-mode path '
+                             '(dqna_modes) as well.')
     parser.add_argument('--backend-mode', default=None,
                         choices=['statevector', 'shots'])
     args = parser.parse_args()
@@ -1115,6 +1129,8 @@ def main():
     # default path).
     if cli_has_new or stdin_has_s16:
         import dqna_modes as dmod
+        dmod.SV_BACKEND = SV_BACKEND  # forward --sv-backend to section-16
+        dmod.AER_OPT_LEVEL = AER_OPT_LEVEL
         try:
             cfg = dmod.resolve_config(new_cli, data)
         except dmod.ConfigError as e:
