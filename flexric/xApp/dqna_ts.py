@@ -76,6 +76,15 @@ v2 changes vs the original 13-qubit design (blob 8ab5a345):
      max_circuit_runs=500, max_oracle_calls=4000, cap=2 (V5_DEFAULTS).
      Legacy/section-16 lambda defaults stay 4.0; the Stage-A Round7 fixed
      reference stays lambda=4.
+ 12. (Aer backend, 2026-07-20, feature/aer-statevector-backend) The
+     statevector execution engine for the legacy and v5 paths is
+     sv_from_circuit(): default "aer" = qiskit_aer AerSimulator
+     (method="statevector", shots=None, no noise) on a save_statevector()
+     copy; --sv-backend reference keeps the original
+     Statevector.from_instruction. Circuits, oracle/diffusion, top-K,
+     objective and tie-breaks are unchanged; Aer errors propagate (no
+     silent fallback). The section-16 solver-mode path (dqna_modes)
+     keeps its own execution.
 
 Usage:
     echo '{"sinr":[[...],[...],[...],[...]]}' | python dqna_ts.py
@@ -106,6 +115,43 @@ N_TOTAL = N_ASSIGN + N_AUX + N_SF  # 15
 
 MAX_PER_CELL = 2           # cap-only constraint (module global, CLI-settable)
 QUAL_LAMBDA = 4.0          # exponential quality-encoding contrast (CLI-settable)
+
+# Statevector execution backend (feature/aer-statevector-backend):
+# "aer" (default) runs qiskit_aer.AerSimulator(method="statevector");
+# "reference" keeps the original qiskit.quantum_info
+# Statevector.from_instruction. CLI-settable via --sv-backend. Circuit
+# construction, oracle/diffusion structure, top-K ranking, objective and
+# tie-breaks are IDENTICAL on both backends; only the statevector
+# execution engine differs. Aer errors propagate (no silent fallback).
+SV_BACKEND = "aer"
+AER_OPT_LEVEL = 0  # transpile optimization_level for the Aer path
+                   # (benchmark-selected; levels 0/1/3 A/B-validated by
+                   # scripts/validate_aer_ab.py)
+
+
+def sv_from_circuit(qc, backend=None):
+    """Ideal (shots=None, no noise model) statevector of `qc`.
+
+    Aer path: run a copy of the circuit with save_statevector() on
+    AerSimulator(method="statevector"), transpiled for the simulator
+    (no coupling map, so the logical qubit ordering is preserved; the
+    A/B validator asserts fidelity/probability/top-K equivalence against
+    the reference ordering). Reference path: the original
+    Statevector.from_instruction. Unknown backends and Aer failures
+    raise — callers must NOT silently fall back."""
+    b = backend if backend is not None else SV_BACKEND
+    if b == "reference":
+        return Statevector.from_instruction(qc)
+    if b != "aer":
+        raise ValueError("unknown statevector backend: %r" % (b,))
+    from qiskit import transpile
+    from qiskit_aer import AerSimulator
+    sim = AerSimulator(method="statevector")
+    c = qc.copy()
+    c.save_statevector()
+    tqc = transpile(c, sim, optimization_level=AER_OPT_LEVEL)
+    result = sim.run(tqc, shots=None).result()
+    return Statevector(result.data(0)["statevector"])
 
 # Encoding map: cell c <-> (lo, hi)
 # c=0: (lo=0, hi=0)
@@ -405,7 +451,7 @@ def brute_force_best(rate):
 # ---------------------------------------------------------------------------
 def quantum_solve(rate, feas_iter=1, qual_iter=1, verbose=False):
     qc = build_circuit(rate, feas_iter, qual_iter)
-    sv = Statevector.from_instruction(qc)
+    sv = sv_from_circuit(qc)
     probs = sv.probabilities()
 
     # Marginalize over aux and sf: index layout is
@@ -698,11 +744,10 @@ class _V5Sampler:
         return self._q_circ
 
     def _state(self, j):
-        from qiskit.quantum_info import Statevector
         if j in self._cache:
             return self._cache[j]
         if 0 not in self._cache:
-            self._cache[0] = Statevector.from_instruction(
+            self._cache[0] = sv_from_circuit(
                 v5_build_iteration_circuit(self.rate, self.cap, self.lam, 0))
         jmax = max(self._cache)
         sv = self._cache[jmax]
@@ -862,7 +907,7 @@ def v5_solve(rate, cap=2, qual_lambda=3.0, aa_mode="adaptive", aa_iter=None,
 # CLI
 # ---------------------------------------------------------------------------
 def main():
-    global MAX_PER_CELL, QUAL_LAMBDA
+    global MAX_PER_CELL, QUAL_LAMBDA, SV_BACKEND
     parser = argparse.ArgumentParser()
     parser.add_argument('--brute', action='store_true',
                         help='Also run brute-force optimum and compare.')
@@ -911,6 +956,15 @@ def main():
     parser.add_argument('--gated-iterations', type=int, default=None)
     parser.add_argument('--shots', type=int, default=None)
     parser.add_argument('--sampling-seed', type=int, default=None)
+    parser.add_argument('--sv-backend', default=None,
+                        choices=['aer', 'reference'],
+                        help='Statevector execution engine for the legacy '
+                             'and v5 paths (default: module SV_BACKEND = '
+                             'aer). "reference" keeps the original '
+                             'Statevector.from_instruction. Neutral flag: '
+                             'usable with either argument family; the '
+                             'section-16 solver-mode path (dqna_modes) has '
+                             'its own execution and ignores it.')
     parser.add_argument('--backend-mode', default=None,
                         choices=['statevector', 'shots'])
     args = parser.parse_args()
@@ -969,6 +1023,8 @@ def main():
         sys.exit(1)
     MAX_PER_CELL = args.max_per_cell if args.max_per_cell is not None else 2
     QUAL_LAMBDA = args.qual_lambda if args.qual_lambda is not None else 4.0
+    if args.sv_backend is not None:
+        SV_BACKEND = args.sv_backend
     feas_iter = args.feas_iter if args.feas_iter is not None else 1
     qual_iter = args.qual_iter if args.qual_iter is not None else 1
     if args.test and (cli_has_new or cli_has_v5):

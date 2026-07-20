@@ -1,0 +1,903 @@
+{
+ "verdict": "PASS",
+ "pass": 132,
+ "fail": 0,
+ "elapsed_s": 370.0,
+ "tolerances": {
+  "fidelity": "1 - 1e-12",
+  "prob_max_abs_err": 1e-12
+ },
+ "opt_levels": [
+  0,
+  1,
+  3
+ ],
+ "environment": {
+  "python": "3.12.3",
+  "qiskit": "1.2.4",
+  "qiskit_aer": "0.15.1",
+  "numpy": "1.26.4"
+ },
+ "tie_events": [
+  {
+   "solver": "ts_legacy",
+   "case": "uniform",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "uniform",
+   "level": 0,
+   "kind": "tie_equivalent_assignment",
+   "ref": [
+    1,
+    2,
+    2,
+    1
+   ],
+   "aer": [
+    1,
+    0,
+    0,
+    2
+   ],
+   "score": 4.0
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "strong_pref",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "generic",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "nes",
+   "case": "rand7",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "typical",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "skew",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "rand3",
+   "level": 0,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "uniform",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "uniform",
+   "level": 1,
+   "kind": "tie_equivalent_assignment",
+   "ref": [
+    1,
+    2,
+    2,
+    1
+   ],
+   "aer": [
+    0,
+    1,
+    0,
+    1
+   ],
+   "score": 4.0
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "strong_pref",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "generic",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "nes",
+   "case": "uniform",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "nes",
+   "case": "rand7",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "typical",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "skew",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "rand3",
+   "level": 1,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "uniform",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "uniform",
+   "level": 3,
+   "kind": "tie_equivalent_assignment",
+   "ref": [
+    1,
+    2,
+    2,
+    1
+   ],
+   "aer": [
+    0,
+    1,
+    0,
+    1
+   ],
+   "score": 4.0
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "strong_pref",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "ts_legacy",
+   "case": "generic",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "nes",
+   "case": "uniform",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "nes",
+   "case": "rand7",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "typical",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "skew",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  },
+  {
+   "solver": "qos",
+   "case": "rand3",
+   "level": 3,
+   "kind": "topk_tie_permutation",
+   "info": "order differs only inside <=1e-12 ties"
+  }
+ ],
+ "checks": [
+  {
+   "name": "L0_ts_legacy_round7_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997957"
+  },
+  {
+   "name": "L0_ts_legacy_round7_prob",
+   "ok": true,
+   "detail": "maxerr=6.809e-17"
+  },
+  {
+   "name": "L0_ts_legacy_round7_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 2]/[0, 0, 1, 2] score 41.11/41.11 feas 0.21117502146826173/0.2111750214682666 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_ts_legacy_uniform_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997513"
+  },
+  {
+   "name": "L0_ts_legacy_uniform_prob",
+   "ok": true,
+   "detail": "maxerr=1.136e-16"
+  },
+  {
+   "name": "L0_ts_legacy_uniform_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [1, 2, 2, 1]/[1, 0, 0, 2] score 4.0/4.0 feas 0.4296863134950293/0.42968631349503955 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_ts_legacy_strong_pref_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997091"
+  },
+  {
+   "name": "L0_ts_legacy_strong_pref_prob",
+   "ok": true,
+   "detail": "maxerr=5.551e-16"
+  },
+  {
+   "name": "L0_ts_legacy_strong_pref_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 2]/[0, 0, 1, 2] score 40.0/40.0 feas 0.27191915018960083/0.27191915018960744 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_ts_legacy_generic_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999996758"
+  },
+  {
+   "name": "L0_ts_legacy_generic_prob",
+   "ok": true,
+   "detail": "maxerr=5.239e-16"
+  },
+  {
+   "name": "L0_ts_legacy_generic_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [2, 0, 1, 1]/[2, 0, 1, 1] score 12.0/12.0 feas 0.3259455622067237/0.3259455622067311 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_ts_legacy_rand11_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997602"
+  },
+  {
+   "name": "L0_ts_legacy_rand11_prob",
+   "ok": true,
+   "detail": "maxerr=6.787e-17"
+  },
+  {
+   "name": "L0_ts_legacy_rand11_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [1, 2, 2, 0]/[1, 2, 2, 0] score 59.95401862977285/59.95401862977285 feas 0.21445630847916664/0.214456308479171 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_ts_legacy_rand42_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997913"
+  },
+  {
+   "name": "L0_ts_legacy_rand42_prob",
+   "ok": true,
+   "detail": "maxerr=6.700e-17"
+  },
+  {
+   "name": "L0_ts_legacy_rand42_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [2, 0, 0, 1]/[2, 0, 0, 1] score 22.35842053432045/22.35842053432045 feas 0.2191584089001083/0.21915840890011326 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_ts_v5_round7_pipeline",
+   "ok": true,
+   "detail": "res_eq=True cnt_eq=True res_r={'assignment': [0, 0, 1, 2], 'score': 41.11, 'feasible': True, 'feasibility_prob': 0.754, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'} res_a={'assignment': [0, 0, 1, 2], 'score': 41.11, 'feasible': True, 'feasibility_prob': 0.754, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'}"
+  },
+  {
+   "name": "L0_ts_v5_round7_k2_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999981681 maxerr=5.912e-15"
+  },
+  {
+   "name": "L0_ts_v5_generic_pipeline",
+   "ok": true,
+   "detail": "res_eq=True cnt_eq=True res_r={'assignment': [2, 0, 1, 1], 'score': 12.0, 'feasible': True, 'feasibility_prob': 0.7375886524822695, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'} res_a={'assignment': [2, 0, 1, 1], 'score': 12.0, 'feasible': True, 'feasibility_prob': 0.7375886524822695, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'}"
+  },
+  {
+   "name": "L0_ts_v5_generic_k2_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999980971 maxerr=6.550e-15"
+  },
+  {
+   "name": "L0_nes_nes_pack_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999689"
+  },
+  {
+   "name": "L0_nes_nes_pack_prob",
+   "ok": true,
+   "detail": "maxerr=1.839e-16"
+  },
+  {
+   "name": "L0_nes_nes_pack_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 34.0/34.0 feas 0.39922567260788516/0.39922567260788644 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_nes_uniform_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999600"
+  },
+  {
+   "name": "L0_nes_uniform_prob",
+   "ok": true,
+   "detail": "maxerr=2.082e-16"
+  },
+  {
+   "name": "L0_nes_uniform_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 4.0/4.0 feas 0.8437499999999974/0.8437499999999993 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_nes_dead_col_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999423"
+  },
+  {
+   "name": "L0_nes_dead_col_prob",
+   "ok": true,
+   "detail": "maxerr=1.596e-16"
+  },
+  {
+   "name": "L0_nes_dead_col_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 9.0/9.0 feas 0.37506228327997504/0.3750622832799759 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_nes_rand7_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999201"
+  },
+  {
+   "name": "L0_nes_rand7_prob",
+   "ok": true,
+   "detail": "maxerr=1.735e-16"
+  },
+  {
+   "name": "L0_nes_rand7_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 1]/[0, 0, 1, 1] score 61.911260412577775/61.911260412577775 feas 0.412542075848375/0.4125420758483763 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_qos_typical_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999623"
+  },
+  {
+   "name": "L0_qos_typical_prob",
+   "ok": true,
+   "detail": "maxerr=7.772e-16"
+  },
+  {
+   "name": "L0_qos_typical_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 1]/[0, 1] score 9.0/9.0 feas 0.8829964561778775/0.8829964561778803 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_qos_skew_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999600"
+  },
+  {
+   "name": "L0_qos_skew_prob",
+   "ok": true,
+   "detail": "maxerr=7.494e-16"
+  },
+  {
+   "name": "L0_qos_skew_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 2]/[0, 2] score 17.0/17.0 feas 0.864944223344808/0.8649442233448108 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_qos_rand3_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999556"
+  },
+  {
+   "name": "L0_qos_rand3_prob",
+   "ok": true,
+   "detail": "maxerr=3.608e-16"
+  },
+  {
+   "name": "L0_qos_rand3_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [2, 1]/[2, 1] score 12.344014054428706/12.344014054428706 feas 0.8454357390755629/0.8454357390755651 (mass tol 1e-12)"
+  },
+  {
+   "name": "L0_qos_flat_row_classical_path",
+   "ok": true,
+   "detail": "classical reduction must be backend-independent"
+  },
+  {
+   "name": "L1_ts_legacy_round7_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997957"
+  },
+  {
+   "name": "L1_ts_legacy_round7_prob",
+   "ok": true,
+   "detail": "maxerr=6.874e-17"
+  },
+  {
+   "name": "L1_ts_legacy_round7_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 2]/[0, 0, 1, 2] score 41.11/41.11 feas 0.21117502146826173/0.2111750214682666 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_ts_legacy_uniform_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997513"
+  },
+  {
+   "name": "L1_ts_legacy_uniform_prob",
+   "ok": true,
+   "detail": "maxerr=1.258e-16"
+  },
+  {
+   "name": "L1_ts_legacy_uniform_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [1, 2, 2, 1]/[0, 1, 0, 1] score 4.0/4.0 feas 0.4296863134950293/0.42968631349504016 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_ts_legacy_strong_pref_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997136"
+  },
+  {
+   "name": "L1_ts_legacy_strong_pref_prob",
+   "ok": true,
+   "detail": "maxerr=5.794e-16"
+  },
+  {
+   "name": "L1_ts_legacy_strong_pref_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 2]/[0, 0, 1, 2] score 40.0/40.0 feas 0.27191915018960083/0.27191915018960766 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_ts_legacy_generic_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999996803"
+  },
+  {
+   "name": "L1_ts_legacy_generic_prob",
+   "ok": true,
+   "detail": "maxerr=5.065e-16"
+  },
+  {
+   "name": "L1_ts_legacy_generic_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [2, 0, 1, 1]/[2, 0, 1, 1] score 12.0/12.0 feas 0.3259455622067237/0.32594556220673115 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_ts_legacy_rand11_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997602"
+  },
+  {
+   "name": "L1_ts_legacy_rand11_prob",
+   "ok": true,
+   "detail": "maxerr=6.961e-17"
+  },
+  {
+   "name": "L1_ts_legacy_rand11_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [1, 2, 2, 0]/[1, 2, 2, 0] score 59.95401862977285/59.95401862977285 feas 0.21445630847916664/0.21445630847917108 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_ts_legacy_rand42_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997979"
+  },
+  {
+   "name": "L1_ts_legacy_rand42_prob",
+   "ok": true,
+   "detail": "maxerr=6.635e-17"
+  },
+  {
+   "name": "L1_ts_legacy_rand42_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [2, 0, 0, 1]/[2, 0, 0, 1] score 22.35842053432045/22.35842053432045 feas 0.2191584089001083/0.21915840890011323 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_ts_v5_round7_pipeline",
+   "ok": true,
+   "detail": "res_eq=True cnt_eq=True res_r={'assignment': [0, 0, 1, 2], 'score': 41.11, 'feasible': True, 'feasibility_prob': 0.754, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'} res_a={'assignment': [0, 0, 1, 2], 'score': 41.11, 'feasible': True, 'feasibility_prob': 0.754, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'}"
+  },
+  {
+   "name": "L1_ts_v5_round7_k2_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999984168 maxerr=8.230e-15"
+  },
+  {
+   "name": "L1_ts_v5_generic_pipeline",
+   "ok": true,
+   "detail": "res_eq=True cnt_eq=True res_r={'assignment': [2, 0, 1, 1], 'score': 12.0, 'feasible': True, 'feasibility_prob': 0.7375886524822695, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'} res_a={'assignment': [2, 0, 1, 1], 'score': 12.0, 'feasible': True, 'feasibility_prob': 0.7375886524822695, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'}"
+  },
+  {
+   "name": "L1_ts_v5_generic_k2_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999983435 maxerr=8.923e-15"
+  },
+  {
+   "name": "L1_nes_nes_pack_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999689"
+  },
+  {
+   "name": "L1_nes_nes_pack_prob",
+   "ok": true,
+   "detail": "maxerr=1.735e-16"
+  },
+  {
+   "name": "L1_nes_nes_pack_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 34.0/34.0 feas 0.39922567260788516/0.39922567260788633 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_nes_uniform_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999645"
+  },
+  {
+   "name": "L1_nes_uniform_prob",
+   "ok": true,
+   "detail": "maxerr=2.359e-16"
+  },
+  {
+   "name": "L1_nes_uniform_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 1]/[0, 0, 1, 1] score 4.0/4.0 feas 0.8437499999999974/0.8437499999999998 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_nes_dead_col_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999423"
+  },
+  {
+   "name": "L1_nes_dead_col_prob",
+   "ok": true,
+   "detail": "maxerr=1.874e-16"
+  },
+  {
+   "name": "L1_nes_dead_col_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 9.0/9.0 feas 0.37506228327997504/0.375062283279976 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_nes_rand7_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999245"
+  },
+  {
+   "name": "L1_nes_rand7_prob",
+   "ok": true,
+   "detail": "maxerr=1.700e-16"
+  },
+  {
+   "name": "L1_nes_rand7_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 1]/[0, 0, 1, 1] score 61.911260412577775/61.911260412577775 feas 0.412542075848375/0.41254207584837643 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_qos_typical_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999667"
+  },
+  {
+   "name": "L1_qos_typical_prob",
+   "ok": true,
+   "detail": "maxerr=7.216e-16"
+  },
+  {
+   "name": "L1_qos_typical_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 1]/[0, 1] score 9.0/9.0 feas 0.8829964561778775/0.8829964561778801 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_qos_skew_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999556"
+  },
+  {
+   "name": "L1_qos_skew_prob",
+   "ok": true,
+   "detail": "maxerr=6.384e-16"
+  },
+  {
+   "name": "L1_qos_skew_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 2]/[0, 2] score 17.0/17.0 feas 0.864944223344808/0.8649442233448105 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_qos_rand3_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999556"
+  },
+  {
+   "name": "L1_qos_rand3_prob",
+   "ok": true,
+   "detail": "maxerr=3.608e-16"
+  },
+  {
+   "name": "L1_qos_rand3_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [2, 1]/[2, 1] score 12.344014054428706/12.344014054428706 feas 0.8454357390755629/0.8454357390755651 (mass tol 1e-12)"
+  },
+  {
+   "name": "L1_qos_flat_row_classical_path",
+   "ok": true,
+   "detail": "classical reduction must be backend-independent"
+  },
+  {
+   "name": "L3_ts_legacy_round7_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997957"
+  },
+  {
+   "name": "L3_ts_legacy_round7_prob",
+   "ok": true,
+   "detail": "maxerr=6.874e-17"
+  },
+  {
+   "name": "L3_ts_legacy_round7_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 2]/[0, 0, 1, 2] score 41.11/41.11 feas 0.21117502146826173/0.2111750214682666 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_ts_legacy_uniform_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997513"
+  },
+  {
+   "name": "L3_ts_legacy_uniform_prob",
+   "ok": true,
+   "detail": "maxerr=1.258e-16"
+  },
+  {
+   "name": "L3_ts_legacy_uniform_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [1, 2, 2, 1]/[0, 1, 0, 1] score 4.0/4.0 feas 0.4296863134950293/0.42968631349504016 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_ts_legacy_strong_pref_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997136"
+  },
+  {
+   "name": "L3_ts_legacy_strong_pref_prob",
+   "ok": true,
+   "detail": "maxerr=5.794e-16"
+  },
+  {
+   "name": "L3_ts_legacy_strong_pref_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 2]/[0, 0, 1, 2] score 40.0/40.0 feas 0.27191915018960083/0.27191915018960766 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_ts_legacy_generic_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999996803"
+  },
+  {
+   "name": "L3_ts_legacy_generic_prob",
+   "ok": true,
+   "detail": "maxerr=5.065e-16"
+  },
+  {
+   "name": "L3_ts_legacy_generic_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [2, 0, 1, 1]/[2, 0, 1, 1] score 12.0/12.0 feas 0.3259455622067237/0.32594556220673115 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_ts_legacy_rand11_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997602"
+  },
+  {
+   "name": "L3_ts_legacy_rand11_prob",
+   "ok": true,
+   "detail": "maxerr=6.961e-17"
+  },
+  {
+   "name": "L3_ts_legacy_rand11_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [1, 2, 2, 0]/[1, 2, 2, 0] score 59.95401862977285/59.95401862977285 feas 0.21445630847916664/0.21445630847917108 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_ts_legacy_rand42_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999997979"
+  },
+  {
+   "name": "L3_ts_legacy_rand42_prob",
+   "ok": true,
+   "detail": "maxerr=6.635e-17"
+  },
+  {
+   "name": "L3_ts_legacy_rand42_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [2, 0, 0, 1]/[2, 0, 0, 1] score 22.35842053432045/22.35842053432045 feas 0.2191584089001083/0.21915840890011323 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_ts_v5_round7_pipeline",
+   "ok": true,
+   "detail": "res_eq=True cnt_eq=True res_r={'assignment': [0, 0, 1, 2], 'score': 41.11, 'feasible': True, 'feasibility_prob': 0.754, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'} res_a={'assignment': [0, 0, 1, 2], 'score': 41.11, 'feasible': True, 'feasibility_prob': 0.754, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'}"
+  },
+  {
+   "name": "L3_ts_v5_round7_k2_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999984168 maxerr=8.230e-15"
+  },
+  {
+   "name": "L3_ts_v5_generic_pipeline",
+   "ok": true,
+   "detail": "res_eq=True cnt_eq=True res_r={'assignment': [2, 0, 1, 1], 'score': 12.0, 'feasible': True, 'feasibility_prob': 0.7375886524822695, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'} res_a={'assignment': [2, 0, 1, 1], 'score': 12.0, 'feasible': True, 'feasibility_prob': 0.7375886524822695, 'method': 'quantum-fullA-17q-valid3-caponly-weightedAA-v5'}"
+  },
+  {
+   "name": "L3_ts_v5_generic_k2_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999983435 maxerr=8.923e-15"
+  },
+  {
+   "name": "L3_nes_nes_pack_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999734"
+  },
+  {
+   "name": "L3_nes_nes_pack_prob",
+   "ok": true,
+   "detail": "maxerr=1.908e-16"
+  },
+  {
+   "name": "L3_nes_nes_pack_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 34.0/34.0 feas 0.39922567260788516/0.3992256726078866 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_nes_uniform_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999645"
+  },
+  {
+   "name": "L3_nes_uniform_prob",
+   "ok": true,
+   "detail": "maxerr=2.359e-16"
+  },
+  {
+   "name": "L3_nes_uniform_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 1]/[0, 0, 1, 1] score 4.0/4.0 feas 0.8437499999999974/0.8437499999999998 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_nes_dead_col_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999489"
+  },
+  {
+   "name": "L3_nes_dead_col_prob",
+   "ok": true,
+   "detail": "maxerr=1.665e-16"
+  },
+  {
+   "name": "L3_nes_dead_col_topk_result",
+   "ok": true,
+   "detail": "topk_same=True tie=False assign [0, 0, 1, 1]/[0, 0, 1, 1] score 9.0/9.0 feas 0.37506228327997504/0.3750622832799762 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_nes_rand7_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999245"
+  },
+  {
+   "name": "L3_nes_rand7_prob",
+   "ok": true,
+   "detail": "maxerr=1.665e-16"
+  },
+  {
+   "name": "L3_nes_rand7_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 0, 1, 1]/[0, 0, 1, 1] score 61.911260412577775/61.911260412577775 feas 0.412542075848375/0.4125420758483763 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_qos_typical_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999667"
+  },
+  {
+   "name": "L3_qos_typical_prob",
+   "ok": true,
+   "detail": "maxerr=7.216e-16"
+  },
+  {
+   "name": "L3_qos_typical_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 1]/[0, 1] score 9.0/9.0 feas 0.8829964561778775/0.8829964561778801 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_qos_skew_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999556"
+  },
+  {
+   "name": "L3_qos_skew_prob",
+   "ok": true,
+   "detail": "maxerr=6.384e-16"
+  },
+  {
+   "name": "L3_qos_skew_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [0, 2]/[0, 2] score 17.0/17.0 feas 0.864944223344808/0.8649442233448105 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_qos_rand3_fid",
+   "ok": true,
+   "detail": "fid=0.99999999999999556"
+  },
+  {
+   "name": "L3_qos_rand3_prob",
+   "ok": true,
+   "detail": "maxerr=3.608e-16"
+  },
+  {
+   "name": "L3_qos_rand3_topk_result",
+   "ok": true,
+   "detail": "topk_same=False tie=True assign [2, 1]/[2, 1] score 12.344014054428706/12.344014054428706 feas 0.8454357390755629/0.8454357390755651 (mass tol 1e-12)"
+  },
+  {
+   "name": "L3_qos_flat_row_classical_path",
+   "ok": true,
+   "detail": "classical reduction must be backend-independent"
+  }
+ ]
+}

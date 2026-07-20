@@ -36,6 +36,33 @@ N_TOTAL = 8
 QUAL_LAMBDA = 4.0
 TOP_K = 8
 
+# Statevector execution backend (feature/aer-statevector-backend): "aer"
+# (default) = qiskit_aer AerSimulator(method="statevector"); "reference" =
+# original Statevector.from_instruction. CLI --sv-backend. Circuits,
+# oracles, top-K, objective and tie-breaks are identical on both; Aer
+# errors propagate (no silent fallback). The flat-utility classical
+# reduction path returns before any circuit and is backend-independent.
+SV_BACKEND = "aer"
+AER_OPT_LEVEL = 0
+
+
+def sv_from_circuit(qc, backend=None):
+    """Ideal (shots=None, no noise model) statevector of `qc` on the
+    selected backend; see dqna_ts.sv_from_circuit for the contract."""
+    b = backend if backend is not None else SV_BACKEND
+    if b == "reference":
+        return Statevector.from_instruction(qc)
+    if b != "aer":
+        raise ValueError("unknown statevector backend: %r" % (b,))
+    from qiskit import transpile
+    from qiskit_aer import AerSimulator
+    sim = AerSimulator(method="statevector")
+    c = qc.copy()
+    c.save_statevector()
+    tqc = transpile(c, sim, optimization_level=AER_OPT_LEVEL)
+    result = sim.run(tqc, shots=None).result()
+    return Statevector(result.data(0)["statevector"])
+
 
 def _flag_distinct(qc, assign, flag):
     """flag ^= 1 iff UE0's DRB != UE1's DRB (in-place XOR trick, no scratch)."""
@@ -178,7 +205,7 @@ def quantum_solve(util, feas_iter=0, qual_iter=1, verbose=False):
         best, best_s = brute_force_best(util)
         return best, best_s, 1.0, None
     qc = build_circuit(util, feas_iter, qual_iter)
-    sv = Statevector.from_instruction(qc)
+    sv = sv_from_circuit(qc)
     ap = sv.probabilities().reshape(-1, 16).sum(axis=0)
     ranked = np.argsort(ap)[::-1]
     best, best_s = None, -1.0
@@ -196,15 +223,20 @@ def quantum_solve(util, feas_iter=0, qual_iter=1, verbose=False):
 
 
 def main():
-    global QUAL_LAMBDA
+    global QUAL_LAMBDA, SV_BACKEND
     p = argparse.ArgumentParser()
     p.add_argument('--verbose', action='store_true')
     p.add_argument('--feas-iter', type=int, default=0)
     p.add_argument('--qual-iter', type=int, default=1)
     p.add_argument('--qual-lambda', type=float, default=4.0)
+    p.add_argument('--sv-backend', default=None, choices=['aer', 'reference'],
+                   help='Statevector execution engine (default: module '
+                        'SV_BACKEND = aer).')
     p.add_argument('--test', action='store_true')
     args = p.parse_args()
     QUAL_LAMBDA = args.qual_lambda
+    if args.sv_backend is not None:
+        SV_BACKEND = args.sv_backend
 
     if args.test:
         cases = [

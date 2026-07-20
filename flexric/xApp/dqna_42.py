@@ -43,6 +43,32 @@ MAX_PER_CELL = 2
 QUAL_LAMBDA = 4.0
 TOP_K = 4
 
+# Statevector execution backend (feature/aer-statevector-backend): "aer"
+# (default) = qiskit_aer AerSimulator(method="statevector"); "reference" =
+# original Statevector.from_instruction. CLI --sv-backend. Circuits,
+# oracles, top-K, objective and tie-breaks are identical on both; Aer
+# errors propagate (no silent fallback).
+SV_BACKEND = "aer"
+AER_OPT_LEVEL = 0
+
+
+def sv_from_circuit(qc, backend=None):
+    """Ideal (shots=None, no noise model) statevector of `qc` on the
+    selected backend; see dqna_ts.sv_from_circuit for the contract."""
+    b = backend if backend is not None else SV_BACKEND
+    if b == "reference":
+        return Statevector.from_instruction(qc)
+    if b != "aer":
+        raise ValueError("unknown statevector backend: %r" % (b,))
+    from qiskit import transpile
+    from qiskit_aer import AerSimulator
+    sim = AerSimulator(method="statevector")
+    c = qc.copy()
+    c.save_statevector()
+    tqc = transpile(c, sim, optimization_level=AER_OPT_LEVEL)
+    result = sim.run(tqc, shots=None).result()
+    return Statevector(result.data(0)["statevector"])
+
 
 def ctrl_inc_mod8(qc, ctrls, lo, mid, hi):
     qc.mcx(ctrls + [lo, mid], hi)
@@ -207,7 +233,7 @@ def brute_force_best(rate):
 
 def quantum_solve(rate, feas_iter=1, qual_iter=1, verbose=False):
     qc = build_circuit(rate, feas_iter, qual_iter)
-    sv = Statevector.from_instruction(qc)
+    sv = sv_from_circuit(qc)
     probs = sv.probabilities()
     n = 1 << N_ASSIGN
     assign_probs = probs.reshape(-1, n).sum(axis=0)
@@ -229,7 +255,7 @@ def quantum_solve(rate, feas_iter=1, qual_iter=1, verbose=False):
 
 
 def main():
-    global MAX_PER_CELL, QUAL_LAMBDA
+    global MAX_PER_CELL, QUAL_LAMBDA, SV_BACKEND
     p = argparse.ArgumentParser()
     p.add_argument('--brute', action='store_true')
     p.add_argument('--verbose', action='store_true')
@@ -237,6 +263,9 @@ def main():
     p.add_argument('--qual-iter', type=int, default=1)  # the whole algorithm
     p.add_argument('--max-per-cell', type=int, default=2)
     p.add_argument('--qual-lambda', type=float, default=4.0)
+    p.add_argument('--sv-backend', default=None, choices=['aer', 'reference'],
+                   help='Statevector execution engine (default: module '
+                        'SV_BACKEND = aer).')
     p.add_argument('--test', action='store_true')
     args = p.parse_args()
     if not 1 <= args.max_per_cell <= N_UE:
@@ -244,6 +273,8 @@ def main():
         sys.exit(1)
     MAX_PER_CELL = args.max_per_cell
     QUAL_LAMBDA = args.qual_lambda
+    if args.sv_backend is not None:
+        SV_BACKEND = args.sv_backend
 
     if args.test:
         cases = [

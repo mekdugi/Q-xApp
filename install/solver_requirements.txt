@@ -2,12 +2,16 @@
 # Exact `pip freeze` of the validated venv (/root/qxapp-venv, Python 3.12.3)
 # the Stage-0/combined-oracle results were produced with. Direct pins:
 # qiskit==1.2.4, numpy==1.26.4; everything else is their transitive closure.
+# qiskit-aer==0.15.1 (+ its psutil dependency) added on
+# feature/aer-statevector-backend for the Aer statevector execution engine.
 # GUI dependencies are separate (gui/requirements.txt).
 dill==0.4.1
 mpmath==1.3.0
 numpy==1.26.4
+psutil==7.2.2
 python-dateutil==2.9.0.post0
 qiskit==1.2.4
+qiskit-aer==0.15.1
 rustworkx==0.18.0
 scipy==1.17.1
 six==1.17.0
