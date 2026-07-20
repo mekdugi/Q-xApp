@@ -6,6 +6,18 @@ Sections 2–8 document the TS solver (`dqna_ts.py`, 4 UE × 3 cells); section 9
 documents the NES (`dqna_42.py`) and QoS-RA (`dqna_qos.py`) solvers and the
 all-three-quantum end-to-end run.
 
+Terminology: **"all-three-quantum" means exactly that the three quantum
+ASSIGNMENT SUBPATHS (TS, NES, QoS-RA) were active in one cycle with zero
+subpath fallbacks** — not that the whole controller is quantum. The
+controller is a hybrid pipeline whose NORMAL path also includes classical
+logic (sleep-candidate selection/ranking, lone-UE exact DRB handling, top-K
+raw-objective re-scoring, and the deterministic classical post-wake
+recovery policy); the classical greedy/DRB matchers additionally act as
+per-decision fallbacks, counted separately — the classical logic above is
+NOT "fallback only". All results in this document are ideal statevector
+simulation: they support no QPU-latency, no generalized-assignment and no
+quantum-advantage claim.
+
 ## 1. Scope
 
 Offline (Stage-0) validation of `flexric/xApp/dqna_ts.py` — the quantum
@@ -272,3 +284,11 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 | Equivalence facts | (1) State fidelity and probability distributions are equivalent within the specified tolerances: global-phase-invariant fidelity >= 1-1e-12 and probability max abs error <= 1e-12 on every solver circuit at optimization_level 0/1/3 (`scripts/validate_aer_ab.py`, 69/69 fid/prob checks; the v5 fixed-seed pipeline was result+counter identical in these runs). (2) On EXACT-TIE boundaries, floating-point last-bit differences change top-K order/set and can select a different equal-score tie-break assignment (observed: all-uniform matrix, score identical). (3) Aer is therefore NOT a bit-identical drop-in replacement — `scripts/aer_strict_probe.py` shows no probed configuration (no-transpile / fusion off / single thread combinations) reproduces the reference statevector bit-for-bit. (4) Consequently canonical paper results use the reference backend. The strict A/B validator keeps recording these tie failures honestly (`AER_AB_STRICT=FAIL` is EXPECTED and is not a canonical regression). |
 | Performance (kept strictly separate) | Single-circuit/kernel microbenchmark (warm p50, reference -> Aer L0): ts_legacy 15q 2687 -> 66 ms, ts_v5_k0 17q 1857 -> 56 ms, nes 10q 34 -> 30 ms, qos 8q 4 -> 26 ms (Aer SLOWER on the small circuit — transpile fixed cost). FULL current-default adaptive v5 solve END-TO-END (n=20, untimed warm-up, result+counters exact every rep): warm p50 reference 20.60 s -> Aer L0 19.65 s (~5%), cold CLI 22.2 -> 20.4 s. Kernel speedups MUST NOT be quoted as full-solver speedups — the v5 runtime is dominated by classical sampling over cached statevectors. `reports/aer_benchmark_report.json` keeps the two tables separate. |
 | Follow-up (documented only, NOT implemented) | Backend-independent deterministic tie-breaking: resolve equal-objective candidates by a canonical rule on the candidate itself (e.g. smallest candidate index / lexicographically smallest assignment bitstring at equal score, applied to rank ties within the probability tolerance) instead of raw float rank order, so top-K selection becomes identical across numerically equivalent backends. Registered as future work; no solver code change in this checkpoint. |
+
+### R5 tracked solver suites (2026-07-21, canonical reference backend)
+
+| Item | Contract / result |
+|------|-------------------|
+| NES 4x2 deterministic suite | `scripts/validate_nes_suite.py` (seed 20260721: 300 generated cases across 6 categories + 6 builtin/edge incl. all-zero and tie matrices). Criterion: solver score == independent harness-local exhaustive-oracle optimum over all 16 assignments (equal-score ties allowed; production solver helpers not used). Result: **PASS 306/306**, 0 no-candidate → `reports/nes_suite_report.json` (wall time recorded in the report's `elapsed_s`). |
+| QoS-RA exhaustive suite | `scripts/validate_qos_exhaustive.py`: ALL {0,1,10}^8 = 6,561 utility matrices vs an independent harness-local oracle over the 16 total (d0,d1) pairs, of which 12 are feasible under d0 != d1 (production solver helpers not used). Result: **PASS 6,561/6,561** (477 flat-row classical-reduction cases + 6,084 quantum-path cases) → `reports/qos_exhaustive_report.json` (wall time in `elapsed_s`). |
+| Claim → command → report map | `docs/validation_matrix.json` (machine-readable; root entrypoint `verify.sh` with quick / solver / full / gui tiers). R5.4 Fig.4 raw provenance is DEFERRED BY USER; LICENSE is USER DECISION REQUIRED. |

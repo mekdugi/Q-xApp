@@ -2,9 +2,15 @@
 <html>
 <head>
     <title>Q-xApp Simulator</title>
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <!-- The icon file recovered from the deployed GUI is a JPEG (1200x624);
+         served with its real format/MIME (R5 asset-consistency fix). -->
+    <link rel="icon" href="/static/favicon.jpg" type="image/jpeg">
+    <!-- Locally vendored (R5.5): Chart.js v4.5.1 + chartjs-plugin-datalabels
+         v2.2.0, the exact files the previously unpinned jsdelivr URLs served
+         (SHA-256 recorded in docs/validation_matrix.json). No runtime CDN
+         dependency for chart rendering. -->
+    <script src="/static/vendor/chart-4.5.1.umd.min.js"></script>
+    <script src="/static/vendor/chartjs-plugin-datalabels-2.2.0.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -131,7 +137,7 @@
 <div id="main-container">
     <div id="header">
         <div id="header-left">
-            <img src="/static/korea_univ.png" alt="Korea University" style="height: 50px;">
+            <img src="/static/korea_univ.gif" alt="Korea University" style="height: 50px;">
         </div>
         <div id="header-center">
             <h1>Q-xApp Simulator</h1>

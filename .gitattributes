@@ -1,0 +1,29 @@
+# Line-ending / binary handling (remediation R5.5).
+# Sources are authored and validated on WSL (LF). Checking out with LF on
+# every platform keeps file SHA-256 values identical to the validation
+# reports (Windows CRLF checkouts previously changed hashes).
+# NOTE: added without `git add --renormalize` on purpose — existing blobs
+# are untouched; the rules apply to new checkouts/commits.
+
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.c     text eol=lf
+*.h     text eol=lf
+*.cc    text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+*.env   text eol=lf
+
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.pdf   binary

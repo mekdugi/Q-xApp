@@ -1,0 +1,114 @@
+{
+  "description": "Machine-readable map from documented claims to the exact tracked command that regenerates them and the report file/field that records them (remediation R5.3). Commands run from the repository root with the locked solver venv (install/solver_requirements.txt). Long-running one-shot artifacts (final holdout, Aer benchmarks) are recorded reports: re-running them is a deliberate act, not part of routine verification.",
+  "entrypoint": "bash verify.sh [quick|solver|full|gui] — solver tiers resolve the interpreter as: explicit PY=<python> (must import qiskit, hard-fails otherwise) > $VIRTUAL_ENV/bin/python > /root/qxapp-venv/bin/python (the setup_solver_venv.sh default, usually needs sudo). Non-root example: PY=<venv>/bin/python bash verify.sh quick. GUI tier: GUI_PY (default ~/qxapp_gui_testenv/bin/python, must import fastapi+pytest). Unknown tiers exit 2 with usage before running anything.",
+  "claims": [
+    {
+      "id": "ts_v5_holdout",
+      "claim": "TS canonical v5 solver: 1,060-case unseen final holdout - no-candidate 0/1060, feasible 1060/1060, exact-optimum hit 945/1060 = 89.15% [87.1, 90.9], score ratio mean 0.99956 / min 0.94139",
+      "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_dqna_ts.py --v5-stage holdout -- --suite holdout --confirm-holdout --quick 10 --save-every 1 --out <new-file>  (then --resume; ONE-SHOT evaluation - the recorded reports are canonical)",
+      "report": "reports/v5_holdout_seed20260702_report.json",
+      "report_fields": ["aggregate_by_category", "final_complete", "results[*].hit"],
+      "reproduction_evidence": "reports/v5_holdout_seed20260702_rerun_refdefault.json (independent fresh full run under the restored reference default: per-case fields identical, hit 945/1060, aggregates identical)"
+    },
+    {
+      "id": "ts_v5_s0_acceptance",
+      "claim": "v5 S0 acceptance: S0-1..S0-5 (stage A, Round7 fixed reference exact) and S0-6 + CLI contract (stage B) all PASS",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_dqna_ts.py --v5-stage all",
+      "report": "reports/v5_stage_a_report.json, reports/v5_stage_b_report.json"
+    },
+    {
+      "id": "ts_legacy_golden",
+      "claim": "Legacy v4.1 two-stage path (--legacy-two-stage) matches its recorded goldens byte-for-byte (round7/uniform/strong_pref) and the bare no-flag default is the v5 solver",
+      "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/v5a_legacy_golden_check.py",
+      "report": "stdout (LEGACY_GOLDEN=PASS); goldens in reports/legacy_golden/"
+    },
+    {
+      "id": "nes_suite_306",
+      "claim": "NES 4x2 solver: optimal score on 306/306 deterministic seed-20260721 cases (300 generated + 6 builtin/edge), judged by a harness-local INDEPENDENT exhaustive oracle (production brute_force_best/is_feasible/score are not called); returned assignments independently checked for shape/feasibility and their raw objective recomputed",
+      "documented_in": ["README.md#3-quantum-assignment-engine"],
+      "command": "python scripts/validate_nes_suite.py",
+      "report": "reports/nes_suite_report.json",
+      "report_fields": ["verdict", "optimal_score_cases", "by_category"]
+    },
+    {
+      "id": "qos_exhaustive_6561",
+      "claim": "QoS-RA 2x4 solver: optimal score on the full exhaustive {0,1,10}^8 grid, 6,561/6,561 (477 flat-row classical reductions + 6,084 quantum-path cases), judged by a harness-local INDEPENDENT exhaustive oracle (production brute_force_best/is_feasible/score are not called); returned assignments independently checked for shape/distinct-DRB and their raw objective recomputed",
+      "documented_in": ["README.md#3-quantum-assignment-engine", "README.md#9-technical-details"],
+      "command": "python scripts/validate_qos_exhaustive.py",
+      "report": "reports/qos_exhaustive_report.json",
+      "report_fields": ["verdict", "optimal_score_classical", "optimal_score_quantum"]
+    },
+    {
+      "id": "section16_cli_contract",
+      "claim": "Section-16 solver-mode CLI/JSON contract: 51/51 cases (incl. bare-default-is-v5 and legacy C caller form rejection)",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_cli.py",
+      "report": "reports/cli_contract_report.json"
+    },
+    {
+      "id": "backend_canonical_reference",
+      "claim": "Canonical/default statevector backend is reference (Statevector.from_instruction) in all four solver files; default paths never import qiskit_aer; Aer runs only with --sv-backend aer",
+      "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_backend_default.py",
+      "report": "stdout (BACKEND_DEFAULT=PASS 20/20)"
+    },
+    {
+      "id": "aer_equivalence_and_limits",
+      "claim": "Aer opt-in backend: fidelity >= 1-1e-12 and probability max abs error <= 1e-12 on all solver circuits (L0/L1/L3); NOT bit-identical - strict top-K/assignment equality fails on exact ties (expected, recorded honestly)",
+      "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_aer_ab.py  (strict; nonzero exit EXPECTED) ; python scripts/aer_strict_probe.py",
+      "report": "reports/aer_ab_report.json, reports/aer_strict_probe.json"
+    },
+    {
+      "id": "aer_performance_separation",
+      "claim": "Aer kernel speedup (single 15q circuit ~40x warm) vs full adaptive-v5 end-to-end (~5%) - kept in separate tables; kernel speedups are not solver speedups",
+      "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/benchmark_aer.py  (long-running; recorded report is canonical)",
+      "report": "reports/aer_benchmark_report.json",
+      "report_fields": ["full_v5_solve", "single_circuit_microbenchmark"]
+    },
+    {
+      "id": "install_reproducibility",
+      "claim": "Manifest-driven install: pinned upstream SHAs, 14-file ns-3 overlay with preimage/post SHA-256, xApp+solver file list, locked solver venv",
+      "documented_in": ["README.md#5-prerequisites", "README.md#6-installation"],
+      "command": "python3 install/install_overlay.py --manifest install/overlay_manifest.json --dest <ns-O-RAN> --check ; python3 install/test_install_overlay.py ; bash install/setup_solver_venv.sh <venv> <ctrl-dir>",
+      "report": "install/*.json manifests; installer output"
+    },
+    {
+      "id": "manual_control_and_infeasible",
+      "claim": "Manual TS sends real RC handovers with fresh confirmation; manual QoS groups by measured serving cell; structurally infeasible cap is rejected fail-closed; post-wake recovery is the deterministic classical choice-B policy",
+      "documented_in": ["README.md#8-using-the-gui", "README.md#9-technical-details"],
+      "command": "sudo bash scripts/r2_runtime_check.sh  (requires live ns-3 + nearRT-RIC deployment)",
+      "report": "reports/remediation/R2_report.md (recorded run); harness output R2_RUNTIME=PASS"
+    },
+    {
+      "id": "gui_security_and_pusher",
+      "claim": "GUI API security/input validation and pusher fault-injection behavior (57 pytest cases)",
+      "documented_in": ["reports/remediation/R1_report.md", "reports/remediation/R4_report.md"],
+      "command": "HOST_DATA_DIR=/tmp/qxapp_gui_test NS3_HOST=127.0.0.1 python -m pytest gui/tests -q  (or: bash verify.sh gui)",
+      "report": "pytest output; deployment smoke: python scripts/r4_pusher_smoke.py run|verify (live docker)"
+    },
+    {
+      "id": "vendored_chart_assets",
+      "claim": "GUI chart rendering has no runtime CDN dependency: Chart.js v4.5.1 and chartjs-plugin-datalabels v2.2.0 are vendored locally",
+      "documented_in": ["gui/src/templates/chart.html"],
+      "command": "sha256sum gui/src/static/vendor/*",
+      "report": "chart-4.5.1.umd.min.js sha256=48444a82d4edcb5bec0f1965faacdde18d9c17db3063d042abada2f705c9f54a ; chartjs-plugin-datalabels-2.2.0.min.js sha256=20c08f3d9c6d2ef76df6d6a6f1127c0013339fe32add24222276c398c6308c38"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "fig4_raw_provenance",
+      "status": "R5.4 = DEFERRED BY USER (not a code blocker)",
+      "note": "Fig.4 50-run raw-input provenance (raw logs / immutable archive / tracked runner) is intentionally out of scope of this checkpoint; fig4_ppt/** untouched."
+    },
+    {
+      "id": "license",
+      "status": "USER DECISION REQUIRED",
+      "note": "No LICENSE file is added: the user has not chosen a license. README only notes upstream ns-O-RAN (GPL-2.0) / FlexRIC (Apache-2.0) licensing."
+    }
+  ]
+}
