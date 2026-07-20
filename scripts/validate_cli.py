@@ -93,13 +93,33 @@ def main():
 
     # ---- OK cases ---------------------------------------------------------
     print("=== OK cases ===", flush=True)
+    # V5-B contract change (revised brief section 7/10 S0-8): the bare
+    # no-flag default is now the v5 adaptive full-A solver; the preserved
+    # v4.1 behavior lives behind --legacy-two-stage.
     rc, out, err, parsed = run([], R7)
-    check("bare_legacy_regression",
+    check("bare_default_is_v5",
+          rc == 0 and parsed is not None
+          and parsed.get("method")
+          == "quantum-fullA-17q-valid3-caponly-weightedAA-v5"
+          and set(parsed) == {"assignment", "score", "feasible",
+                              "feasibility_prob", "method", "elapsed_ms"})
+
+    rc, out, err, parsed = run(["--legacy-two-stage"], R7)
+    check("legacy_flag_regression",
           rc == 0 and parsed is not None and stable(parsed) == golden)
 
+    # the historical C caller form (--feas-iter=1 --qual-iter=1 ...) is
+    # REJECTED by the v5 default per the revised brief ("--feas-iter is a
+    # legacy-two-stage argument"); with the flag it must still match golden.
     rc, out, err, parsed = run(["--feas-iter=1", "--qual-iter=1",
                                 "--qual-lambda=4.0", "--max-per-cell=2"], R7)
-    check("legacy_c_caller_form",
+    check("legacy_c_caller_form_rejected_by_v5",
+          rc == 1 and out == "" and "legacy-two-stage" in err)
+
+    rc, out, err, parsed = run(["--legacy-two-stage", "--feas-iter=1",
+                                "--qual-iter=1", "--qual-lambda=4.0",
+                                "--max-per-cell=2"], R7)
+    check("legacy_c_caller_form_flagged",
           rc == 0 and parsed is not None and stable(parsed) == golden)
 
     rc, out, err, parsed = run(["--solver-mode=legacy-two-stage"], R7)

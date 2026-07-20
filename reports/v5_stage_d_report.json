@@ -1,0 +1,263 @@
+{
+ "stage": "V5-D round 2 (post runner-HOLD)",
+ "verdict": "PASS",
+ "pass": 38,
+ "fail": 0,
+ "elapsed_s": 1217.3,
+ "environment": {
+  "python": "3.12.3",
+  "qiskit": "1.2.4",
+  "numpy": "1.26.4"
+ },
+ "dqna_ts_sha256": "0d61aa432e192d971de81bd25e94817a91ba15386b55aadd4fa26e8912a31e43",
+ "runner_sha256": "849ebe449c700f3538e308b19dd3069b72e59ffc27e908c22220d306ee544ce9",
+ "holdout_not_accessed": "all runner executions used --suite mini (seed 777) or option-reject paths; the only --suite holdout invocations were refused (option error rc=2 / confirmation gate rc=3, output file never created) and an in-process spy proved gen_cases was called 0 times on the refusal path; seed-20260702 was never generated, executed or read",
+ "mini_run_summary": {
+  "config_hash": "e493fcebc427d42a0cc19d9df262b27d2f3391a2c4ed1b190046258ec387f88f",
+  "suite_id": "mini_seed777_n95",
+  "evaluated_cases": 95,
+  "final_complete": true,
+  "categories": [
+   "builtin_round7",
+   "builtin_strong_pref",
+   "builtin_uniform",
+   "dominant_cell",
+   "lognormal",
+   "near_equal",
+   "regression_all_zero",
+   "regression_col_zero",
+   "regression_row_zero",
+   "regression_v4_nc_1",
+   "regression_v4_nc_2",
+   "regression_v4_nc_3",
+   "regression_zero_tie",
+   "scale_skew",
+   "sparse",
+   "ue_pref",
+   "uniform"
+  ],
+  "mean_wall_s": 10.73,
+  "no_candidate_total": 0
+ },
+ "checks": [
+  {
+   "name": "D1_frozen_defaults",
+   "ok": true,
+   "detail": "{'aa_mode': 'adaptive', 'qual_lambda': 3.0, 'max_aa_iter': 8, 'candidate_count': 20, 'max_circuit_runs': 500, 'max_oracle_calls': 4000, 'max_per_cell': 2}"
+  },
+  {
+   "name": "D2_api_default_v5_solve",
+   "ok": true,
+   "detail": "default=3.0"
+  },
+  {
+   "name": "D2_api_default_v5_generate_candidates",
+   "ok": true,
+   "detail": "default=3.0"
+  },
+  {
+   "name": "D2_api_default_v5_build_A",
+   "ok": true,
+   "detail": "default=3.0"
+  },
+  {
+   "name": "D2_api_default_v5_build_iteration_circuit",
+   "ok": true,
+   "detail": "default=3.0"
+  },
+  {
+   "name": "D2_api_default_v5_analytic_reference",
+   "ok": true,
+   "detail": "default=3.0"
+  },
+  {
+   "name": "D3_noflag_eq_explicit_round7",
+   "ok": true,
+   "detail": "rc=(0,0) out_eq=True cnt_eq=True"
+  },
+  {
+   "name": "D4_noflag_ne_lambda4",
+   "ok": true,
+   "detail": "counters identical under lambda 3 vs 4"
+  },
+  {
+   "name": "D3_noflag_eq_explicit_generic",
+   "ok": true,
+   "detail": "rc=(0,0) out_eq=True cnt_eq=True"
+  },
+  {
+   "name": "D5_round7_reference_lambda4",
+   "ok": true,
+   "detail": "{\"a\": 0.03735682550726419, \"sum_feasible_W\": 3.0259028660883995, \"F\": 54, \"p_opt_given_success\": 0.33047987468702367}"
+  },
+  {
+   "name": "D5_legacy_lambda4_default",
+   "ok": true,
+   "detail": "legacy 4.0 default expressions not found"
+  },
+  {
+   "name": "D6_legacy_golden",
+   "ok": true,
+   "detail": "PASS round7 legacy golden match\nPASS uniform legacy golden match\nPASS strong_pref legacy golden match\nPASS no-flag default is v5 adaptive full-A\nLEGACY_GOLDEN=PASS\n"
+  },
+  {
+   "name": "D7_validate_cli",
+   "ok": true,
+   "detail": "SKIPPED this round (--skip-cli; 51/51 rc=0 in the V5-D round-1 run, solver unchanged since)"
+  },
+  {
+   "name": "R1_badarg_quick_0",
+   "ok": true,
+   "detail": "rc=2 stderr=                [--max-cases MAX_CASES] [--save-every SAVE_EVERY]\n                         [--with-legacy-diagnostic] [--out OUT]\nv5_holdout_run.py: error: --quick requires a positive integer (got 0)\n"
+  },
+  {
+   "name": "R1_badarg_quick_neg",
+   "ok": true,
+   "detail": "rc=2 stderr=               [--max-cases MAX_CASES] [--save-every SAVE_EVERY]\n                         [--with-legacy-diagnostic] [--out OUT]\nv5_holdout_run.py: error: --quick requires a positive integer (got -1)\n"
+  },
+  {
+   "name": "R1_badarg_maxcases_0",
+   "ok": true,
+   "detail": "rc=2 stderr=            [--max-cases MAX_CASES] [--save-every SAVE_EVERY]\n                         [--with-legacy-diagnostic] [--out OUT]\nv5_holdout_run.py: error: --max-cases requires a positive integer (got 0)\n"
+  },
+  {
+   "name": "R1_badarg_saveevery_0",
+   "ok": true,
+   "detail": "rc=2 stderr=           [--max-cases MAX_CASES] [--save-every SAVE_EVERY]\n                         [--with-legacy-diagnostic] [--out OUT]\nv5_holdout_run.py: error: --save-every requires a positive integer (got 0)\n"
+  },
+  {
+   "name": "R1_badarg_saveevery_neg",
+   "ok": true,
+   "detail": "rc=2 stderr=          [--max-cases MAX_CASES] [--save-every SAVE_EVERY]\n                         [--with-legacy-diagnostic] [--out OUT]\nv5_holdout_run.py: error: --save-every requires a positive integer (got -1)\n"
+  },
+  {
+   "name": "R1_badarg_holdout_quick_0",
+   "ok": true,
+   "detail": "rc=2 stderr=                [--max-cases MAX_CASES] [--save-every SAVE_EVERY]\n                         [--with-legacy-diagnostic] [--out OUT]\nv5_holdout_run.py: error: --quick requires a positive integer (got 0)\n"
+  },
+  {
+   "name": "R2_quick_maxcases_conflict",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R3_holdout_maxcases_forbidden",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R4_quick_benchmark",
+   "ok": true,
+   "detail": "rc=0 fields={'suite_total_cases': 95, 'selected_cases': 3, 'evaluated_cases': 3, 'benchmark_complete': True, 'final_complete': False}"
+  },
+  {
+   "name": "R4_preview_metrics",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "R5_overwrite_refused",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R6_resume_full",
+   "ok": true,
+   "detail": "rc=0 n=95 same=True final=True"
+  },
+  {
+   "name": "R6_final_metrics",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "R7_tamper_generator_sha256",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R7_tamper_suite_content_sha256",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R7_tamper_environment",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R7_tamper_sampling_master_seed",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R7_tamper_with_legacy_diagnostic",
+   "ok": true,
+   "detail": "rc=2"
+  },
+  {
+   "name": "R8_corrupt_duplicate_key",
+   "ok": true,
+   "detail": "rc=2 stderr=RESUME REFUSED: duplicate case keys in checkpoint\n"
+  },
+  {
+   "name": "R8_corrupt_unknown_key",
+   "ok": true,
+   "detail": "rc=2 stderr=RESUME REFUSED: checkpoint contains case keys not in the suite: ['not_a_suite_case_0']\n"
+  },
+  {
+   "name": "R8_corrupt_zero_hash",
+   "ok": true,
+   "detail": "rc=2 stderr=schedule or legacy-diagnostic mode changed)\n  checkpoint=0000000000000000000000000000000000000000000000000000000000000000\n  current   =e493fcebc427d42a0cc19d9df262b27d2f3391a2c4ed1b190046258ec387f88f\n"
+  },
+  {
+   "name": "R9_seed_schedule",
+   "ok": true,
+   "detail": "unique=95 match=True"
+  },
+  {
+   "name": "R10_no_tmp_leftovers",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "name": "R11_holdout_refused_spy",
+   "ok": true,
+   "detail": "sub_ok=True exit=3 gen_cases_calls=0"
+  },
+  {
+   "name": "R12_canonical_wrapper",
+   "ok": true,
+   "detail": "rc=0 stderr="
+  }
+ ],
+ "commands": [
+  "../../../../../../root/qxapp-venv/bin/python flexric/xApp/dqna_ts.py --seed 5 --verbose",
+  "../../../../../../root/qxapp-venv/bin/python flexric/xApp/dqna_ts.py --seed 5 --verbose --qual-lambda 3.0 --candidate-count 20 --max-aa-iter 8 --max-circuit-runs 500 --max-oracle-calls 4000 --max-per-cell 2 --aa-mode adaptive",
+  "../../../../../../root/qxapp-venv/bin/python flexric/xApp/dqna_ts.py --seed 5 --verbose --qual-lambda 4.0",
+  "../../../../../../root/qxapp-venv/bin/python flexric/xApp/dqna_ts.py --seed 5 --verbose",
+  "../../../../../../root/qxapp-venv/bin/python flexric/xApp/dqna_ts.py --seed 5 --verbose --qual-lambda 3.0 --candidate-count 20 --max-aa-iter 8 --max-circuit-runs 500 --max-oracle-calls 4000 --max-per-cell 2 --aa-mode adaptive",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5a_legacy_golden_check.py",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --quick 0 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --quick -1 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --max-cases 0 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --save-every 0 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --save-every -1 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite holdout --quick 0 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --quick 1 --max-cases 2 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite holdout --max-cases 5 --out ../../../../../../tmp/v5d_runner_x3dclctb/no.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --quick 3 --out ../../../../../../tmp/v5d_runner_x3dclctb/mini_ckpt.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --quick 3 --out ../../../../../../tmp/v5d_runner_x3dclctb/mini_ckpt.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/mini_ckpt.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/tamper_generator_sha256.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/tamper_suite_content_sha256.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/tamper_environment.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/tamper_sampling_master_seed.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/tamper_with_legacy_diagnostic.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/corrupt_duplicate_key.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/corrupt_unknown_key.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite mini --out ../../../../../../tmp/v5d_runner_x3dclctb/corrupt_zero_hash.json --resume",
+  "../../../../../../root/qxapp-venv/bin/python scripts/v5_holdout_run.py --suite holdout --out ../../../../../../tmp/v5d_runner_x3dclctb/holdout_should_not_exist.json",
+  "../../../../../../root/qxapp-venv/bin/python scripts/validate_dqna_ts.py --v5-stage holdout -- --suite mini --quick 2 --out ../../../../../../tmp/v5d_runner_x3dclctb/wrapper_ckpt.json"
+ ]
+}

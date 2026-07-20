@@ -1,15 +1,25 @@
 {
- "n_cases": 49,
+ "n_cases": 51,
  "n_failures": 0,
  "failures": [],
  "results": [
   {
-   "name": "bare_legacy_regression",
+   "name": "bare_default_is_v5",
    "ok": true,
    "detail": ""
   },
   {
-   "name": "legacy_c_caller_form",
+   "name": "legacy_flag_regression",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "legacy_c_caller_form_rejected_by_v5",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "legacy_c_caller_form_flagged",
    "ok": true,
    "detail": ""
   },
@@ -249,6 +259,6 @@
    "detail": "rc=1"
   }
  ],
- "elapsed_s": 421.6,
+ "elapsed_s": 297.1,
  "verdict": "PASS"
 }

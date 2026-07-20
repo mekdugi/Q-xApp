@@ -12,8 +12,21 @@ Runs against whatever flexric/xApp/dqna_ts.py currently contains (original or
 fixed); the report records the file's SHA-256 so results are traceable to an
 exact version. Fixed seed for reproducibility.
 
+v5 layer (revised brief section 10): this canonical harness EXPLICITLY CALLS
+the v5 validators via --v5-stage {a,b,all,holdout}:
+  a       = scripts/validate_v5_stage_a.py  (S0-1..S0-5 of the v5 layering)
+  b       = scripts/validate_v5_stage_b.py  (S0-6 + the V5-B CLI contract)
+  holdout = scripts/v5_holdout_run.py       (S0-7 runner; extra args after
+            "--" are forwarded, e.g. --v5-stage holdout -- --suite mini).
+            The real seed-20260702 run additionally requires the runner's
+            --confirm-holdout flag (one-shot final evaluation).
+The legacy layers below (including the seed-20260702 1,060-case generation
+rules used as the final holdout) are unchanged; the holdout has NOT been
+evaluated on the v5 path and is not touched by --v5-stage a/b/all.
+
 Usage:
     python scripts/validate_dqna_ts.py --out quantum_dev/stage0_out [--quick]
+    python scripts/validate_dqna_ts.py --v5-stage all
 """
 
 import argparse
@@ -365,7 +378,33 @@ def main():
     ap.add_argument("--qual-iter", type=int, default=QUAL_ITER)
     ap.add_argument("--qual-lambda", type=float, default=None,
                     help="Override module QUAL_LAMBDA (v4 exponential encoding).")
-    args = ap.parse_args()
+    ap.add_argument("--v5-stage", choices=["a", "b", "all", "holdout"],
+                    default=None,
+                    help="Run the v5 validators (stage A = S0-1..S0-5, "
+                         "stage B = S0-6 + CLI contract, holdout = the "
+                         "S0-7 runner; args after '--' are forwarded) and "
+                         "exit; the legacy layers below are untouched.")
+    args, v5_extra = ap.parse_known_args()
+    if v5_extra and v5_extra[0] == "--":
+        v5_extra = v5_extra[1:]
+    if v5_extra and args.v5_stage != "holdout":
+        ap.error("unrecognized arguments: %s" % " ".join(v5_extra))
+    if args.v5_stage is not None:
+        import subprocess
+        rc = 0
+        if args.v5_stage == "holdout":
+            script = os.path.join(HERE, "v5_holdout_run.py")
+            print("== canonical harness -> %s %s =="
+                  % (os.path.basename(script), " ".join(v5_extra)),
+                  flush=True)
+            sys.exit(subprocess.call([sys.executable, script] + v5_extra))
+        stages = ["a", "b"] if args.v5_stage == "all" else [args.v5_stage]
+        for s in stages:
+            script = os.path.join(HERE, "validate_v5_stage_%s.py" % s)
+            print("== canonical harness -> %s ==" % os.path.basename(script),
+                  flush=True)
+            rc |= subprocess.call([sys.executable, script])
+        sys.exit(rc)
     FEAS_ITER, QUAL_ITER = args.feas_iter, args.qual_iter
     skip = set(s.strip() for s in args.skip.split(",") if s.strip())
 
