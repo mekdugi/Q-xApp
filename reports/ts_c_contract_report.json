@@ -1,0 +1,64 @@
+{
+  "suite": "ts_c_contract",
+  "checks": [
+    {
+      "name": "c_invocation_uses_v5_args",
+      "missing": [],
+      "legacy_present": false,
+      "pass": true
+    },
+    {
+      "name": "c_classifier_patterns_present",
+      "missing": [],
+      "pass": true
+    },
+    {
+      "name": "c_deadline_two_semantics",
+      "startup_abort_present": true,
+      "runtime_failclosed_present": true,
+      "pass": true
+    },
+    {
+      "name": "c_classifier_compiled_test",
+      "status": "RUN",
+      "compiler": "msvc-cl (via VsDevCmd)",
+      "rc": 0,
+      "tail": "TS_CLASSIFY_TEST=PASS",
+      "compile_tail": "",
+      "pass": true
+    },
+    {
+      "name": "c1_v5_invocation_parseable",
+      "rc": 0,
+      "method": "quantum-fullA-17q-valid3-caponly-weightedAA-v5",
+      "assignment": [
+        0,
+        0,
+        1,
+        2
+      ],
+      "feasible": true,
+      "pass": true
+    },
+    {
+      "name": "c3_capabilities_satisfy_controller",
+      "solver_family": "weighted-aa",
+      "constraint_mode": "cap-only",
+      "formal_aa": true,
+      "pass": true
+    },
+    {
+      "name": "c2_legacy_invocation_rejected",
+      "rc": 1,
+      "stderr_head": "[dqna_ts] --feas-iter is a legacy-two-stage argument (nonzero values are not accepted by the v5 solver)",
+      "pass": true
+    },
+    {
+      "name": "c4_invalid_cli_stderr_matches_classifier",
+      "invalid_arg_match": true,
+      "mixing_match": true,
+      "pass": true
+    }
+  ],
+  "status": "PASS"
+}

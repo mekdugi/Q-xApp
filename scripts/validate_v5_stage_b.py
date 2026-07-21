@@ -219,10 +219,16 @@ def cli_contract():
     p = cli(SMALL)
     ok = p.returncode == 0
     d = json.loads(p.stdout) if ok else {}
+    # Schema updated (assessment Priority 5): the v5 result now ALSO carries the
+    # capability fields + counters the C controller validates fail-closed.
     check("CLI default is v5 adaptive full-A", ok
           and d.get("method") == dts.V5_METHOD
-          and set(d) == {"assignment", "score", "feasible",
-                         "feasibility_prob", "method", "elapsed_ms"},
+          and set(d) == {"assignment", "score", "feasible", "feasibility_prob",
+                         "method", "elapsed_ms", "solver_family", "oracle_type",
+                         "formal_aa", "constraint_mode", "selection_mode",
+                         "backend", "counters"}
+          and d.get("solver_family") == "weighted-aa"
+          and d.get("formal_aa") is True,
           p.stderr[:200])
     RESULTS["cli"].append({"default_run": d})
 

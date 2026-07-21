@@ -97,6 +97,28 @@ one-shot RC handover for mismatched UEs, fresh confirmation; not a solver
 fallback). The classical greedy/DRB matchers also serve as automatic
 fallbacks if a quantum solver fails on a given decision, counted separately.
 
+> **TS integration repaired (2026-07-21).** The controller previously invoked
+> the TS solver with the legacy `--feas-iter/--qual-iter` arguments that the
+> v5 default solver rejects, and enforced a 10 s deadline below the recorded
+> v5 statevector runtime — so in a correctly provisioned Qiskit environment the
+> TS path would have fallen back to greedy. `qxapp_unified.c` now uses the
+> explicit v5 adaptive arguments, requires the exact v5 method string
+> `quantum-fullA-17q-valid3-caponly-weightedAA-v5` and the machine-readable
+> capability fields (fail-closed), and uses a backend-aware,
+> env-configurable deadline (`QXAPP_TS_TIMEOUT_S`, default 30 s). When the
+> quantum TS path is enabled and the configured deadline is below the reference
+> p95, startup is REJECTED fail-closed (override only via an exact
+> `QXAPP_TS_ALLOW_TIGHT_DEADLINE=1`); a quantum-disabled deployment is not
+> blocked. Each fallback is classified by a specific reason
+> (`invalid-cli / timeout / nonzero-exit / no-candidate / parse-failure /
+> method-mismatch / capability-unsupported / feasibility-reject`). The
+> **all-three quantum E2E record above predates this repair and must be
+> re-run on a live FlexRIC deployment to be refreshed** — that re-run was not
+> performed in the revision that landed this repair. Offline C↔Python contract
+> tests that do not need FlexRIC: `scripts/validate_ts_c_contract.py`. See the
+> "Next-revision engineering" section of
+> [`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md).
+
 **Statevector backend** — the canonical execution engine is
 `qiskit.quantum_info.Statevector.from_instruction` (the *reference*
 backend); all canonical results above use it. An **opt-in experimental**
@@ -426,10 +448,13 @@ Q-xApp/
 ├── docs/                           # QUANTUM_VALIDATION.md + validation_matrix.json (claim→command→report)
 ├── reports/                        # machine-readable validation reports (referenced by the matrix)
 ├── verify.sh                       # root verification entrypoint (quick / solver / full / gui tiers).
-│                                   # Solver tiers need a python with qiskit: uses $VIRTUAL_ENV or the
-│                                   # locked /root/qxapp-venv when accessible; as a non-root user run
-│                                   #   PY=<venv>/bin/python bash verify.sh quick
-│                                   # Unknown tiers are rejected (exit 2) before anything runs.
+│                                   # Solver tiers need a python with qiskit ($VIRTUAL_ENV or the locked
+│                                   # /root/qxapp-venv), then ENFORCE the exact locked pins from
+│                                   # install/solver_requirements.txt (Python 3.12.3, numpy==1.26.4,
+│                                   # qiskit==1.2.4, qiskit-aer==0.15.1) and FAIL EARLY (exit 3) on any
+│                                   # mismatch — goldens are float/BLAS-sensitive; override with
+│                                   # QXAPP_ALLOW_ENV_MISMATCH=1. Non-root: PY=<venv>/bin/python bash
+│                                   # verify.sh quick. Unknown tiers are rejected (exit 2) first.
 ├── .github/workflows/ci.yml        # CI: syntax + quick solver suites + GUI unit tests
 ├── bs_ue_matching.py               # standalone EARLY PROTOTYPE (21-qubit BS–UE matching circuit);
 │                                   # not used by the xApp — superseded by the dqna_* solvers,

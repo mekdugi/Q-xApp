@@ -46,6 +46,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 import dqna_constraints as dcon  # noqa: E402
+import dqna_capabilities as dcap  # noqa: E402
 
 N_UE = dcon.N_UE
 N_CELL = dcon.N_CELL
@@ -572,6 +573,8 @@ def run_weighted_aa(rate, qual_lambda, constraint_mode, params, aa_mode,
     result.update(diag)
     result["method"] = "quantum-weighted-aa-%dq-%s-v6" % (layout["n_qubits"],
                                                           constraint_mode)
+    # shared machine-readable capability fields (assessment Priority 5)
+    result.update(dcap.weighted_aa_section16(constraint_mode, backend_mode))
     return result
 
 
@@ -595,7 +598,7 @@ def run_gated(rate, qual_lambda, constraint_mode, params, iterations):
     if best is None:
         raise RuntimeError("no feasible candidate in top-20")
     feas_mass, _ = _marginal_masses(marg, constraint_mode, params)
-    return {
+    result = {
         "assignment": best, "score": best_s, "feasible": True,
         "feasibility_prob": feas_mass,
         "gated_iterations": int(iterations),
@@ -603,15 +606,20 @@ def run_gated(rate, qual_lambda, constraint_mode, params, iterations):
         "method": "quantum-gated-%dq-%s-v5a" % (qc.num_qubits,
                                                 constraint_mode),
     }
+    # shared machine-readable capability fields (assessment Priority 5)
+    result.update(dcap.gated_heuristic_section16(constraint_mode))
+    return result
 
 
 # --- section 16 configuration resolution -----------------------------------
-_SOLVER_MODES = ("legacy-two-stage", "gated-heuristic", "weighted-aa")
+_SOLVER_MODES = ("legacy-two-stage", "gated-heuristic", "weighted-aa",
+                 "threshold-aa")
 _CONSTRAINT_MODES = ("unit-count", "weighted-prb")
 _NEW_KEYS = ("solver_mode", "constraint_mode", "prb_demand",
              "cell_prb_budget", "amplification_rounds",
              "max_amplification_rounds", "aa_mode", "gated_iterations",
-             "shots", "sampling_seed", "backend_mode", "seed")
+             "shots", "sampling_seed", "backend_mode", "seed",
+             "utility_threshold", "utility_fractional_bits")
 
 
 def stdin_has_new_config(data):
@@ -632,6 +640,75 @@ def _merge(cli, stdin, key):
     if not ceq:
         _fail("conflicting CLI/stdin values for %s (%r vs %r)" % (key, c, s))
     return c
+
+
+def _threshold_params(g, cm):
+    """Resolve the hard-constraint params for the threshold-aa path, reusing
+    the same cap-only / weighted-prb contract as the rest of the resolver."""
+    if cm == "weighted-prb":
+        if g["max_per_cell"] is not None:
+            _fail("--max-per-cell is not accepted with weighted-prb; provide "
+                  "prb_demand and cell_prb_budget")
+        if g["prb_demand"] is None or g["cell_prb_budget"] is None:
+            _fail("weighted-prb requires prb_demand and cell_prb_budget")
+        demand, budget = dcon.validate_prb_params(g["prb_demand"],
+                                                  g["cell_prb_budget"])
+        return "weighted-prb", {"demand": demand, "budget": budget}
+    if g["prb_demand"] is not None or g["cell_prb_budget"] is not None:
+        _fail("prb_demand/cell_prb_budget are weighted-prb parameters")
+    cap = 2 if g["max_per_cell"] is None else g["max_per_cell"]
+    if not isinstance(cap, int) or not (1 <= cap <= N_UE):
+        _fail("max_per_cell must be an integer in 1..%d" % N_UE)
+    # threshold-aa's constraint layer uses the "cap-only" token
+    return "cap-only", {"cap": cap}
+
+
+def _resolve_threshold_config(g, cm):
+    """Build the resolved threshold-aa config. External tau is required."""
+    if g["utility_threshold"] is None:
+        _fail("threshold-aa requires utility_threshold (external SLA/policy "
+              "value; the solver never enumerates assignments to pick it)")
+    # actual non-bool int/float only: reject JSON booleans and numeric strings
+    if isinstance(g["utility_threshold"], bool) \
+            or not isinstance(g["utility_threshold"], (int, float)):
+        _fail("utility_threshold must be a real number (bool/str rejected)")
+    ut = float(g["utility_threshold"])
+    if not math.isfinite(ut) or ut < 0.0:
+        _fail("utility_threshold must be a finite non-negative real")
+    fb = 3 if g["utility_fractional_bits"] is None \
+        else int(g["utility_fractional_bits"])
+    if fb < 0:
+        _fail("utility_fractional_bits must be >= 0")
+    # reject arguments that belong to the other solver modes
+    for k, msg in (("amplification_rounds", "weighted-aa"),
+                   ("max_amplification_rounds", "weighted-aa"),
+                   ("gated_iterations", "gated-heuristic"),
+                   ("feas_iter", "legacy-two-stage"),
+                   ("qual_iter", "legacy-two-stage"),
+                   ("shots", "weighted-aa shots"),
+                   ("aa_mode", "weighted-aa")):
+        if g.get(k) is not None:
+            _fail("%s is not a threshold-aa argument (belongs to %s)"
+                  % (k, msg))
+    # threshold-aa always runs the implicit/default statevector engine with its
+    # own finite-shot BBHT sampling; an EXPLICIT backend_mode or sampling_seed is
+    # rejected (fail closed) rather than silently ignored.
+    if g["backend_mode"] is not None:
+        _fail("backend_mode is not accepted with threshold-aa (it always uses "
+              "the implicit statevector engine)")
+    if g["sampling_seed"] is not None:
+        _fail("sampling_seed is not a threshold-aa argument (use seed for "
+              "reproducible threshold-aa sampling)")
+    if g["qual_lambda"] is not None:
+        _fail("qual_lambda is not used by threshold-aa (utility is the raw "
+              "sum-rate objective quantised at utility_fractional_bits)")
+    ncm, params = _threshold_params(g, cm)
+    return {"solver_mode": "threshold-aa", "constraint_mode": ncm,
+            "params": params, "utility_threshold": ut,
+            "utility_fractional_bits": fb, "backend_mode": "statevector",
+            "seed": g["seed"], "qual_lambda": None,
+            "shots": None, "sampling_seed": None,
+            "feas_iter": None, "qual_iter": None}
 
 
 def resolve_config(cli, data):
@@ -661,13 +738,19 @@ def resolve_config(cli, data):
 
     for key in ("amplification_rounds", "max_amplification_rounds",
                 "gated_iterations", "shots", "sampling_seed", "seed",
-                "max_per_cell", "feas_iter", "qual_iter"):
+                "max_per_cell", "feas_iter", "qual_iter",
+                "utility_fractional_bits"):
         g[key] = strict_int(key)
     if isinstance(g["qual_lambda"], (bool, str)):
         _fail("qual_lambda must be a positive real (got %r)"
               % (g["qual_lambda"],))
 
     sm, cm = g["solver_mode"], g["constraint_mode"]
+    # 'cap-only' (capability vocabulary) is an accepted alias of the constraint
+    # layer's 'unit-count'; normalize it here so the documented threshold-aa CLI
+    # (--constraint-mode cap-only) is honored everywhere below.
+    if cm == "cap-only":
+        cm = "unit-count"
     if sm is None and cm is None:
         sm, cm = "legacy-two-stage", "unit-count"
     elif sm is None:
@@ -687,6 +770,21 @@ def resolve_config(cli, data):
     if sm == "legacy-two-stage" and cm == "weighted-prb":
         _fail("legacy-two-stage does not support weighted-prb (v4.1 "
               "semantics are preserved unchanged)")
+
+    # threshold-aa: formal Boolean utility-threshold AA (dqna_threshold_aa).
+    # It manages its own finite-shot BBHT sampling, so it bypasses the
+    # weighted-aa/gated backend-mode machinery below. External tau is REQUIRED
+    # (no enumeration to pick it); qual_lambda is not used (the utility is the
+    # raw sum-rate objective quantised at utility_fractional_bits).
+    if sm == "threshold-aa":
+        return _resolve_threshold_config(g, cm)
+
+    # utility_threshold / utility_fractional_bits are threshold-aa-ONLY: reject
+    # (fail closed) rather than silently ignore them for any other solver mode.
+    if g["utility_threshold"] is not None \
+            or g["utility_fractional_bits"] is not None:
+        _fail("utility_threshold/utility_fractional_bits are threshold-aa "
+              "arguments (not accepted with solver_mode=%s)" % sm)
 
     # backend
     bm = g["backend_mode"] or "statevector"
@@ -777,6 +875,21 @@ def resolve_config(cli, data):
 
 def run_from_config(cfg, rate):
     """Dispatch a resolved non-legacy config. Returns the result dict."""
+    if cfg["solver_mode"] == "threshold-aa":
+        import dqna_threshold_aa as taa
+        taa.SV_BACKEND = SV_BACKEND
+        taa.AER_OPT_LEVEL = AER_OPT_LEVEL
+        tcfg = taa.prepare_threshold_config(
+            rate, cfg["utility_threshold"], cfg["utility_fractional_bits"])
+        # statevector-friendly budgets (threshold-aa's QFT accumulator makes
+        # each circuit wider/deeper than the v5 soft-cost path); the fail-closed
+        # width guard inside solve_threshold_aa rejects intractable configs.
+        result, _counters = taa.solve_threshold_aa(
+            rate, tcfg, cfg["constraint_mode"], cfg["params"],
+            aa_mode="adaptive", seed=cfg["seed"],
+            candidate_count=5, max_circuit_runs=80, max_oracle_calls=600)
+        result["solver_mode"] = cfg["solver_mode"]
+        return result
     if cfg["solver_mode"] == "weighted-aa":
         result = run_weighted_aa(
             rate, cfg["qual_lambda"], cfg["constraint_mode"], cfg["params"],
@@ -789,6 +902,8 @@ def run_from_config(cfg, rate):
     else:
         raise ValueError("legacy path must be handled by dqna_ts.py")
     result["solver_mode"] = cfg["solver_mode"]
-    result["constraint_mode"] = cfg["constraint_mode"]
+    # constraint_mode is set as a normalized capability token by run_weighted_aa
+    # / run_gated (cap-only|weighted-prb); do NOT overwrite it with the internal
+    # 'unit-count' token here.
     result["backend_mode"] = cfg["backend_mode"]
     return result

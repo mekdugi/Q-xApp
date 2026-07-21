@@ -11,7 +11,7 @@
   {
    "name": "legacy_flag_regression",
    "ok": true,
-   "detail": ""
+   "detail": "exact semantic fields; feasibility_prob within 1e-12"
   },
   {
    "name": "legacy_c_caller_form_rejected_by_v5",
@@ -21,17 +21,17 @@
   {
    "name": "legacy_c_caller_form_flagged",
    "ok": true,
-   "detail": ""
+   "detail": "exact semantic fields; feasibility_prob within 1e-12"
   },
   {
    "name": "explicit_legacy_cli",
    "ok": true,
-   "detail": ""
+   "detail": "exact semantic fields; feasibility_prob within 1e-12"
   },
   {
    "name": "explicit_legacy_stdin",
    "ok": true,
-   "detail": ""
+   "detail": "exact semantic fields; feasibility_prob within 1e-12"
   },
   {
    "name": "gated_unit_count",
@@ -259,6 +259,6 @@
    "detail": "rc=1"
   }
  ],
- "elapsed_s": 297.1,
+ "elapsed_s": 340.8,
  "verdict": "PASS"
 }

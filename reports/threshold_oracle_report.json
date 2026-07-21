@@ -1,0 +1,112 @@
+{
+  "suite": "threshold_oracle",
+  "status": "PASS",
+  "mode": "full",
+  "t1_t2_compute_block": [
+    {
+      "tau": 0,
+      "assignments_checked": 81,
+      "truth_table_ok": true,
+      "clean_uncompute_ok": true,
+      "n_qubits": 14,
+      "pass": true
+    },
+    {
+      "tau": 1,
+      "assignments_checked": 81,
+      "truth_table_ok": true,
+      "clean_uncompute_ok": true,
+      "n_qubits": 14,
+      "pass": true
+    },
+    {
+      "tau": 6,
+      "assignments_checked": 81,
+      "truth_table_ok": true,
+      "clean_uncompute_ok": true,
+      "n_qubits": 14,
+      "pass": true
+    },
+    {
+      "tau": 10,
+      "assignments_checked": 81,
+      "truth_table_ok": true,
+      "clean_uncompute_ok": true,
+      "n_qubits": 14,
+      "pass": true
+    },
+    {
+      "tau": 11,
+      "assignments_checked": 81,
+      "truth_table_ok": true,
+      "clean_uncompute_ok": true,
+      "n_qubits": 14,
+      "pass": true
+    }
+  ],
+  "t3_joint_mark": {
+    "phase_mismatch": 0,
+    "ancilla_unclean": 0,
+    "not_self_inverse": 0,
+    "pass": true
+  },
+  "t4_t5_oracle": [
+    {
+      "tau": 0,
+      "n_qubits": 21,
+      "assignments_checked": 81,
+      "phase_and_cleanliness_ok": true,
+      "ancilla_leaked_prob": -0.0,
+      "self_inverse_ok": true,
+      "prepared_mass": 1.0,
+      "acceptable_set_size": 54,
+      "pass": true
+    },
+    {
+      "tau": 3,
+      "n_qubits": 21,
+      "assignments_checked": 81,
+      "phase_and_cleanliness_ok": true,
+      "ancilla_leaked_prob": 0.0,
+      "self_inverse_ok": true,
+      "prepared_mass": 1.0,
+      "acceptable_set_size": 32,
+      "pass": true
+    },
+    {
+      "tau": 5,
+      "n_qubits": 21,
+      "assignments_checked": 81,
+      "phase_and_cleanliness_ok": true,
+      "ancilla_leaked_prob": 0.0,
+      "self_inverse_ok": true,
+      "prepared_mass": 1.0,
+      "acceptable_set_size": 0,
+      "pass": true
+    }
+  ],
+  "t6_classical": [
+    {
+      "name": "overflow_rejection",
+      "pass": true
+    },
+    {
+      "name": "threshold_widens_width",
+      "pass": true
+    },
+    {
+      "name": "conservative_no_false_accept",
+      "false_accept": 0,
+      "pass": true
+    },
+    {
+      "name": "input_validation",
+      "pass": true
+    },
+    {
+      "name": "input_validation",
+      "pass": true
+    }
+  ],
+  "elapsed_s": 528.9
+}

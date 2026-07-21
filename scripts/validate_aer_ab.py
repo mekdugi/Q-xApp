@@ -226,8 +226,14 @@ def main():
             (res_r, c_r), (res_a, c_a) = run_solver_both(
                 dts, dts.v5_solve, rate, 2, 3.0, "adaptive", None,
                 8, 20, 500, 4000, 5)
-            res_r = {k: v for k, v in res_r.items() if k != "elapsed_ms"}
-            res_a = {k: v for k, v in res_a.items() if k != "elapsed_ms"}
+            # Exclude by-design-different / separately-compared fields: the
+            # capability additions include a "backend" label (reference vs aer,
+            # always differs) and a nested "counters" object (compared exactly
+            # via c_r == c_a below). The capability strings are backend-
+            # independent and DO stay in the comparison.
+            _drop = ("elapsed_ms", "backend", "counters")
+            res_r = {k: v for k, v in res_r.items() if k not in _drop}
+            res_a = {k: v for k, v in res_a.items() if k not in _drop}
             check("%s_ts_v5_%s_pipeline" % (tag, name),
                   res_r == res_a and c_r == c_a,
                   "res_eq=%s cnt_eq=%s res_r=%s res_a=%s"

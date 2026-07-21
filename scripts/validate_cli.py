@@ -57,6 +57,35 @@ def stable(parsed):
     return {k: v for k, v in parsed.items() if k not in VOLATILE}
 
 
+# Legacy-golden semantic comparison (assessment: preserved v4.1 behavior). The
+# discrete decision fields -- keys, assignment, score, feasible, method -- must
+# match EXACTLY; feasibility_prob is a floating-point statevector marginal that
+# drifts at the last bit (~1e-14) across Qiskit/BLAS builds, so it is compared
+# with a tight absolute tolerance (1e-12) rather than byte-for-byte. Returns
+# (ok, detail).
+FEAS_PROB_TOL = 1e-12
+
+
+def legacy_match(got, want, tol=FEAS_PROB_TOL):
+    if got is None:
+        return False, "no output"
+    g = stable(got)
+    if set(g) != set(want):
+        return False, "keys differ: %s vs %s" % (sorted(g), sorted(want))
+    # EXACT match on keys/assignment/score/feasible/method; ONLY feasibility_prob
+    # is compared with a tight 1e-12 tolerance (it is a floating-point
+    # statevector marginal that drifts at the last bit across Qiskit/BLAS
+    # builds). Any assignment/score/feasible/method difference FAILS.
+    for k in want:
+        if k == "feasibility_prob":
+            d = abs(float(g[k]) - float(want[k]))
+            if d > tol:
+                return False, "feasibility_prob drift %g > %g" % (d, tol)
+        elif g[k] != want[k]:
+            return False, "%s differs: %r vs %r" % (k, g[k], want[k])
+    return True, "exact semantic fields; feasibility_prob within %g" % tol
+
+
 def classical_best(rate, mode, params):
     sys.path.insert(0, os.path.join(ROOT, "flexric", "xApp"))
     import dqna_constraints as dcon
@@ -97,16 +126,24 @@ def main():
     # no-flag default is now the v5 adaptive full-A solver; the preserved
     # v4.1 behavior lives behind --legacy-two-stage.
     rc, out, err, parsed = run([], R7)
+    # Schema updated (assessment Priority 5): the v5 result now ALSO carries the
+    # machine-readable capability fields and a structured counters object that
+    # the C controller validates fail-closed. The legacy six keys are retained.
+    _V5_KEYS = {"assignment", "score", "feasible", "feasibility_prob", "method",
+                "elapsed_ms", "solver_family", "oracle_type", "formal_aa",
+                "constraint_mode", "selection_mode", "backend", "counters"}
     check("bare_default_is_v5",
           rc == 0 and parsed is not None
           and parsed.get("method")
           == "quantum-fullA-17q-valid3-caponly-weightedAA-v5"
-          and set(parsed) == {"assignment", "score", "feasible",
-                              "feasibility_prob", "method", "elapsed_ms"})
+          and set(parsed) == _V5_KEYS
+          and parsed.get("solver_family") == "weighted-aa"
+          and parsed.get("constraint_mode") == "cap-only"
+          and parsed.get("formal_aa") is True)
 
     rc, out, err, parsed = run(["--legacy-two-stage"], R7)
-    check("legacy_flag_regression",
-          rc == 0 and parsed is not None and stable(parsed) == golden)
+    _ok, _d = legacy_match(parsed, golden)
+    check("legacy_flag_regression", rc == 0 and _ok, _d)
 
     # the historical C caller form (--feas-iter=1 --qual-iter=1 ...) is
     # REJECTED by the v5 default per the revised brief ("--feas-iter is a
@@ -119,24 +156,30 @@ def main():
     rc, out, err, parsed = run(["--legacy-two-stage", "--feas-iter=1",
                                 "--qual-iter=1", "--qual-lambda=4.0",
                                 "--max-per-cell=2"], R7)
-    check("legacy_c_caller_form_flagged",
-          rc == 0 and parsed is not None and stable(parsed) == golden)
+    _ok, _d = legacy_match(parsed, golden)
+    check("legacy_c_caller_form_flagged", rc == 0 and _ok, _d)
 
     rc, out, err, parsed = run(["--solver-mode=legacy-two-stage"], R7)
-    check("explicit_legacy_cli",
-          rc == 0 and parsed is not None and stable(parsed) == golden)
+    _ok, _d = legacy_match(parsed, golden)
+    check("explicit_legacy_cli", rc == 0 and _ok, _d)
 
     rc, out, err, parsed = run([], dict(R7, solver_mode="legacy-two-stage",
                                         constraint_mode="unit-count"))
-    check("explicit_legacy_stdin",
-          rc == 0 and parsed is not None and stable(parsed) == golden)
+    _ok, _d = legacy_match(parsed, golden)
+    check("explicit_legacy_stdin", rc == 0 and _ok, _d)
 
     rc, out, err, parsed = run(["--solver-mode=gated-heuristic"], R7)
     check("gated_unit_count",
           rc == 0 and parsed is not None
           and parsed["assignment"] == [0, 0, 1, 2]
           and parsed["method"].startswith("quantum-gated-")
-          and "cost_leak_mass" in parsed)
+          and "cost_leak_mass" in parsed
+          # shared capability fields (assessment Priority 5)
+          and parsed.get("solver_family") == "gated-heuristic"
+          and parsed.get("oracle_type") == "gated-soft"
+          and parsed.get("formal_aa") is False
+          and parsed.get("constraint_mode") == "cap-only"
+          and parsed.get("selection_mode") == "top20-rescore")
 
     waa_args = ["--solver-mode=weighted-aa", "--max-amplification-rounds=32"]
     rc, out, err, parsed = run(waa_args, R7)
@@ -149,7 +192,13 @@ def main():
           and parsed["a_calibration_method"] == "classical-enumeration"
           and abs(parsed["analytic_a"] - 0.03735682550726419) < 1e-12
           and parsed["amplification_rounds_used"] == 4
-          and abs(parsed["good_probability"] - 0.9680425481439207) < 1e-9)
+          and abs(parsed["good_probability"] - 0.9680425481439207) < 1e-9
+          # shared capability fields (assessment Priority 5)
+          and parsed.get("solver_family") == "weighted-aa"
+          and parsed.get("oracle_type") == "soft-cost"
+          and parsed.get("formal_aa") is True
+          and parsed.get("constraint_mode") == "cap-only"
+          and parsed.get("selection_mode") == "good-branch-argmax")
 
     rc, out, err, parsed = run([], dict(R7, solver_mode="weighted-aa",
                                         max_amplification_rounds=32))
@@ -169,7 +218,12 @@ def main():
           rc == 0 and parsed is not None
           and parsed["assignment"] == cbest
           and abs(parsed["score"] - cbest_s) < 1e-9
-          and parsed["constraint_mode"] == "weighted-prb",
+          and parsed["constraint_mode"] == "weighted-prb"
+          # full capability fields (assessment Priority 5)
+          and parsed.get("solver_family") == "weighted-aa"
+          and parsed.get("oracle_type") == "soft-cost"
+          and parsed.get("formal_aa") is True
+          and parsed.get("selection_mode") == "good-branch-argmax",
           "classical optimum %s %.2f" % (cbest, cbest_s))
 
     rc, out, err, parsed = run(["--solver-mode=gated-heuristic",
@@ -177,7 +231,12 @@ def main():
                                + PRB_FLAGS, R7)
     check("gated_weighted_prb_diagnostic",
           rc == 0 and parsed is not None
-          and parsed["constraint_mode"] == "weighted-prb")
+          and parsed["constraint_mode"] == "weighted-prb"
+          # full capability fields (assessment Priority 5)
+          and parsed.get("solver_family") == "gated-heuristic"
+          and parsed.get("oracle_type") == "gated-soft"
+          and parsed.get("formal_aa") is False
+          and parsed.get("selection_mode") == "top20-rescore")
 
     rc, out, err, parsed = run(["--solver-mode=weighted-aa",
                                 "--max-amplification-rounds=32",

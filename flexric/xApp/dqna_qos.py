@@ -14,8 +14,12 @@ Utility: exponential encoding w = exp(lambda*(u-max)/max), monotone in
 sum(utility); the 2x4 utility matrix comes from the xApp's 5QI-fit values.
 
 CLI: {"utility": 2x4 matrix} on stdin -> {"assignment": [drb_u0, drb_u1],
-"score", "feasible", "feasibility_prob", "method", "elapsed_ms"}; exit 1 on
-invalid input or no candidate (caller falls back to the classical matcher).
+"score", "feasible", "feasibility_prob", "method", "solver_family",
+"oracle_type", "formal_aa", "constraint_mode", "selection_mode",
+"elapsed_ms"}; exit 1 on invalid input or no candidate (caller falls back to
+the classical matcher). The capability fields (assessment Priority 5) declare
+this as the gated-heuristic family with distinct-DRB hard constraint and exact
+DRB selection; formal_aa is false (not full-state AA).
 """
 
 import argparse
@@ -280,9 +284,23 @@ def main():
     if q is None:
         sys.stderr.write("[dqna_qos] no feasible assignment found\n")
         sys.exit(1)
+    # Machine-readable capability fields (assessment Priority 5): the QoS-RA
+    # solver is the gated-heuristic family with an exact distinct-DRB selection.
+    import os as _os
+    import sys as _sys
+    _hd = _os.path.dirname(_os.path.abspath(__file__))
+    if _hd not in _sys.path:
+        _sys.path.insert(0, _hd)
+    import dqna_capabilities as _dcap
+    _caps = _dcap.gated_solver("distinct-drb", "exact-drb")
     json.dump({"assignment": [int(d) for d in q], "score": float(qs),
                "feasible": True, "feasibility_prob": float(fm),
                "method": "quantum-1oracle-8q-distinct-expenc-qosv1",
+               "solver_family": _caps["solver_family"],
+               "oracle_type": _caps["oracle_type"],
+               "formal_aa": _caps["formal_aa"],
+               "constraint_mode": _caps["constraint_mode"],
+               "selection_mode": _caps["selection_mode"],
                "elapsed_ms": int(1000 * (time.time() - t0))}, sys.stdout)
     sys.stdout.write("\n")
 

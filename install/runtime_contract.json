@@ -1,0 +1,214 @@
+{
+  "backend_labels": {
+    "aer": "aer-statevector",
+    "reference": "reference-statevector"
+  },
+  "capability_vocabulary": {
+    "constraint_mode": [
+      "cap-only",
+      "weighted-prb",
+      "distinct-drb"
+    ],
+    "formal_aa": [
+      true,
+      false
+    ],
+    "oracle_type": [
+      "soft-cost",
+      "boolean-threshold",
+      "gated-soft",
+      "two-stage"
+    ],
+    "selection_mode": [
+      "classical-best-of-candidates",
+      "top20-rescore",
+      "good-branch-argmax",
+      "exact-drb"
+    ],
+    "solver_family": [
+      "weighted-aa",
+      "threshold-aa",
+      "gated-heuristic",
+      "legacy-two-stage"
+    ]
+  },
+  "cli_parser_check": {
+    "constraint_mode_cap_only": true,
+    "ran": true,
+    "solver_mode_threshold_aa": true,
+    "utility_threshold_flag": true
+  },
+  "constraint_modes": [
+    "cap-only",
+    "weighted-prb",
+    "distinct-drb"
+  ],
+  "controller_required_capabilities": {
+    "constraint_mode": "cap-only",
+    "enforcement": "fail-closed (missing/mismatched -> greedy fallback)",
+    "formal_aa": true,
+    "solver_family": "weighted-aa"
+  },
+  "cross_consistency": {
+    "errors": [],
+    "ok": true
+  },
+  "description": "Machine-readable Q-xApp runtime contract; the single source README/QUANTUM_VALIDATION/validation_matrix must agree with. Regenerate with scripts/gen_runtime_manifest.py.",
+  "fallback_reason_taxonomy": [
+    "none",
+    "invalid-cli",
+    "timeout",
+    "nonzero-exit",
+    "no-candidate",
+    "parse-failure",
+    "method-mismatch",
+    "capability-unsupported",
+    "feasibility-reject",
+    "unknown"
+  ],
+  "locked_dependency_versions": {
+    "numpy": "1.26.4",
+    "python": "3.12.3",
+    "qiskit": "1.2.4",
+    "qiskit-aer": "0.15.1",
+    "source": "install/solver_requirements.txt (locked venv)"
+  },
+  "schema_version": "runtime-contract-1",
+  "solver_modes": {
+    "section16": [
+      "weighted-aa",
+      "gated-heuristic",
+      "threshold-aa"
+    ],
+    "ts_default": "weighted-aa (soft-cost full-state AA, v5)",
+    "ts_legacy": "legacy-two-stage (--legacy-two-stage)",
+    "ts_threshold": "threshold-aa (Boolean utility-threshold AA; --solver-mode threshold-aa --utility-threshold T [--utility-fractional-bits b] [--constraint-mode cap-only|weighted-prb])"
+  },
+  "source_files": [
+    {
+      "path": "flexric/xApp/qxapp_unified.c",
+      "sha256": "00cc0d6021fab52b779b6734ceeeb09b54675fbce4bdc07ecb8f43aa02cecdd7"
+    },
+    {
+      "path": "flexric/xApp/qxapp_ts_classify.h",
+      "sha256": "e11a71635732f5f7b10cfff833784d43d566dda232affe9ff6bef1b497a78c6f"
+    },
+    {
+      "path": "flexric/xApp/dqna_ts.py",
+      "sha256": "6777c9648b0d14f777a4821705db196c93be8a489b4fe64790fc27e445406983"
+    },
+    {
+      "path": "flexric/xApp/dqna_modes.py",
+      "sha256": "3abfc1463b3c53e540b8cb02eb531132c2ba3d4b947dd5a70c09d8ff3123817e"
+    },
+    {
+      "path": "flexric/xApp/dqna_constraints.py",
+      "sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9"
+    },
+    {
+      "path": "flexric/xApp/dqna_threshold.py",
+      "sha256": "59af9785cc5eb8a9013c20d69d18119fab7241a7ded814c4352ea4016e814590"
+    },
+    {
+      "path": "flexric/xApp/dqna_threshold_aa.py",
+      "sha256": "187f728887fed9f0084495748da12db231a0fddb8b2bae13af1db8b33611fa2e"
+    },
+    {
+      "path": "flexric/xApp/dqna_capabilities.py",
+      "sha256": "6a92e6d2234e1d3e07d2541905d111bc001ed438d4189703befd13815207fc32"
+    },
+    {
+      "path": "flexric/xApp/dqna_42.py",
+      "sha256": "36dbdba4bf7ec64e55959049706ba9c147e928904c29a93635849a7b191b96f0"
+    },
+    {
+      "path": "flexric/xApp/dqna_qos.py",
+      "sha256": "8b0baab16a20825cd6365175d89b1e709415d181c96e4dc674b810888308967e"
+    }
+  ],
+  "ts_solver": {
+    "backend": {
+      "canonical": "reference (Statevector.from_instruction)",
+      "experimental_optin": "aer (--sv-backend aer)"
+    },
+    "budgets": {
+      "aa_mode": "adaptive",
+      "candidate_count": 20,
+      "max_aa_iter": 8,
+      "max_circuit_runs": 500,
+      "max_oracle_calls": 4000,
+      "max_per_cell": 2,
+      "qual_lambda": 3.0
+    },
+    "capabilities": {
+      "constraint_mode": "cap-only",
+      "formal_aa": true,
+      "oracle_type": "soft-cost",
+      "selection_mode": "classical-best-of-candidates",
+      "solver_family": "weighted-aa"
+    },
+    "controller_deadline_s": {
+      "backend_aware": true,
+      "default": 30,
+      "env": "QXAPP_TS_TIMEOUT_S",
+      "legacy_default_s": 10,
+      "preflight_override_env": "QXAPP_TS_ALLOW_TIGHT_DEADLINE (exact 1|true)",
+      "preflight_reject_threshold_s": 23,
+      "preflight_rejects_below_p95_when_quantum_enabled": true,
+      "reference_p95_measured_s": 22.06,
+      "reference_p95_source": "reports/v5_holdout_seed20260702_report.json (nearest-rank p95 wall, 1,060 cases); C threshold is ceil = 23 s"
+    },
+    "default_solver": "v5-adaptive-weighted-aa",
+    "explicit_cli_args": [
+      "--aa-mode",
+      "adaptive",
+      "--qual-lambda",
+      "3.0",
+      "--candidate-count",
+      "20",
+      "--max-aa-iter",
+      "8",
+      "--max-circuit-runs",
+      "500",
+      "--max-oracle-calls",
+      "4000",
+      "--max-per-cell",
+      "<cap>"
+    ],
+    "method": "quantum-fullA-17q-valid3-caponly-weightedAA-v5",
+    "threshold_statevector_max_qubits": 20,
+    "threshold_statevector_max_qubits_env": "QXAPP_THRESHOLD_MAX_QUBITS"
+  },
+  "validation": [
+    {
+      "claim": "threshold_oracle_truth_table",
+      "command": "python scripts/validate_threshold.py",
+      "report": "reports/threshold_oracle_report.json"
+    },
+    {
+      "claim": "threshold_path_invariants_7_2",
+      "command": "python scripts/validate_threshold_invariants.py",
+      "report": "reports/threshold_invariants_report.json"
+    },
+    {
+      "claim": "threshold_aa_functional_e2e",
+      "command": "python scripts/validate_threshold_aa.py",
+      "report": "reports/threshold_aa_report.json"
+    },
+    {
+      "claim": "ts_c_integration_contract",
+      "command": "python scripts/validate_ts_c_contract.py",
+      "report": "reports/ts_c_contract_report.json"
+    },
+    {
+      "claim": "threshold_aa_scaling",
+      "command": "python scripts/validate_threshold_scaling.py",
+      "report": "reports/threshold_scaling_report.json"
+    },
+    {
+      "claim": "ts_phase_timing_and_crossover",
+      "command": "python scripts/measure_ts_timing.py",
+      "report": "reports/ts_timing_report.json"
+    }
+  ]
+}

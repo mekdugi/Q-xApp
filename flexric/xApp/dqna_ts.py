@@ -904,12 +904,25 @@ def v5_solve(rate, cap=2, qual_lambda=3.0, aa_mode="adaptive", aa_iter=None,
     best, best_s = v5_select_best(cand, rate)
     fp = (c["feasible_decoded"] / c["measurements"]
           if c["measurements"] else 0.0)
+    # Machine-readable capability fields (assessment Priority 5) come from the
+    # shared vocabulary so the C controller/harness validate DECLARED
+    # capabilities rather than inferring them from the method string. Emitted
+    # top-level (flat) so the existing C JSON extractors read them directly.
+    import dqna_capabilities as dcap
+    caps = dcap.ts_weighted_aa_v5()
     result = {
         "assignment": [int(x) for x in best],
         "score": float(best_s),
         "feasible": True,
         "feasibility_prob": float(fp),
         "method": V5_METHOD,
+        "solver_family": caps["solver_family"],
+        "oracle_type": caps["oracle_type"],
+        "formal_aa": caps["formal_aa"],
+        "constraint_mode": caps["constraint_mode"],
+        "selection_mode": caps["selection_mode"],
+        "backend": dcap.backend_label(SV_BACKEND),
+        "counters": {k: int(v) for k, v in c.items()},
         "elapsed_ms": 0,  # caller fills
     }
     return result, c
@@ -938,13 +951,25 @@ def main():
     # these appear in CLI or stdin, behavior is exactly legacy v4.1.
     parser.add_argument('--solver-mode', default=None,
                         choices=['legacy-two-stage', 'gated-heuristic',
-                                 'weighted-aa'])
+                                 'weighted-aa', 'threshold-aa'])
+    # 'cap-only' is the capability-vocabulary alias of the constraint layer's
+    # 'unit-count'; both are accepted and normalized in dqna_modes.resolve_config
+    # so the documented threshold-aa CLI (--constraint-mode cap-only) works.
     parser.add_argument('--constraint-mode', default=None,
-                        choices=['unit-count', 'weighted-prb'])
+                        choices=['unit-count', 'cap-only', 'weighted-prb'])
     parser.add_argument('--prb-demand', default=None,
                         help='JSON 4x3 integer matrix of PRB demands.')
     parser.add_argument('--cell-prb-budget', default=None,
                         help='JSON length-3 integer vector of PRB budgets.')
+    # threshold-aa (formal Boolean utility-threshold AA, dqna_threshold_aa).
+    # Requires --solver-mode threshold-aa. tau is EXTERNAL (SLA/policy); the
+    # solver never enumerates assignments to pick it.
+    parser.add_argument('--utility-threshold', type=float, default=None,
+                        help='threshold-aa: external utility target tau '
+                             '(SLA/policy value).')
+    parser.add_argument('--utility-fractional-bits', type=int, default=None,
+                        help='threshold-aa: fixed-point fractional bits for the '
+                             'quantised utility/threshold (default 3).')
     parser.add_argument('--amplification-rounds', type=int, default=None)
     parser.add_argument('--max-amplification-rounds', type=int, default=None)
     # --aa-mode accepts BOTH the v5 vocabulary (adaptive/fixed, brief
@@ -1008,6 +1033,8 @@ def main():
         "sampling_seed": args.sampling_seed,
         "backend_mode": args.backend_mode,
         "seed": None,
+        "utility_threshold": args.utility_threshold,
+        "utility_fractional_bits": args.utility_fractional_bits,
         "qual_lambda": args.qual_lambda,
         "max_per_cell": args.max_per_cell,
         "feas_iter": args.feas_iter,
@@ -1118,7 +1145,7 @@ def main():
         "solver_mode", "constraint_mode", "prb_demand", "cell_prb_budget",
         "amplification_rounds", "max_amplification_rounds", "aa_mode",
         "gated_iterations", "shots", "sampling_seed", "backend_mode",
-        "seed"))
+        "seed", "utility_threshold", "utility_fractional_bits"))
     if (cli_has_new or stdin_has_s16) and cli_has_v5:
         sys.stderr.write("[dqna_ts] section-16 solver-mode arguments and v5 "
                          "execution-mode arguments cannot be mixed\n")

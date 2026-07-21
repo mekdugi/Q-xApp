@@ -8,6 +8,8 @@
  */
 
 #include "qxapp_common.h"
+#include <sys/wait.h>   /* WIFEXITED/WEXITSTATUS for solver exit classification */
+#include "qxapp_ts_classify.h"  /* testable fallback classifier + validator */
 
 static int a1_max_ue_per_cell = 2;
 
@@ -27,7 +29,38 @@ static int a1_max_ue_per_cell = 2;
 #define QUANTUM_CONFIG_FILE_NAME "xapp_quantum.txt"
 #define QXAPP_PY_DEFAULT        "/root/qxapp-venv/bin/python"
 #define QXAPP_TS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_ts.py"
+/* Legacy solver timeout cap, still used by the NES/QoS fast gated solvers. */
 #define QXAPP_TS_TIMEOUT_S 10
+/* Backend-aware TS deadline (assessment Gap 3 / Priority 0.4): the canonical
+ * v5 reference-statevector solver runs ~17-22s per case, so the old 10s cap
+ * forced classical fallback on most calls. The TS deadline is now env-
+ * configurable (QXAPP_TS_TIMEOUT_S) with a v5-compatible default (p95 ~22s +
+ * margin). A deployment that pins a faster backend/budget can lower it; when
+ * the quantum TS path is enabled and the configured deadline is below the
+ * reference p95, the preflight REJECTS it fail-closed (startup abort, or
+ * kept-greedy on a later re-enable), overridable via
+ * QXAPP_TS_ALLOW_TIGHT_DEADLINE=1. */
+#define QXAPP_TS_TIMEOUT_DEFAULT_S 30
+/* Conservative CEIL of the recorded reference-statevector p95 wall time
+ * (22.06 s nearest-rank over the 1,060-case holdout,
+ * reports/v5_holdout_seed20260702_report.json). Using 23 (= ceil 22.06) means
+ * a 22 s deadline -- which is BELOW the true p95 -- is correctly rejected, not
+ * accepted at the integer boundary. */
+#define QXAPP_TS_REF_P95_S 23
+#define QXAPP_TS_REF_P95_MEASURED "22.06"  /* documented source value */
+/* Exact v5 method contract the solver must return (assessment Priority 0.2). */
+#define QXAPP_TS_METHOD_V5 "quantum-fullA-17q-valid3-caponly-weightedAA-v5"
+/* Capabilities the controller REQUIRES of the TS solver. These are validated
+ * from machine-readable result fields, NOT inferred from the method string
+ * (assessment Priority 5): a solver that does not advertise exactly these is
+ * rejected fail-closed and the controller falls back to greedy. */
+#define QXAPP_TS_REQ_SOLVER_FAMILY   "weighted-aa"
+#define QXAPP_TS_REQ_CONSTRAINT_MODE "cap-only"
+
+/* TS fallback-reason taxonomy + testable classifier/validator live in
+ * qxapp_ts_classify.h (assessment Gap 3 / Priority 0/3/5), so the controller
+ * no longer groups failures under one generic bucket and the classification is
+ * exercised offline by tests/test_ts_classify.c. */
 
 /* == QoS-based Resource Allocation ========================================= */
 #define NUM_DRB 4
@@ -200,6 +233,10 @@ static int  quantum_env_logged = 0;
 static int  ts_quantum_state = 0;   /* last TS decision: 0=greedy 1=quantum 2=fallback */
 static long quantum_ok_count = 0;
 static long quantum_fallback_count = 0;
+static ts_fallback_reason_t ts_last_fallback = TS_FB_NONE;
+/* Per-reason fallback counters so a run report can attribute every fallback to
+ * a specific cause (assessment Priority 3: no generic solver-error bucket). */
+static long ts_fallback_by_reason[TS_FB_MAX] = {0};
 
 static const char *qx_py(void)
 {
@@ -213,26 +250,112 @@ static const char *qx_ts_script(void)
   return p ? p : QXAPP_TS_SCRIPT_DEFAULT;
 }
 
-/* Quantum is the Q-xApp assignment engine and therefore the default; greedy
- * is the placeholder from before the circuit existed, kept only as the
- * automatic fallback and as a debug path (write "0"/"off" to the config file
- * to force it). On first enable, log solver provenance. */
-static void read_quantum_config(void)
+/* Backend-aware TS solver deadline (seconds). Env QXAPP_TS_TIMEOUT_S overrides
+ * the v5-compatible default. Parsed STRICTLY (strtol + endptr + range): a
+ * malformed value such as "30junk", a non-positive value, or an out-of-range
+ * value is rejected (logged) and the default is used, never silently
+ * truncated. */
+static int qx_ts_timeout_s(void)
+{
+  const char *e = getenv("QXAPP_TS_TIMEOUT_S");
+  if (e && *e) {
+    char *end = NULL;
+    errno = 0;
+    long v = strtol(e, &end, 10);
+    if (errno == 0 && end && *end == '\0' && v > 0 && v <= 3600)
+      return (int)v;
+    fprintf(stderr, "[Q-xApp TS] ignoring invalid QXAPP_TS_TIMEOUT_S='%s' "
+                    "(want a positive integer of seconds <= 3600); using "
+                    "default %ds\n", e, QXAPP_TS_TIMEOUT_DEFAULT_S);
+  }
+  return QXAPP_TS_TIMEOUT_DEFAULT_S;
+}
+
+/* Startup preflight (assessment Gap 3 / Priority 0.4): REJECT an incompatible
+ * deadline configuration before connecting to the RIC, rather than only
+ * warning. If the configured TS deadline is below the recorded reference-
+ * statevector p95, v5 calls will systematically miss it and fall back to
+ * greedy, so the controller is not actually running the quantum engine. Fail
+ * closed unless the operator has explicitly selected a faster backend/budget
+ * whose measured p95 fits (QXAPP_TS_ALLOW_TIGHT_DEADLINE=1). Returns 1 when the
+ * deadline is acceptable (proceed) and 0 when it is incompatible (reject) --
+ * callers treat a 0 return as the fail-closed signal. */
+static int ts_preflight_deadline_ok(void)
+{
+  int deadline = qx_ts_timeout_s();
+  if (deadline >= QXAPP_TS_REF_P95_S)
+    return 1;
+  /* Override accepted only for an EXACT "1" or "true" (no junk authorizes it). */
+  const char *ov = getenv("QXAPP_TS_ALLOW_TIGHT_DEADLINE");
+  if (ov && (strcmp(ov, "1") == 0 || strcmp(ov, "true") == 0)) {
+    printf("[Q-xApp TS] PREFLIGHT: deadline %ds < reference p95 %ds, but "
+           "QXAPP_TS_ALLOW_TIGHT_DEADLINE is set — proceeding (operator "
+           "asserts a faster backend/budget whose measured p95 fits).\n",
+           deadline, QXAPP_TS_REF_P95_S);
+    return 1;
+  }
+  fprintf(stderr, "[Q-xApp TS] PREFLIGHT FAIL: configured TS deadline %ds is "
+                  "below the reference-statevector p95 %ds; v5 would "
+                  "systematically miss the deadline and fall back to greedy. "
+                  "Raise QXAPP_TS_TIMEOUT_S (default %ds), select a faster "
+                  "backend, or set QXAPP_TS_ALLOW_TIGHT_DEADLINE=1 to override "
+                  "after measuring that the chosen backend fits.\n",
+          deadline, QXAPP_TS_REF_P95_S, QXAPP_TS_TIMEOUT_DEFAULT_S);
+  return 0;
+}
+
+/* Whether the quantum path is REQUESTED by config (xapp_quantum.txt): "0"/"off"
+ * forces greedy, missing file / anything else = requested ON. This is the raw
+ * request BEFORE the deadline gate, used by the startup preflight to decide
+ * between a hard startup abort and a runtime fail-closed-to-greedy. */
+static int ts_quantum_requested(void)
 {
   int enabled = 1;
   char cfg_path[512];
-  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path), QUANTUM_CONFIG_FILE_NAME), "r");
+  FILE *fp = fopen(qx_data_path(cfg_path, sizeof(cfg_path),
+                                QUANTUM_CONFIG_FILE_NAME), "r");
   if (fp) {
     char buf[64] = {0};
     if (fgets(buf, sizeof(buf), fp))
       enabled = !(buf[0] == '0' || strncmp(buf, "off", 3) == 0);
     fclose(fp);
   }
+  return enabled;
+}
+
+/* Quantum is the Q-xApp assignment engine and therefore the default; greedy
+ * is the placeholder from before the circuit existed, kept only as the
+ * automatic fallback and as a debug path (write "0"/"off" to the config file
+ * to force it). On first enable, log solver provenance. */
+static void read_quantum_config(void)
+{
+  int enabled = ts_quantum_requested();
+  /* RUNTIME fail-closed: if quantum is requested (including a later
+   * disabled->enabled transition, for which the startup preflight did not run)
+   * while the deadline is incompatible, keep the classical greedy path rather
+   * than run a quantum path that would systematically miss the deadline. The
+   * INITIAL startup-enabled+incompatible case is instead a hard process abort
+   * in main() (startup REJECTED) before any RIC I/O. */
+  if (enabled && !ts_preflight_deadline_ok()) {
+    if (quantum_ts_enabled || !quantum_env_logged)
+      fprintf(stderr, "[Q-xApp TS] quantum requested but the configured "
+                      "deadline is below the reference p95 threshold; keeping "
+                      "the classical greedy path (runtime fail-closed). Raise "
+                      "QXAPP_TS_TIMEOUT_S or set "
+                      "QXAPP_TS_ALLOW_TIGHT_DEADLINE=1.\n");
+    enabled = 0;
+  }
   if (enabled && !quantum_env_logged) {
     quantum_env_logged = 1;
+    int deadline = qx_ts_timeout_s();
     printf("[Q-xApp TS] quantum enabled: py=%s script=%s timeout=%ds "
-           "feas_iter=1 qual_iter=1 qual_lambda=4.0 max_per_cell=%d\n",
-           qx_py(), qx_ts_script(), QXAPP_TS_TIMEOUT_S, a1_max_ue_per_cell);
+           "solver=v5-adaptive aa_mode=adaptive qual_lambda=3.0 "
+           "candidate_count=20 max_aa_iter=8 max_circuit_runs=500 "
+           "max_oracle_calls=4000 max_per_cell=%d method=%s\n",
+           qx_py(), qx_ts_script(), deadline, a1_max_ue_per_cell,
+           QXAPP_TS_METHOD_V5);
+    /* (The deadline-vs-p95 compatibility check is enforced fail-closed at
+     * startup by ts_preflight_deadline_ok(); no per-round warning here.) */
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
              "sha256sum '%s' 2>/dev/null; '%s' -c 'import qiskit; print(\"qiskit\", qiskit.__version__)' 2>/dev/null",
@@ -252,16 +375,22 @@ static void read_quantum_config(void)
 
 /* Run dqna_ts.py on the current sinr_matrix via unique temp files.
  * Returns 0 and fills assignment (+ q_score/q_elapsed_ms if non-NULL) on
- * success; -1 on any failure (caller falls back to greedy_match). The
- * distinction "solver no candidate" vs solver error is logged (Codex 12차). */
+ * success; -1 on any failure (caller falls back to greedy_match). Every
+ * failure sets ts_last_fallback to a specific reason (assessment Priority 0/3):
+ * invalid CLI, timeout, nonzero exit, no-candidate, parse, method, capability,
+ * or feasibility -- never a single generic bucket. The invocation uses the
+ * explicit v5 adaptive arguments and validates the exact v5 method contract
+ * plus machine-readable capability fields (assessment Priority 0/5). */
 static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elapsed_ms)
 {
   char fin[]  = "/tmp/qxapp_ts_in_XXXXXX";
   char fout[] = "/tmp/qxapp_ts_out_XXXXXX";
   char ferr[] = "/tmp/qxapp_ts_err_XXXXXX";
   int rc_val = -1;
+  ts_last_fallback = TS_FB_NONE;
   int fdi = mkstemp(fin), fdo = mkstemp(fout), fde = mkstemp(ferr);
   if (fdi < 0 || fdo < 0 || fde < 0) {
+    ts_last_fallback = TS_FB_NONZERO_EXIT;
     fprintf(stderr, "[Q-xApp TS] mkstemp failed\n");
     goto cleanup;
   }
@@ -269,7 +398,7 @@ static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elap
   /* 1. SINR matrix -> JSON */
   {
     FILE *fi = fdopen(fdi, "w");
-    if (!fi) goto cleanup;
+    if (!fi) { ts_last_fallback = TS_FB_NONZERO_EXIT; goto cleanup; }
     fdi = -1; /* owned by stream now */
     fprintf(fi, "{\"sinr\":[");
     for (int u = 0; u < NUM_UE; u++) {
@@ -282,15 +411,21 @@ static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elap
     fclose(fi);
   }
 
-  /* 2. Invoke solver (Stage-0 tuned parameters) */
+  /* 2. Invoke solver with EXPLICIT v5 adaptive arguments (assessment Priority
+   *    0.1). The legacy --feas-iter/--qual-iter form is rejected by the v5
+   *    default solver; these are the frozen v5 defaults (V5_DEFAULTS). The
+   *    deadline is backend-aware and env-configurable (qx_ts_timeout_s). */
   {
+    int deadline = qx_ts_timeout_s();
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
-             "timeout %d '%s' '%s' --feas-iter=1 --qual-iter=1 --qual-lambda=4.0 "
-             "--max-per-cell=%d < '%s' > '%s' 2> '%s'",
-             QXAPP_TS_TIMEOUT_S, qx_py(), qx_ts_script(), a1_max_ue_per_cell,
+             "timeout %d '%s' '%s' --aa-mode adaptive --qual-lambda 3.0 "
+             "--candidate-count 20 --max-aa-iter 8 --max-circuit-runs 500 "
+             "--max-oracle-calls 4000 --max-per-cell %d < '%s' > '%s' 2> '%s'",
+             deadline, qx_py(), qx_ts_script(), a1_max_ue_per_cell,
              fin, fout, ferr);
     int rc = system(cmd);
+    int code = (rc >= 0 && WIFEXITED(rc)) ? WEXITSTATUS(rc) : -1;
     if (rc != 0) {
       char errbuf[256] = {0};
       FILE *fe = fopen(ferr, "r");
@@ -299,48 +434,41 @@ static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elap
         errbuf[n] = '\0';
         fclose(fe);
       }
-      if (strstr(errbuf, "no feasible assignment"))
-        fprintf(stderr, "[Q-xApp TS] quantum solver: no candidate in top-20 "
-                        "(rc=%d) — not an infeasibility proof\n", rc);
-      else
-        fprintf(stderr, "[Q-xApp TS] quantum solver error rc=%d stderr: %.200s\n",
-                rc, errbuf);
+      /* Classify the failure via the testable helper (tests/test_ts_classify.c
+       * covers every branch offline). `timeout` exits 124 on deadline; the v5
+       * solver exits 1 with a specific stderr line for invalid-CLI vs
+       * no-candidate. */
+      ts_last_fallback = ts_classify_run_failure(code, errbuf);
+      fprintf(stderr, "[Q-xApp TS] solver failure (reason=%s, rc=%d, "
+                      "deadline=%ds) stderr: %.180s\n",
+              ts_fb_name(ts_last_fallback), code, deadline, errbuf);
       goto cleanup;
     }
   }
 
-  /* 3. Parse output JSON */
+  /* 3. Parse output JSON. Buffer sized generously: the v5 result now also
+   *    carries capability fields and a structured counters object; the fields
+   *    the C reads (assignment/score/method/capabilities/feasibility_prob) are
+   *    emitted before the counters object, so parsing is robust even if a very
+   *    long tail were truncated. */
   {
-    char buf[1024] = {0};
+    char buf[4096] = {0};
     FILE *fo = fopen(fout, "r");
-    if (!fo) goto cleanup;
+    if (!fo) { ts_last_fallback = TS_FB_PARSE; goto cleanup; }
     size_t n = fread(buf, 1, sizeof(buf) - 1, fo);
     buf[n] = '\0';
     fclose(fo);
 
-    char *p = strstr(buf, "\"assignment\"");
-    if (p) p = strchr(p, '[');
+    /* 3b/3c/4. Method + capability + independent feasibility validation via the
+     *          testable helper (tests/test_ts_classify.c covers every reason).
+     *          Fail-closed: absent capability fields -> capability fallback. */
     int tmp[NUM_UE];
-    if (!p || sscanf(p, "[%d,%d,%d,%d]", &tmp[0], &tmp[1], &tmp[2], &tmp[3]) != NUM_UE) {
-      fprintf(stderr, "[Q-xApp TS] failed to parse solver output: %.100s\n", buf);
+    if (!ts_validate_result(buf, QXAPP_TS_METHOD_V5, QXAPP_TS_REQ_SOLVER_FAMILY,
+                            QXAPP_TS_REQ_CONSTRAINT_MODE, a1_max_ue_per_cell,
+                            tmp, &ts_last_fallback)) {
+      fprintf(stderr, "[Q-xApp TS] solver result rejected (reason=%s): %.140s\n",
+              ts_fb_name(ts_last_fallback), buf);
       goto cleanup;
-    }
-
-    /* 4. Sanity check: cap-only, mirroring greedy_match (no per-cell minimum) */
-    int load[NUM_CELL] = {0};
-    for (int u = 0; u < NUM_UE; u++) {
-      if (tmp[u] < 0 || tmp[u] >= NUM_CELL) {
-        fprintf(stderr, "[Q-xApp TS] invalid cell index %d for UE %d\n", tmp[u], u);
-        goto cleanup;
-      }
-      load[tmp[u]]++;
-    }
-    for (int c = 0; c < NUM_CELL; c++) {
-      if (load[c] > a1_max_ue_per_cell) {
-        fprintf(stderr, "[Q-xApp TS] cap violated: cell %d load=%d (max %d)\n",
-                c, load[c], a1_max_ue_per_cell);
-        goto cleanup;
-      }
     }
 
     double score = 0.0;
@@ -352,15 +480,13 @@ static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elap
     double feas_prob = -1.0;
     char *pf = strstr(buf, "\"feasibility_prob\"");
     if (pf && (pf = strchr(pf, ':'))) sscanf(pf + 1, "%lf", &feas_prob);
-    char method[64] = "?";
-    char *pm = strstr(buf, "\"method\"");
-    if (pm && (pm = strchr(pm, ':')) && (pm = strchr(pm, '"')))
-      sscanf(pm + 1, "%63[^\"]", method);
-    printf("[Q-xApp TS] solver: method=%s feasibility_prob=%.4f\n", method, feas_prob);
+    printf("[Q-xApp TS] solver: method=%s feasibility_prob=%.4f\n",
+           QXAPP_TS_METHOD_V5, feas_prob);
 
     memcpy(assignment, tmp, NUM_UE * sizeof(int));
     if (q_score) *q_score = score;
     if (q_elapsed_ms) *q_elapsed_ms = elapsed;
+    ts_last_fallback = TS_FB_NONE;
     rc_val = 0;
   }
 
@@ -1154,9 +1280,12 @@ static int assignment_algorithm(const char *mode, int is_auto,
       } else {
         ts_quantum_state = 2;
         quantum_fallback_count++;
+        if (ts_last_fallback > TS_FB_NONE && ts_last_fallback < TS_FB_MAX)
+          ts_fallback_by_reason[ts_last_fallback]++;
         fprintf(stderr, "[Q-xApp TS] falling back to greedy_match "
-                        "(ok=%ld fallback=%ld)\n",
-                quantum_ok_count, quantum_fallback_count);
+                        "(reason=%s ok=%ld fallback=%ld)\n",
+                ts_fb_name(ts_last_fallback), quantum_ok_count,
+                quantum_fallback_count);
       }
     }
     if (ts_quantum_state != 1) {
@@ -1734,6 +1863,23 @@ int main(int argc, char *argv[])
   /* Validate an injected QXAPP_DATA_DIR before connecting to the RIC or
    * sending any control: a bad path must fail the process immediately. */
   qx_data_dir();
+
+  /* Two explicit deadline-preflight semantics (assessment Gap 3 / Priority 0.4):
+   *  (1) INITIAL STARTUP: if quantum is REQUESTED on and the deadline is
+   *      incompatible, the process is REJECTED here (return error) BEFORE any
+   *      RIC I/O -- the operator must fix the config.
+   *  (2) A deliberately quantum-disabled deployment is NOT blocked (no abort),
+   *      and a later disabled->enabled transition with an incompatible deadline
+   *      is refused at runtime inside read_quantum_config() (kept greedy). */
+  if (ts_quantum_requested() && !ts_preflight_deadline_ok()) {
+    fprintf(stderr, "[Q-xApp TS] STARTUP REJECTED: quantum is enabled but the "
+                    "configured deadline is below the reference p95 threshold. "
+                    "Aborting before RIC connection. Raise QXAPP_TS_TIMEOUT_S, "
+                    "select a faster backend, or set "
+                    "QXAPP_TS_ALLOW_TIGHT_DEADLINE=1.\n");
+    return 1;
+  }
+  read_quantum_config();
 
   fr_args_t args = init_fr_args(argc, argv);
 

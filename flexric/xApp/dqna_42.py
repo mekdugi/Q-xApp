@@ -21,7 +21,12 @@ validation suite", not as a general guarantee.
 
 CLI contract is identical to dqna_ts.py: {"sinr": 4x2 matrix} on stdin ->
 {"assignment", "score", "feasible", "feasibility_prob", "method",
-"elapsed_ms"} on stdout; exit 1 on invalid input or no candidate.
+"solver_family", "oracle_type", "formal_aa", "constraint_mode",
+"selection_mode", "elapsed_ms"} on stdout; exit 1 on invalid input or no
+candidate. The capability fields (assessment Priority 5) declare this as the
+gated-heuristic family with a per-cell UE cap (cap-only, the AA hard-constraint
+component; energy-saving cell selection is a controller concern) and top-20
+classical rescoring; formal_aa is false (not full-state AA).
 """
 
 import argparse
@@ -309,9 +314,25 @@ def main():
     if q is None:
         sys.stderr.write("[dqna_42] no feasible assignment found\n")
         sys.exit(1)
+    # Machine-readable capability fields (assessment Priority 5): the NES
+    # solver is the gated-heuristic family (not formal full-state AA); it
+    # advertises this explicitly so the controller/harness never infer formal-AA
+    # from the method string.
+    import os as _os
+    import sys as _sys
+    _hd = _os.path.dirname(_os.path.abspath(__file__))
+    if _hd not in _sys.path:
+        _sys.path.insert(0, _hd)
+    import dqna_capabilities as _dcap
+    _caps = _dcap.gated_solver("cap-only", "top20-rescore")
     json.dump({"assignment": [int(c) for c in q], "score": float(qs),
                "feasible": True, "feasibility_prob": float(ft),
                "method": "quantum-2stage-10q-caponly-expenc-fgated-42v2",
+               "solver_family": _caps["solver_family"],
+               "oracle_type": _caps["oracle_type"],
+               "formal_aa": _caps["formal_aa"],
+               "constraint_mode": _caps["constraint_mode"],
+               "selection_mode": _caps["selection_mode"],
                "elapsed_ms": int(1000 * (time.time() - t0))}, sys.stdout)
     sys.stdout.write("\n")
 

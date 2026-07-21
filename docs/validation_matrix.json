@@ -1,6 +1,6 @@
 {
   "description": "Machine-readable map from documented claims to the exact tracked command that regenerates them and the report file/field that records them (remediation R5.3). Commands run from the repository root with the locked solver venv (install/solver_requirements.txt). Long-running one-shot artifacts (final holdout, Aer benchmarks) are recorded reports: re-running them is a deliberate act, not part of routine verification.",
-  "entrypoint": "bash verify.sh [quick|solver|full|gui] — solver tiers resolve the interpreter as: explicit PY=<python> (must import qiskit, hard-fails otherwise) > $VIRTUAL_ENV/bin/python > /root/qxapp-venv/bin/python (the setup_solver_venv.sh default, usually needs sudo). Non-root example: PY=<venv>/bin/python bash verify.sh quick. GUI tier: GUI_PY (default ~/qxapp_gui_testenv/bin/python, must import fastapi+pytest). Unknown tiers exit 2 with usage before running anything.",
+  "entrypoint": "bash verify.sh [quick|solver|full|gui] — solver tiers resolve the interpreter as: explicit PY=<python> (must import qiskit, hard-fails otherwise) > $VIRTUAL_ENV/bin/python > /root/qxapp-venv/bin/python (the setup_solver_venv.sh default, usually needs sudo). It then ENFORCES the exact locked pins from install/solver_requirements.txt (Python 3.12.3, numpy==1.26.4, qiskit==1.2.4, qiskit-aer==0.15.1) before any solver test and FAILS EARLY (exit 3, listing every mismatch) if they do not match — the goldens are float/BLAS-sensitive and the Aer backend suites execute qiskit-aer, so they are only valid in the locked venv. Set QXAPP_ALLOW_ENV_MISMATCH=1 to run anyway as an explicit diagnostic override (legacy goldens may then differ at the last float bit / degenerate-uniform argsort tie-break). Non-root example: PY=<venv>/bin/python bash verify.sh quick. GUI tier: GUI_PY (default ~/qxapp_gui_testenv/bin/python, must import fastapi+pytest). Unknown tiers exit 2 with usage before running anything.",
   "claims": [
     {
       "id": "ts_v5_holdout",
@@ -20,7 +20,7 @@
     },
     {
       "id": "ts_legacy_golden",
-      "claim": "Legacy v4.1 two-stage path (--legacy-two-stage) matches its recorded goldens byte-for-byte (round7/uniform/strong_pref) and the bare no-flag default is the v5 solver",
+      "claim": "Legacy v4.1 two-stage path (--legacy-two-stage) matches its recorded goldens on the exact semantic decision fields (keys/assignment/score/feasible/method) with feasibility_prob within a 1e-12 absolute tolerance (round7/uniform/strong_pref) — the feasibility_prob statevector marginal drifts ~1e-14 across Qiskit/BLAS builds; the legacy circuit code is unchanged. The bare no-flag default is the v5 solver.",
       "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
       "command": "python scripts/v5a_legacy_golden_check.py",
       "report": "stdout (LEGACY_GOLDEN=PASS); goldens in reports/legacy_golden/"
@@ -97,6 +97,57 @@
       "documented_in": ["gui/src/templates/chart.html"],
       "command": "sha256sum gui/src/static/vendor/*",
       "report": "chart-4.5.1.umd.min.js sha256=48444a82d4edcb5bec0f1965faacdde18d9c17db3063d042abada2f705c9f54a ; chartjs-plugin-datalabels-2.2.0.min.js sha256=20c08f3d9c6d2ef76df6d6a6f1127c0013339fe32add24222276c398c6308c38"
+    },
+    {
+      "id": "threshold_oracle_truth_table",
+      "claim": "Boolean utility-threshold oracle (dqna_threshold.py): the exhaustive 4x3 x multi-threshold phase truth table agrees with the classical predicate f_hard(x) AND (U_q(x) >= tau_q), every work qubit returns to |0>, the oracle is self-inverse, and overflow configurations are rejected before circuit construction. The predicate is defined over the QUANTIZED integer utility sum (see dqna_threshold module header); a genuine one-sided no-false-accept guarantee vs the real threshold requires the conservative floor-utilities/ceil-threshold quantization pair.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_threshold.py",
+      "report": "reports/threshold_oracle_report.json",
+      "report_fields": ["status", "t1_t2_compute_block", "t3_joint_mark", "t4_t5_oracle", "t6_classical"]
+    },
+    {
+      "id": "ts_c_integration_contract",
+      "claim": "C-to-Python TS integration (qxapp_unified.c): the controller invokes the solver with the explicit v5 adaptive arguments, requires the exact v5 method string 'quantum-fullA-17q-valid3-caponly-weightedAA-v5' and machine-readable capability fields (solver_family=weighted-aa, constraint_mode=cap-only, formal_aa=true) fail-closed, uses a backend-aware env-configurable deadline (QXAPP_TS_TIMEOUT_S, default 30s), and classifies every fallback by a specific reason (invalid-cli/timeout/nonzero-exit/no-candidate/parse/method/capability/feasibility). Offline contract portion runs without a live FlexRIC deployment.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_ts_c_contract.py",
+      "report": "reports/ts_c_contract_report.json"
+    },
+    {
+      "id": "threshold_aa_scaling",
+      "claim": "Matched classical/quantum query scaling (assessment 7.3) on a FIXED KNOWN domain N=2^20 with controlled p=t/N over 2^-4..2^-16 (BBHT schedule caps m at sqrt(N), independent of p; p only draws the exact-AA outcome, spot-checked bit-for-bit vs the real Grover statevector, max abs error 0.0). EMPIRICAL unknown-p BBHT marking-oracle log-log exponent is ~0.61 over this finite range (clearly sub-linear; the BBHT geometric-growth overshoot keeps it modestly above the 0.5 asymptote — NOT claimed as exactly 0.5), and the classical predicate-check exponent is ~1.0. Marking-oracle calls and verification/measurement calls are reported separately (matched to the classical predicate checks). Resource costs C_A (state prep) and C_O (threshold oracle) are transpiled (u,cx) CX counts plus the logical op mix.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_threshold_scaling.py",
+      "report": "reports/threshold_scaling_report.json",
+      "report_fields": ["scaling.quantum_oracle_loglog_slope", "scaling.classical_loglog_slope", "analytic_spot_check.max_abs_error", "resource_costs"]
+    },
+    {
+      "id": "threshold_path_invariants_7_2",
+      "claim": "Threshold-AA reflection/amplification invariants (assessment 7.2). CAP-ONLY: A_dagger*A = I with pool/bad ancillas returning to |0>, S_0 reflects the COMPLETE A-input all-zero space (assign+pool+bad), work ancillas (acc/flag/synth) clean, and the measured good-branch probability follows sin^2((2k+1)asin(sqrt(p_tau))) for k=0,1,2 (max abs error < 1e-6). WEIGHTED-PRB (tractable formal config): A_dagger*A = I, complete-S_0, and exhaustive hard-predicate/ancilla correctness (A|0>'s bad register equals the classical PRB violation count for all 81 valid assignments, mass ~=1/81 each, pool/ancilla leak < tol) -- the k-sweep AA curve is measured for cap-only ONLY, not weighted-PRB. p_tau comes from validation-only enumeration, never the production solve.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_threshold_invariants.py",
+      "report": "reports/threshold_invariants_report.json"
+    },
+    {
+      "id": "threshold_aa_functional_e2e",
+      "claim": "threshold-AA solver functional tests: a low-width instance runs end-to-end (<= the 20-qubit statevector width guard) and returns a VALID acceptable-set assignment with capability fields + structured counters; an oversized config fails closed fast before building any statevector; and direct-API argument validation rejects bad aa_mode/budgets/seed and non-integer fractional_bits (bool/float/str), and a non-numeric external threshold (bool/str). The external SLA threshold is a REAL number, so a float tau is VALID; only the QUANTIZED-integer APIs (quantized table/tau/width) reject floats. Optimum match at seed 7 is a deterministic-regression observation, not a general-optimality claim.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/validate_threshold_aa.py",
+      "report": "reports/threshold_aa_report.json"
+    },
+    {
+      "id": "ts_phase_timing_and_crossover",
+      "claim": "TS phase timing (assessment P3): one measured end-to-end decision latency plus isolated non-additive phase probes (parse/preprocess, circuit construction, transpilation[null on reference], backend execution, adaptive sampling+dedup, rescoring, python startup+import, temp-file IPC; C parse/feasibility null+reason) and a classical/quantum crossover reference model from honest microbenchmarks (L_Q one AA iteration, L_C a real classical proposal+check, H fixed overhead), backend-labeled reference-statevector. p_star is computed analytically (stable positive root of H*y^2+kappa*L_Q*y-L_C/B=0); with statevector L_Q >> L_C it is a real but vanishingly small value (~1e-13), so there is NO crossover in the evaluated/practical p range (p_star_in_evaluated_range=false), not none mathematically.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/measure_ts_timing.py",
+      "report": "reports/ts_timing_report.json"
+    },
+    {
+      "id": "runtime_contract_consistency",
+      "claim": "The machine-readable runtime contract (install/runtime_contract.json) is regenerated from the C controller and Python solvers and cross-checks that the two sides agree on the v5 method string, required capabilities, deadline default, and fallback-reason taxonomy.",
+      "documented_in": ["docs/QUANTUM_VALIDATION.md"],
+      "command": "python scripts/gen_runtime_manifest.py --check",
+      "report": "install/runtime_contract.json (stdout RUNTIME_MANIFEST=PASS)"
     }
   ],
   "deferred": [

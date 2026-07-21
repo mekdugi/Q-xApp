@@ -1,0 +1,75 @@
+{
+  "suite": "threshold_invariants",
+  "checks": [
+    {
+      "name": "A_dagger_A_identity_cap_only",
+      "n_qubits": 14,
+      "superposition_identity": true,
+      "zero_identity": true,
+      "ancilla_dirty_prob": 0.0,
+      "pass": true
+    },
+    {
+      "name": "S0_complete_input_space_cap_only",
+      "a_input_qubits": 14,
+      "pass": true
+    },
+    {
+      "name": "aa_good_probability_curve",
+      "p_tau": 0.481481,
+      "acceptable_set_size": 39,
+      "rows": [
+        {
+          "k": 0,
+          "n_qubits": 20,
+          "measured_good": 0.48148148,
+          "analytic": 0.48148148,
+          "err": 0.0,
+          "work_ancilla_leak_prob": 0.0
+        },
+        {
+          "k": 1,
+          "n_qubits": 20,
+          "measured_good": 0.55545395,
+          "analytic": 0.55545395,
+          "err": 0.0,
+          "work_ancilla_leak_prob": 0.0
+        },
+        {
+          "k": 2,
+          "n_qubits": 20,
+          "measured_good": 0.4079149,
+          "analytic": 0.4079149,
+          "err": 0.0,
+          "work_ancilla_leak_prob": 0.0
+        }
+      ],
+      "max_abs_error": 0.0,
+      "max_work_ancilla_leak_prob": 0.0,
+      "pass": true
+    },
+    {
+      "name": "A_dagger_A_identity_weighted_prb",
+      "n_qubits": 14,
+      "superposition_identity": true,
+      "zero_identity": true,
+      "ancilla_dirty_prob": 0.0,
+      "pass": true
+    },
+    {
+      "name": "S0_complete_input_space_weighted_prb",
+      "a_input_qubits": 14,
+      "pass": true
+    },
+    {
+      "name": "weighted_prb_predicate_in_A",
+      "n_qubits": 14,
+      "assignments_checked": 81,
+      "max_expected_mass_err_vs_1_81": 0.0,
+      "max_ancilla_leak_per_assign": 0.0,
+      "feasibility_predicate_mismatches": 0,
+      "pass": true
+    }
+  ],
+  "status": "PASS"
+}

@@ -30,10 +30,30 @@ for name in ("round7", "uniform", "strong_pref"):
         want = json.load(f)
     got.pop("elapsed_ms", None)
     want.pop("elapsed_ms", None)
-    if got == want:
-        print(f"PASS {name} legacy golden match")
+    # Exact semantic fields (keys/assignment/score/feasible/method); the
+    # feasibility_prob statevector marginal drifts ~1e-14 across Qiskit/BLAS
+    # builds, so it is compared to a tight 1e-12 absolute tolerance rather than
+    # byte-for-byte (the legacy circuit code is unchanged).
+    FEAS_TOL = 1e-12
+    ok = set(got) == set(want)
+    detail = "" if ok else f"keys differ: {sorted(got)} vs {sorted(want)}"
+    if ok:
+        for k in want:
+            if k == "feasibility_prob":
+                d = abs(float(got[k]) - float(want[k]))
+                if d > FEAS_TOL:
+                    ok = False
+                    detail = f"feasibility_prob drift {d:g} > {FEAS_TOL:g}"
+                    break
+            elif got[k] != want[k]:
+                ok = False
+                detail = f"{k} differs: {got[k]!r} vs {want[k]!r}"
+                break
+    if ok:
+        print(f"PASS {name} legacy golden match "
+              f"(exact semantic fields; feasibility_prob within {FEAS_TOL:g})")
     else:
-        print(f"FAIL {name}\n  got  {got}\n  want {want}")
+        print(f"FAIL {name} {detail}\n  got  {got}\n  want {want}")
         fail = 1
 # the bare no-flag default must now be the v5 adaptive full-A solver
 with open(os.path.join(GOLD, "round7.in.json")) as f:

@@ -217,7 +217,14 @@ legacy circuit unchanged. Full validation evidence lives in
 | Gated finding | With the legacy global-max shift the good-subspace weight on Round7 is `a ~ 2.1e-5` (first peak r* ~ 171), so k = 1..4 gated iterations cannot lift the feasible mass above the 21.1% baseline — measured and consistent with the analytic table. The gated mode's value is the removal of the two-stage diffuser cancellation, not a mass gain at small k. |
 | WSL deploy note | the runtime script path needs all three files (`dqna_ts.py`, `dqna_constraints.py`, `dqna_modes.py`) in the same directory; legacy behavior does not require the two new files unless solver-mode keys are used. |
 
-## 11. Stage V5-A — canonical full-state weighted AA in dqna_ts.py (DRAFT, 2026-07-19)
+> **Sections 11 (Stages V5-A..V5-D) are HISTORICAL STAGE RECORDS** of the v5
+> development in July 2026. They are COMPLETE (each carries its own PASS/final
+> evidence), but where they mention still-open C-integration or deployment
+> follow-ups, those are SUPERSEDED by the "Next-revision engineering
+> (2026-07-21)" section further below, which holds the current contract. Read
+> the two together with the later section taking precedence.
+
+## 11. Stage V5-A — canonical full-state weighted AA in dqna_ts.py (COMPLETE, 2026-07-19)
 
 Scope: the revised task brief (`gated_oracle_task_brief_revised.md`) requires
 the mathematically correct full-state weighted amplitude amplification to
@@ -242,7 +249,7 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 | Holdout protection | the seed-20260702 1,060-case suite HAS historical run records on the legacy path (stage0 reports); it has NOT been evaluated on the v5 path and was NOT used for any v5 parameter choice. In Stage A: no grid search, no final success rates, S0-6..S0-8 not run. |
 | Claim boundary (paper) | claimable now: mathematically correct weighted-AA state preparation/reflections with theory-matching `P_G(k)` on a statevector simulator; a success-conditioned weighted distribution (Codex: finite-shot sampling semantics only after S0-6). NOT claimable yet: tuning/holdout rates, generalized (heterogeneous-PRB) assignment, any QPU latency or practical advantage. Query counts: `O(1/sqrt(a))` under ideal-oracle assumptions, not plain `O(sqrt(D/F))`. |
 
-### Stage V5-B — execution modes and finite-shot candidates (DRAFT, 2026-07-19)
+### Stage V5-B — execution modes and finite-shot candidates (COMPLETE, 2026-07-19)
 
 | Item | Contract / result |
 |------|-------------------|
@@ -254,9 +261,9 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 | Guards | structural infeasibility (`N_CELL*cap < N_UE`) exits 1 before any circuit; `--qual-lambda` must be finite nonnegative; positive-integer checks on budgets; `--feas-iter` nonzero, section-16/v5 argument mixing, `--aa-iter` without fixed, adaptive `--qual-iter` all exit 1 with empty stdout. |
 | S0-6 | `scripts/validate_v5_stage_b.py`: candidate_count {1,5,20,50} x seeds {3,11,42} on Round7 (+ fixed k=3, uniform): one-shot-one-candidate and all section-11 counter identities, budgets respected, candidates always classically feasible, fixed-seed runs bit-reproducible (results AND counters), encode/decode round trip 81/81. Optimum hit is recorded, not required. PASS. |
 | CLI contract | 15 reject cases + malformed stdin (5: not-json/missing-key/wrong-shape/NaN/negative) + defaults/legacy/fixed/alias/lambda-0/all-zero/zero-row + deterministic no-candidate exit-1 seed + section-16 smokes. PASS. Full section-16 harness `validate_cli.py` re-run after updating its TWO pre-v5 expectations to the new contract (`bare_default_is_v5`, `legacy_c_caller_form_rejected_by_v5` + flagged variants — the historical C caller form `--feas-iter=1 --qual-iter=1 ...` is rejected by the v5 default per the brief and preserved under `--legacy-two-stage`). |
-| Known follow-up | `qxapp_unified.c:289` still calls the TS solver with the legacy argument form, so a deployed v5 default would always fall back to greedy until the C caller is updated (C code is out of scope in this stage; deployment remains on hold). |
+| Known follow-up (RESOLVED — superseded) | *(Historical, at the time of Stage V5-B.)* `qxapp_unified.c` then called the TS solver with the legacy argument form, so a deployed v5 default would fall back to greedy until the C caller was updated. **This is now RESOLVED by the "Next-revision engineering (2026-07-21)" Priority 0 section below:** the C controller uses the explicit v5 adaptive arguments, validates the v5 method + capability fields fail-closed, and applies a backend-aware deadline. Do not read this row as a current contract. |
 
-### Stage V5-C — tuning, S0-8 remainder, resources, qiskit 2.5.0, canonical integration (DRAFT, 2026-07-20)
+### Stage V5-C — tuning, S0-8 remainder, resources, qiskit 2.5.0, canonical integration (COMPLETE, 2026-07-20)
 
 | Item | Contract / result |
 |------|-------------------|
@@ -267,7 +274,7 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 | qiskit 2.5.0 compatibility | dedicated venv (qiskit 2.5.0, numpy 2.5.1): full Stage-A validator PASS (4871.7 s, ~8x slower than 1.2.4) and a v5 CLI sampling smoke PASS with identical optimum. CAVEAT: `QuantumCircuit.mcx(mode=...)` is deprecated since Qiskit 2.1 (removal announced) — a future migration to `MCXGate`+`hls_config` will be needed; canonical remains 1.2.4. |
 | Canonical integration | `scripts/validate_dqna_ts.py --v5-stage {a,b,all,holdout}` explicitly invokes the v5 validators (wrapper only; the legacy layers and the seed-20260702 generation rules are byte-unchanged in logic). `holdout` forwards to the S0-7 runner `scripts/v5_holdout_run.py` (args after `--`); the real seed-20260702 run additionally requires the runner's `--confirm-holdout` flag. Wrapper-driven stage-B run PASS. The `validate_cli.py` expectation update remains a declared test-only scope exception. |
 
-### Stage V5-D — defaults freeze + S0-7 runner readiness (DRAFT, 2026-07-20)
+### Stage V5-D — defaults freeze + S0-7 runner readiness (COMPLETE, 2026-07-20)
 
 | Item | Contract / result |
 |------|-------------------|
@@ -292,3 +299,60 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 | NES 4x2 deterministic suite | `scripts/validate_nes_suite.py` (seed 20260721: 300 generated cases across 6 categories + 6 builtin/edge incl. all-zero and tie matrices). Criterion: solver score == independent harness-local exhaustive-oracle optimum over all 16 assignments (equal-score ties allowed; production solver helpers not used). Result: **PASS 306/306**, 0 no-candidate → `reports/nes_suite_report.json` (wall time recorded in the report's `elapsed_s`). |
 | QoS-RA exhaustive suite | `scripts/validate_qos_exhaustive.py`: ALL {0,1,10}^8 = 6,561 utility matrices vs an independent harness-local oracle over the 16 total (d0,d1) pairs, of which 12 are feasible under d0 != d1 (production solver helpers not used). Result: **PASS 6,561/6,561** (477 flat-row classical-reduction cases + 6,084 quantum-path cases) → `reports/qos_exhaustive_report.json` (wall time in `elapsed_s`). |
 | Claim → command → report map | `docs/validation_matrix.json` (machine-readable; root entrypoint `verify.sh` with quick / solver / full / gui tiers). R5.4 Fig.4 raw provenance is DEFERRED BY USER; LICENSE is USER DECISION REQUIRED. |
+
+### Next-revision engineering (2026-07-21 assessment implementation)
+
+Implements the July-2026 engineering assessment (Q-xApp Quantum Advantage Status
+and Recommendations). Priorities 0–6. Canonical reference backend throughout.
+
+| Priority / area | What changed | Status / evidence |
+|-----------------|--------------|-------------------|
+| P0 — C↔Python TS integration (`qxapp_unified.c`) | The controller now invokes the solver with the EXPLICIT v5 adaptive arguments (`--aa-mode adaptive --qual-lambda 3.0 --candidate-count 20 --max-aa-iter 8 --max-circuit-runs 500 --max-oracle-calls 4000 --max-per-cell <cap>`) instead of the legacy `--feas-iter/--qual-iter` form the v5 default rejects; it requires the EXACT v5 method string and validates machine-readable capability fields fail-closed; the solver deadline is backend-aware and env-configurable (`QXAPP_TS_TIMEOUT_S`, default 30 s vs the recorded reference-statevector p95 22.06 s, conservative reject threshold 23 s; when the quantum TS path is enabled and the deadline is below the threshold, startup is REJECTED fail-closed, override only via an exact `QXAPP_TS_ALLOW_TIGHT_DEADLINE=1`); and every fallback is classified into a specific reason (`invalid-cli / timeout / nonzero-exit / no-candidate / parse-failure / method-mismatch / capability-unsupported / feasibility-reject`) with per-reason counters, never a single generic bucket. | Offline contract test `scripts/validate_ts_c_contract.py` → `reports/ts_c_contract_report.json` (static C-source guards + live CLI contract; runs without FlexRIC). **The all-three end-to-end integration (live C controller + RIC + ns-3) is NOT re-run in this environment (no FlexRIC deployment here); the historical smoke record is unchanged and the all-three re-run remains REQUIRED before refreshing the README fallback record.** |
+| P1 — Boolean utility-threshold oracle (`dqna_threshold.py`) | New reversible oracle marking `f_hard(x) AND (U_q(x) >= tau_q)`: documented fixed-point quantization, derived accumulator width with pre-build overflow rejection, QFT utility accumulator, two's-complement `>=` comparator, joint hard-feasible+threshold phase mark, and an exact inverse builder for clean uncomputation. The Boolean predicate is defined over the QUANTIZED integer utility sum (a one-sided no-false-accept guarantee vs the real threshold requires the conservative floor-utility/ceil-threshold pair — documented in the module header, not falsely claimed). | `scripts/validate_threshold.py` → `reports/threshold_oracle_report.json`: **PASS**. Exhaustive 4×3 phase truth table over multiple thresholds (via one valid-superposition statevector per threshold), acceptable-set sizes match the classical predicate exactly (e.g. τ=0→54, τ=3→32, τ=5→0), all work qubits return to \|0>, oracle self-inverse, overflow rejected, conservative-pair no-false-accept confirmed. |
+| P1/P4 — threshold-AA solver mode (`dqna_threshold_aa.py`) | Canonical formal threshold-AA path: `A = C_constraints(bad live) . V3^x4` (no soft cost rotations), `S_good = -1 iff bad==0 AND U_q>=tau_q` via the threshold oracle, disjoint registers, all A-input registers in S_0, unknown-p BBHT finite-shot generation, classical accept on the same predicate, classical best selection. Supports cap-only AND weighted-PRB hard constraints (shared `dqna_constraints` aggregator). Wired as `--solver-mode threshold-aa --utility-threshold T [--utility-fractional-bits b] [--constraint-mode cap-only\|weighted-prb]` WITHOUT changing the v5 default or legacy CLI. τ is EXTERNAL; nothing enumerates assignments to pick τ, p, or the round count. | Config resolution + fail-closed rules validated; a fail-closed statevector-width guard (`QXAPP_THRESHOLD_MAX_QUBITS`, **default 20**) with a bounded per-j state cache rejects configs whose QFT accumulator is too wide to simulate here (a wide utility range / high fractional_bits exceeds statevector width — not a QPU limit). Low-width E2E success + oversized fail-closed + argument-validation tests in `scripts/validate_threshold_aa.py`. |
+| P2 — query accounting + controlled scaling (`scripts/validate_threshold_scaling.py`) | Structured counters (state-prep / threshold-oracle / S_0 / A / A† / runs / measurements / accepted / duplicate / rejected / classical-proposal-checks / acceptable_decoded [hard-feasible AND threshold] / hard_feasible_decoded [feasibility alone — the two are not conflated]) in the solver result; a matched classical/quantum scaling harness on a FIXED KNOWN domain N=2^20 with controlled p=t/N over 2^-4..2^-16. The BBHT schedule caps m at sqrt(N) (known domain size only — NOT sqrt(1/p), so it never sees p); p enters solely through the exact AA outcome probability sin²((2j+1)asin(√p)), validated bit-for-bit against the real Grover statevector (spot-check max abs error 0.0). Quantum marking-oracle calls and verification/measurement calls are reported SEPARATELY; the classical proposer's predicate checks are the matched counterpart of the quantum verifications. Resource costs C_A (state prep) and C_O (threshold oracle) are reported as transpiled (u,cx) CX counts plus the logical op mix (an mcx is not one CX), in SEPARATE tables for cap-only AND a tractable weighted-PRB circuit (assessment P4). | `reports/threshold_scaling_report.json`: **PASS**. EMPIRICAL unknown-p BBHT marking-oracle exponent ≈ 0.61 over the tested range (clearly sub-linear; the BBHT geometric-growth overshoot keeps it modestly above the 0.5 asymptote — we do NOT claim an exact 0.5), classical predicate-check exponent ≈ 1.0. Oracle CALLS reported, never derived from wall time. No p-known theoretical curve is used to manufacture the result. |
+| P3 — phase timing / deadline (`scripts/measure_ts_timing.py`, C) | Reports (a) one measured END-TO-END decision latency (not decomposed); (b) `phase_probes` — every assessment-P3 phase measured IN ISOLATION with `additive:false` (parse/preprocess, circuit construction, transpilation [null+reason on reference], backend/statevector execution, adaptive sampling+dedup, rescoring, python startup+import, temp-file IPC; C parse/feasibility null+reason as C-side); and (c) crossover microbenchmarks (isolated AA-iteration latency L_Q = [t(k=2)−t(k=0)]/2, fixed overhead H = t(k=0), and L_C as a REAL classical proposal-and-check loop — NOT quantum-sim time). No fields are summed into a fake total. Crossover reference model T_C ≈ L_C/(B·p), T_Q ≈ H+κ·L_Q/√p, backend labeled `reference-statevector`/`aer-statevector`. The C controller logs deadline miss + exact fallback reason. | `reports/ts_timing_report.json`. No fabricated or overlapping measurements. `p_star` is computed ANALYTICALLY (stable positive root of `H·y²+κ·L_Q·y−L_C/B=0`, `y=√p`): with statevector `L_Q` (~seconds) ≫ `L_C` (~µs) it is a real but VANISHINGLY small value (~1e-13), i.e. there is no crossover in the evaluated/practical p range (`p_star_in_evaluated_range=false`), not "none mathematically". A genuine QPU-scale `L_Q` would move `p_star` into range. |
+| 7.2 — threshold-path reflection/amplification invariants (`scripts/validate_threshold_invariants.py`) | For **cap-only**: A†A = I, S_0 reflects the COMPLETE A-input all-zero space (assign+pool+bad), work ancillas (acc/flag/synth) clean, and the measured good-branch probability follows P_good(k)=sin²((2k+1)asin(√p_τ)) for k=0,1,2 (with a work-ancilla-leak gate). For a tractable **weighted-PRB** formal configuration: A†A = I, complete-S_0, and exhaustive hard-predicate + ancilla correctness (A\|0>'s `bad` register equals the classical PRB violation count for all 81 valid assignments, with expected mass ≈1/81 per assignment and pool/ancilla leak <tol) — the k-sweep AA curve is measured for cap-only ONLY, not weighted-PRB. p_τ comes from validation-only enumeration, never from the production solve. | `reports/threshold_invariants_report.json`. |
+| P5 — solver capabilities (`dqna_capabilities.py`) | Single shared capability vocabulary (`solver_family / oracle_type / formal_aa / constraint_mode / selection_mode`); the TS v5 default, threshold-AA, NES (`dqna_42.py`) and QoS-RA (`dqna_qos.py`) results all emit these fields; the C controller validates the requested capabilities fail-closed (missing/mismatched → greedy fallback), not inferred from the method string. | Emitted in all four solver results; C fail-closed check + runtime-manifest cross-check. |
+| P6 — runtime manifest / docs (`scripts/gen_runtime_manifest.py`, `install/runtime_contract.json`) | Machine-readable runtime contract regenerated from the C + Python sources, cross-checking that both sides agree on the v5 method, required capabilities, deadline default, and fallback taxonomy. README/this doc/validation_matrix updated to current truthful facts only. | `python scripts/gen_runtime_manifest.py --check` → **RUNTIME_MANIFEST=PASS**. |
+
+The C fallback classifier + result validator are factored into a testable
+header (`flexric/xApp/qxapp_ts_classify.h`) with an offline harness
+(`flexric/xApp/tests/test_ts_classify.c`) that compiles standalone and exercises
+every taxonomy branch (`scripts/validate_ts_c_contract.py` compiles+runs it when
+a C compiler is present, honest SKIP otherwise). The deadline preflight now
+REJECTS startup fail-closed when the quantum TS path is enabled AND the deadline
+is below the reference p95 (override only via an exact `QXAPP_TS_ALLOW_TIGHT_DEADLINE=1`/`true`);
+env values are parsed strictly (strtol + range). The threshold-AA statevector
+solve is bounded by a fail-closed width guard (default 20 qubits, env
+`QXAPP_THRESHOLD_MAX_QUBITS`) with a bounded per-j state cache; a low-width E2E
+run succeeds and an oversized config fails closed fast (`scripts/validate_threshold_aa.py`).
+
+Honesty notes: no all-three / QPU results are claimed for this revision — the
+live C-controller all-three integration and any QPU run were NOT executed in
+this environment. On realistic full-range rates the threshold-AA accumulator
+exceeds the local statevector width limit and the solver fails closed with an
+actionable message. **Environment caveat (golden float/BLAS sensitivity):** the
+recorded goldens and reports were produced in the LOCKED deployment venv
+(`install/solver_requirements.txt`: Python 3.12.3, numpy==1.26.4, qiskit==1.2.4,
+qiskit-aer==0.15.1).
+Running the offline solver suites on a DIFFERENT interpreter/BLAS changes the
+last floating-point bit of statevector marginals, which surfaces as two
+code-independent golden differences (the legacy circuit code is UNCHANGED, and
+the exact-match contract is PRESERVED — not weakened): (1) the legacy-mode golden
+`feasibility_prob` differs at ~1e-14 (assignment/score/method identical); and
+(2) the fully-degenerate **uniform** legacy golden picks a DIFFERENT but
+EQUALLY-OPTIMAL assignment ([2,1,1,2] vs golden [1,2,2,1], both score 4.0, both
+cap-feasible) because `np.argsort` resolves the top feasible probabilities —
+equal to ~15 significant figures, differing only at ~1e-17 — in a
+BLAS-version-dependent order (this surfaces the already-registered future work
+"backend-independent deterministic tie-breaking"; round7 and strong_pref, with
+unique optima, match exactly). These were observed on Python 3.8.10 / numpy
+1.23.5 / qiskit-aer 0.16.0 (NOT the locked venv); whether they reproduce in the
+locked venv is NOT asserted here. `verify.sh` now enforces all FOUR exact locked
+pins (Python 3.12.3, numpy==1.26.4, qiskit==1.2.4, qiskit-aer==0.15.1) before any
+solver test and fails early (exit 3, listing every mismatch; overridable with
+`QXAPP_ALLOW_ENV_MISMATCH=1`) so the float/BLAS-sensitive golden comparisons and
+the Aer backend suites only run in the intended environment. `validate_backend_default.py`
+now measures AerSimulator INSTANTIATION (backend use), not the qiskit_aer import
+side effect, and PASSES 20/20.
