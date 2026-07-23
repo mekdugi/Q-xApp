@@ -1,0 +1,9 @@
+{
+  "profile": "reference-mmwave-o-ru-v1",
+  "kind": "affine-prb-with-deep-sleep",
+  "active_base_w": 350.0,
+  "dynamic_full_load_w": 100.0,
+  "deep_sleep_w": 75.0,
+  "description": "Reference-only O-RU supply-power profile: active power is active_base_w + (DL PRB utilisation / 100) * dynamic_full_load_w; deep sleep is a non-zero fixed supply power.",
+  "calibration_note": "These values are a transparent reference profile for the Fig.4 mmWave O-RUs, not a measurement of a specific vendor device. Replace them with low-load, full-load, and sleep measurements for the deployed O-RU before using absolute W or Wh results."
+}

@@ -108,6 +108,7 @@
             flex: 0 0 auto;
         }
         .chart-title { font-size: 20px; font-weight: 700; color: #333; position: absolute; left: 50%; transform: translateX(-50%); }
+        .power-model-note { margin: 0 0 3px; color: #5b6470; font-size: 12px; text-align: center; }
         .chart-legend { margin-left: auto; }
         .chart-legend ul { display: flex; align-items: center; gap: 10px; margin: 0; padding: 3px 10px; list-style: none;
             border: 1.5px solid #bbb; border-radius: 5px; background: #fafafa; }
@@ -304,7 +305,8 @@
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box">
-                    <div class="chart-header"><span class="chart-title">O-RU Power Consumption</span><div id="energy-legend" class="chart-legend"></div></div>
+                    <div class="chart-header"><span class="chart-title">Modelled O-RU Power</span><div id="energy-legend" class="chart-legend"></div></div>
+                    <p id="energy-model-note" class="power-model-note">Loading PRB-based O-RU power model…</p>
                     <div class="chart-canvas-wrap"><canvas id="energy-chart"></canvas></div>
                 </div>
             </div>
@@ -613,6 +615,42 @@
 
     var qxappData = null; /* Q-xApp allocation result */
 
+    function getOruPowerModel(data) {
+        var model = data && data.oru_power_model;
+        if (!model) return null;
+        var fields = ['active_base_w', 'dynamic_full_load_w', 'deep_sleep_w'];
+        for (var i = 0; i < fields.length; i++) {
+            if (!Number.isFinite(Number(model[fields[i]])) || Number(model[fields[i]]) < 0) return null;
+        }
+        return model;
+    }
+
+    function updatePowerModelNote(model) {
+        var note = document.getElementById('energy-model-note');
+        if (!note) return;
+        if (!model) {
+            note.textContent = 'PRB power-model configuration unavailable';
+            return;
+        }
+        note.textContent = 'Reference model: ' + Number(model.active_base_w).toFixed(0) +
+            ' W base + ' + Number(model.dynamic_full_load_w).toFixed(0) +
+            ' W at 100% DL PRB; deep sleep ' + Number(model.deep_sleep_w).toFixed(0) + ' W';
+        note.title = model.calibration_note || 'Reference model; calibrate with device measurements.';
+    }
+
+    function modelOruPower(data, cid) {
+        var model = getOruPowerModel(data);
+        if (!model) return null;
+        var sleepList = (qxappData && qxappData.sleep_cells) ? qxappData.sleep_cells : [];
+        if (sleepList.indexOf(cid) >= 0) return Number(model.deep_sleep_w);
+        if (!data || !data.prb || (!(cid in data.prb) && !(String(cid) in data.prb))) return null;
+        var rawPrb = (cid in data.prb) ? data.prb[cid] : data.prb[String(cid)];
+        var prb = Number(rawPrb);
+        if (!Number.isFinite(prb)) return null;
+        var rho = Math.max(0, Math.min(100, prb)) / 100.0;
+        return Number(model.active_base_w) + rho * Number(model.dynamic_full_load_w);
+    }
+
     function fetchData() {
         /* Fetch both InfluxDB data and Q-xApp result in parallel */
         Promise.all([
@@ -702,11 +740,12 @@
                 pushHistory(sinrHistory, uid, tput);
             });
         }
-        /* Push energy from qxappData directly for fixed cell IDs */
+        /* Affine O-RU supply-power model driven by the ns-3 DU's actual DL PRB
+           utilisation. The legacy state-current delta from qxappData is not
+           used here: it cannot distinguish equally busy active cells. */
+        updatePowerModelNote(getOruPowerModel(data));
         [2, 3, 4].forEach(function(cid) {
-            var cellEnergy = (qxappData && qxappData.cell_energy && (qxappData.cell_energy[cid] || qxappData.cell_energy[String(cid)])) || 0;
-            /* value is now true sim-time power (W) from the xApp; no clamp */
-            pushHistory(energyHistory, cid, cellEnergy);
+            pushHistory(energyHistory, cid, modelOruPower(data, cid));
         });
 
         // Update SINR chart (per UE) — left-fill, null pad right
