@@ -249,6 +249,27 @@ WSL layout, so existing deployments run unchanged.
 | `QXAPP_TS_SCRIPT` / `QXAPP_42_SCRIPT` / `QXAPP_QOS_SCRIPT` | solver CLI paths | `<FlexRIC>/examples/xApp/c/ctrl/dqna_*.py` |
 | `QXAPP_HOST_DATA` | docker-compose host mount backing the GUI `/host_data` | same as `QXAPP_DATA_DIR` default |
 
+### O-RU power shown in the GUI
+
+The GUI's O-RU graph uses a transparent, PRB-driven reference supply-power
+model, not the mmWave fork's fixed PHY-state current accumulator:
+
+`P_active = active_base_w + (DL_PRB_utilisation / 100) * dynamic_full_load_w`
+
+The default profile in `gui/src/oru_power_model.json` is 350 W active base,
+100 W at full DL PRB utilisation, and 75 W deep sleep.  It is a reference
+profile chosen to represent a large static O-RU power share and non-zero deep
+sleep, not a measurement of a particular O-RU. Replace those three values with
+low-load, full-load, and sleep measurements for the deployed radio before
+using the graph's absolute W/Wh values in a claim. The GUI reloads this JSON
+on every data refresh, so a calibration edit takes effect without a container
+restart. The affine structure follows the ETSI BTS model; the sleep ratio is
+consistent with recent O-RU advanced-sleep analysis, but neither source fixes
+the W values for a particular vendor radio.
+
+- [ETSI TR 103 117, BTS power model](https://www.etsi.org/deliver/etsi_tr/103100_103199/103117/01.01.01_60/tr_103117v010101p.pdf)
+- [Usman et al. (2025), O-RU power model and advanced sleep modes](https://research.ucc.ie/en/publications/power-modeling-of-the-o-ran-o-ru-amp-application-of-advanced-slee-3/)
+
 ### What Each Modified File Does
 
 The authoritative per-file list (all 14 ns-3 overlay files with purpose,

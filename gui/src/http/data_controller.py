@@ -1,5 +1,6 @@
 import ipaddress
 import math
+import json
 import os
 import re
 import tempfile
@@ -22,6 +23,42 @@ templates = Jinja2Templates(directory="src/templates")
 # override exists so tests can point at a temp dir (and is a first step toward
 # removing hard-coded deployment paths).
 HOST_DATA_DIR = os.getenv("HOST_DATA_DIR", "/host_data")
+
+# Power is intentionally modelled from the ns-3 DU's per-cell DL PRB
+# utilisation rather than from the fork's fixed PHY-state currents.  The
+# profile is a reference only: a deployment must replace its three values with
+# measured low-load, full-load and sleep supply powers before treating the W
+# values as device measurements.
+_ORU_POWER_MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                     "oru_power_model.json")
+_ORU_POWER_MODEL_FALLBACK = {
+    "profile": "reference-mmwave-o-ru-v1",
+    "kind": "affine-prb-with-deep-sleep",
+    "active_base_w": 350.0,
+    "dynamic_full_load_w": 100.0,
+    "deep_sleep_w": 75.0,
+    "description": "Reference-only PRB-based O-RU supply-power model.",
+    "calibration_note": "Replace with measured O-RU values before using absolute W or Wh results.",
+}
+
+
+def load_oru_power_model():
+    """Return a safe, explicit O-RU reference power profile for the GUI."""
+    try:
+        with open(_ORU_POWER_MODEL_PATH, encoding="utf-8") as f:
+            model = json.load(f)
+        for field in ("active_base_w", "dynamic_full_load_w", "deep_sleep_w"):
+            value = float(model[field])
+            if value < 0:
+                raise ValueError(f"{field} must be non-negative")
+            model[field] = value
+        if not isinstance(model.get("profile"), str) or not model["profile"]:
+            raise ValueError("profile must be a non-empty string")
+        return model
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        print(f"[GUI] Invalid O-RU power model ({exc}); using reference fallback")
+        return dict(_ORU_POWER_MODEL_FALLBACK)
+
 
 # The ns-3 host launcher (ports 38866 start / 38867 stop) is OUTSIDE this
 # repository and executes the POSTed command line on the host. That trust
@@ -211,6 +248,9 @@ async def refresh_data(request: Request, simulation: Simulation = Depends(get_si
         "current_power": updated_simulation.current_power,
         "maxec": updated_simulation.maxec,
         "totalcurrec": updated_simulation.totalcurrec,
+        # Reload so a calibrated JSON profile takes effect on the next GUI poll
+        # without requiring a container restart.
+        "oru_power_model": load_oru_power_model(),
         "simulation_status": updated_simulation.simulation_status,
     }
 
