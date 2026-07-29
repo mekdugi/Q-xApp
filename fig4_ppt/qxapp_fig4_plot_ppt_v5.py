@@ -27,10 +27,10 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 # Embed real, selectable fonts for LaTeX/EPS output: TrueType (not Type3) in
-# PDF/EPS, and keep SVG text as <text> rather than outlined paths.
+# PDF/EPS. Outline SVG text so PowerPoint cannot reflow legend labels.
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-matplotlib.rcParams["svg.fonttype"] = "none"
+matplotlib.rcParams["svg.fonttype"] = "path"
 # Render with Arial so SVG/EPS text matches PowerPoint/Windows exactly. With the
 # default DejaVu Sans (absent on Windows) the SVG legend reflows and breaks when
 # opened in PPT; Arial metrics keep every label in place.
@@ -44,6 +44,8 @@ import matplotlib.pyplot as plt
 
 BATCH = sys.argv[1] if len(sys.argv) > 1 else "/home/wookjin/qxapp_runs/fig4_batch_v5_50"
 OUTDIR = sys.argv[2] if len(sys.argv) > 2 else os.path.join(BATCH, "fig_out")
+RIGHT_Y = "--right-y" in sys.argv[3:]
+OUTPUT_TAG = "50run_right_y" if RIGHT_Y else "50run"
 SIM_T = 7.0
 BIN = 0.25
 BIN_P = 0.05
@@ -235,7 +237,7 @@ def main():
     os.makedirs(OUTDIR, exist_ok=True)
     phases = ["TS", "QoS", "NES", "TS2"]   # TS2 = TS mode resumed after NES (not "recovery")
     allm = {ph: {u: [] for u in UES} for ph in phases}
-    with open(os.path.join(OUTDIR, "runs_summary_50run.csv"), "w", newline="") as f:
+    with open(os.path.join(OUTDIR, f"runs_summary_{OUTPUT_TAG}.csv"), "w", newline="") as f:
         w = csv.writer(f)
         hdr = ["run", "t_qos", "t_ho1", "ho1_target", "t_sleep", "t_wake",
                "t_ho2", "ho2_target", "recovery_ho_count", "recovery_ho_detail"]
@@ -278,7 +280,7 @@ def main():
             if len(a):
                 lines.append(f"{ph:9s} UE{u}: {a.mean():7.1f} +- {a.std():5.1f} Mbps"
                              f"  (n={len(a)})")
-    open(os.path.join(OUTDIR, "phase_stats_raw_50run.txt"), "w").write("\n".join(lines) + "\n")
+    open(os.path.join(OUTDIR, f"phase_stats_raw_{OUTPUT_TAG}.txt"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
 
     # ---- figures: throughput and power saved as SEPARATE files so they can be
@@ -305,6 +307,10 @@ def main():
 
     def units(ax, yunit):
         ax.set_ylim(bottom=0)
+        if RIGHT_Y:
+            ax.yaxis.tick_right()
+            ax.yaxis.set_label_position("right")
+            ax.tick_params(axis="y", labelleft=False, labelright=True)
         # y unit only, horizontal on top of the y-axis (None -> no label).
         # The x unit "s" is omitted per request.
         if yunit:
@@ -350,10 +356,11 @@ def main():
     # dpi only affects the rasterized sigma band; vector text/lines are
     # resolution-independent. 300 dpi keeps the band crisp and the EPS small.
     for ext in ("png", "pdf", "svg", "eps"):
-        figt.savefig(os.path.join(OUTDIR, f"fig4_50run_throughput.{ext}"), dpi=300)
-        figp.savefig(os.path.join(OUTDIR, f"fig4_50run_power.{ext}"), dpi=300)
-        figc.savefig(os.path.join(OUTDIR, f"fig4_50run_combined.{ext}"), dpi=300)
-    print(f"saved -> {OUTDIR}/fig4_50run_throughput.*  fig4_50run_power.*  fig4_50run_combined.*")
+        figt.savefig(os.path.join(OUTDIR, f"fig4_{OUTPUT_TAG}_throughput.{ext}"), dpi=300)
+        figp.savefig(os.path.join(OUTDIR, f"fig4_{OUTPUT_TAG}_power.{ext}"), dpi=300)
+        figc.savefig(os.path.join(OUTDIR, f"fig4_{OUTPUT_TAG}_combined.{ext}"), dpi=300)
+    print(f"saved -> {OUTDIR}/fig4_{OUTPUT_TAG}_throughput.*  "
+          f"fig4_{OUTPUT_TAG}_power.*  fig4_{OUTPUT_TAG}_combined.*")
 
 if __name__ == "__main__":
     main()
