@@ -258,7 +258,7 @@
         "feasible": true,
         "feasibility_prob": 0.9,
         "method": "quantum-fullA-17q-valid3-caponly-weightedAA-v5",
-        "elapsed_ms": 9418
+        "elapsed_ms": 13664
       }
     },
     {
@@ -274,7 +274,7 @@
           "feasible": true,
           "feasibility_prob": 0.7757255936675461,
           "method": "quantum-fullA-17q-valid3-caponly-weightedAA-v5",
-          "elapsed_ms": 12774
+          "elapsed_ms": 39140
         },
         "legacy": {
           "assignment": [
@@ -285,9 +285,9 @@
           ],
           "score": 41.11,
           "feasible": true,
-          "feasibility_prob": 0.21117502146826173,
+          "feasibility_prob": 0.21117502146827535,
           "method": "quantum-2stage-15q-caponly-expenc-v41",
-          "elapsed_ms": 3001
+          "elapsed_ms": 2422
         }
       }
     },
@@ -296,10 +296,10 @@
     }
   ],
   "environment": {
-    "python": "3.12.3",
+    "python": "3.8.10",
     "qiskit": "1.2.4",
-    "numpy": "1.26.4",
-    "elapsed_s": 607.0
+    "numpy": "1.23.5",
+    "elapsed_s": 1077.7
   },
   "scope": "S0-6 + V5-B CLI contract only; tuning, S0-7 (1,060 suite: not evaluated on the v5 path, not used for parameter choices), transpile tables and qiskit 2.5.0 are NOT run",
   "failures": []

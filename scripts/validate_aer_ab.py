@@ -305,7 +305,7 @@ def main():
                   fid >= 1 - TOL_FID and perr <= TOL_PROB,
                   "fid=%.17f maxerr=%.3e" % (fid, perr))
             (b_r, s_r, f_r, _), (b_a, s_a, f_a, _) = run_solver_both(
-                d42, d42.quantum_solve, rate, 0, 1)
+                d42, d42.legacy_quantum_solve, rate, 0, 1)
             sv_r = d42.sv_from_circuit(qc, backend="reference")
             sv_a = d42.sv_from_circuit(qc, backend="aer")
             n = 1 << d42.N_ASSIGN

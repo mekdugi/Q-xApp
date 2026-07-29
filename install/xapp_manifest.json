@@ -42,9 +42,9 @@
                       "source":  "flexric/xApp/qxapp_unified.c",
                       "destination":  "qxapp_unified.c",
                       "purpose":  "Unified Q-xApp controller (TS / NES / QoS-RA)",
-                      "source_sha256":  "77b8e18c788d6417b30bf4eaa8ca192eda9303e6665f5644e4acdea15bc9d0f9",
+                      "source_sha256":  "bd099735d3674ba2709e10b802d435a5ce1f309cccbf64dbdf9fbe59f839cdc4",
                       "upstream_preimage_sha256":  null,
-                      "post_install_sha256":  "77b8e18c788d6417b30bf4eaa8ca192eda9303e6665f5644e4acdea15bc9d0f9"
+                      "post_install_sha256":  "bd099735d3674ba2709e10b802d435a5ce1f309cccbf64dbdf9fbe59f839cdc4"
                   },
                   {
                       "source":  "flexric/xApp/qxapp_energy_saving.c",
@@ -66,33 +66,33 @@
                       "source":  "flexric/xApp/dqna_ts.py",
                       "destination":  "dqna_ts.py",
                       "purpose":  "TS 4x3 quantum solver CLI (stdin {\"sinr\": 4x3} -\u003e stdout JSON); imports dqna_modes/dqna_constraints",
-                      "source_sha256":  "22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39",
+                      "source_sha256":  "450073da604a799dddddbe052195c6da53b3ea4d243aa48ff8fe21e8a5149b54",
                       "upstream_preimage_sha256":  null,
-                      "post_install_sha256":  "22d3df53aa7112d62c7fc40080c2b6fdbd38d371f525bbdbc493f357772bca39"
+                      "post_install_sha256":  "450073da604a799dddddbe052195c6da53b3ea4d243aa48ff8fe21e8a5149b54"
                   },
                   {
                       "source":  "flexric/xApp/dqna_42.py",
                       "destination":  "dqna_42.py",
-                      "purpose":  "NES 4x2 quantum solver CLI (stdin {\"sinr\": 4x2} -\u003e stdout JSON)",
-                      "source_sha256":  "7bbad16d189046587efcfafeab936c362e50c0d332d80c4aff540b4c093d52eb",
+                      "purpose":  "NES 4x2 default five-qubit weighted-AA solver CLI (stdin {\"sinr\": 4x2} -\u003e stdout JSON); preserved two-stage circuit via --legacy-two-stage",
+                      "source_sha256":  "6113466c3556f81ebb9da7fc97a834ecc884b4a7196ffb6a719bbcd855c0f9aa",
                       "upstream_preimage_sha256":  null,
-                      "post_install_sha256":  "7bbad16d189046587efcfafeab936c362e50c0d332d80c4aff540b4c093d52eb"
+                      "post_install_sha256":  "6113466c3556f81ebb9da7fc97a834ecc884b4a7196ffb6a719bbcd855c0f9aa"
                   },
                   {
                       "source":  "flexric/xApp/dqna_qos.py",
                       "destination":  "dqna_qos.py",
                       "purpose":  "QoS 2x4 quantum solver CLI (stdin {\"utility\": 2x4} -\u003e stdout JSON)",
-                      "source_sha256":  "3c80283aba24a85e7934dcdcc44b38fb759ab113b881de8a62c650a4caf5fe39",
+                      "source_sha256":  "9c7b4e594f24108412ee46fb048a1a496194778b8f482edace6d354f73eac810",
                       "upstream_preimage_sha256":  null,
-                      "post_install_sha256":  "3c80283aba24a85e7934dcdcc44b38fb759ab113b881de8a62c650a4caf5fe39"
+                      "post_install_sha256":  "9c7b4e594f24108412ee46fb048a1a496194778b8f482edace6d354f73eac810"
                   },
                   {
                       "source":  "flexric/xApp/dqna_modes.py",
                       "destination":  "dqna_modes.py",
                       "purpose":  "Runtime-required solver-mode module imported by dqna_ts.py (gated / formal weighted-AA)",
-                      "source_sha256":  "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930",
+                      "source_sha256":  "68f2799bc00b64c9855a2d5e30107f51c51797fc3b60aecbea747c61f42514ae",
                       "upstream_preimage_sha256":  null,
-                      "post_install_sha256":  "7600c308abb193b178eb884972355debe667e6d7266d78ada724d77406cea930"
+                      "post_install_sha256":  "68f2799bc00b64c9855a2d5e30107f51c51797fc3b60aecbea747c61f42514ae"
                   },
                   {
                       "source":  "flexric/xApp/dqna_constraints.py",

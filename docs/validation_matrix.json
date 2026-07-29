@@ -27,11 +27,11 @@
     },
     {
       "id": "nes_suite_306",
-      "claim": "NES 4x2 solver: optimal score on 306/306 deterministic seed-20260721 cases (300 generated + 6 builtin/edge), judged by a harness-local INDEPENDENT exhaustive oracle (production brute_force_best/is_feasible/score are not called); returned assignments independently checked for shape/feasibility and their raw objective recomputed",
+      "claim": "NES 4x2 default weighted-AA solver: optimal score on 306/306 deterministic seed-20260721 cases (300 generated + 6 builtin/edge), first-peak rounds 1/2/57 min/median/max and minimum amplified good probability 84.375%, judged by a harness-local INDEPENDENT exhaustive oracle (production brute_force_best/is_feasible/score are not called); returned assignments independently checked for shape/feasibility and their raw objective recomputed",
       "documented_in": ["README.md#3-quantum-assignment-engine"],
       "command": "python scripts/validate_nes_suite.py",
       "report": "reports/nes_suite_report.json",
-      "report_fields": ["verdict", "optimal_score_cases", "by_category"]
+      "report_fields": ["verdict", "optimal_score_cases", "by_category", "amplification_rounds", "minimum_analytic_good_probability"]
     },
     {
       "id": "qos_exhaustive_6561",
@@ -50,7 +50,7 @@
     },
     {
       "id": "backend_canonical_reference",
-      "claim": "Canonical/default statevector backend is reference (Statevector.from_instruction) in all four solver files; default paths never import qiskit_aer; Aer runs only with --sv-backend aer",
+      "claim": "Canonical circuit-execution backend is reference (Statevector.from_instruction); default paths never import qiskit_aer. The default NES path executes a five-qubit weighted-AA circuit on reference; its preserved legacy circuit and the other experimental circuit paths expose Aer only through explicit --sv-backend aer",
       "documented_in": ["README.md#3-quantum-assignment-engine", "docs/QUANTUM_VALIDATION.md"],
       "command": "python scripts/validate_backend_default.py",
       "report": "stdout (BACKEND_DEFAULT=PASS 20/20)"

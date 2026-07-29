@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Option A verification: the canonical/default statevector backend is the
-reference `Statevector.from_instruction` path in all four solver files,
-and Aer runs only as the opt-in `--sv-backend aer` experimental backend.
+"""Option A verification: canonical circuit execution uses the reference
+`Statevector.from_instruction` path, while Aer remains opt-in experimental.
+
+The default NES path executes its five-qubit weighted-AA circuit on the
+validated reference backend. Its preserved two-stage circuit remains the NES
+path used for explicit Aer A/B checks.
 
 Evidence collected:
   1. source inspection: SV_BACKEND = "reference" literal in dqna_ts.py,
@@ -121,7 +124,9 @@ def main():
             ("ts_s16_gated_aer", "dqna_ts",
              ["--solver-mode=gated-heuristic", "--sv-backend", "aer"],
              {"sinr": R7}),
-            ("nes_aer", "dqna_42", ["--sv-backend", "aer"], {"sinr": NES}),
+            ("nes_legacy_aer", "dqna_42",
+             ["--legacy-two-stage", "--sv-backend", "aer"],
+             {"sinr": NES}),
             ("qos_aer", "dqna_qos", ["--sv-backend", "aer"],
              {"utility": QOS})]:
         rc, aer, tail = run_main(modname, argv, stdin_obj)

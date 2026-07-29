@@ -139,25 +139,24 @@ after an OFF run:   remove the file or write 1 before the next normal run
 
 Narrative scope (project decision): the quantum solver **is** the Q-xApp
 assignment engine — greedy was an interim placeholder used only while the
-circuit did not exist, and is retained solely as an automatic fallback until
-the QoS/NES (4x2) circuit lands. This validation demonstrates the engine
-running inside the full xApp workflow; no comparison-with-greedy dataset is
-produced.
+circuit did not exist, and is retained solely as an automatic failure
+fallback. This validation demonstrates the engine running inside the full
+xApp workflow; no comparison-with-greedy dataset is produced.
 
 ## 8. NES and QoS-RA Solvers (all-three-quantum)
 
-Both use a **constraint-gated utility oracle**: a feasibility flag ancilla is
-computed reversibly and gates the utility kickback (`mcx(flag + cost → sf)`),
-so infeasible states can never be quality-marked. One Grover iteration of
-this combined oracle is the whole algorithm (`--feas-iter 0 --qual-iter 1`);
-this removes the residual failure mode of the ungated TS design (the stage-2
-diffuser re-amplifying infeasible states).
+NES now uses the same utility-weighted amplitude-amplification semantics as
+the canonical TS path. QoS-RA retains its constraint-gated utility circuit.
 
-- **`dqna_42.py` (NES, 4 UE × 2 awake cells, 10 qubits)**: 1 bit/UE — no
-  invalid encodings exist; cap-only feasibility via an exact 3-bit counter.
-  Random suite (uniform + 40%-sparse, seed 20260703): **300/300
-  brute-optimal score**, 0 no-candidates, including all-zero / dead-column
-  matrices.
+- **`dqna_42.py` (NES, 4 UE × 2 awake cells)**: 1 bit/UE — no invalid
+  encodings exist. The default constructs the exact ideal post-amplification
+  five-qubit Statevector circuit in the weighted-AA good/bad subspaces, calibrates the
+  first peak, retains the top four good-branch candidates, and re-scores them
+  on the raw sum-rate objective. The former 10-qubit two-stage circuit is
+  preserved via `--legacy-two-stage`. The deterministic seed-20260721 suite
+  passed **306/306 brute-optimal scores**, 0 no-candidates; first-peak rounds
+  min/median/max were 1/2/57 and minimum amplified good probability was
+  84.375%.
 - **`dqna_qos.py` (QoS-RA, 2 UEs × 4 DRBs inside one O-RU, 8 qubits)**:
   2 bits/UE = DRB index; distinct-DRB feasibility via an in-place-XOR flag;
   utility = the xApp's 5QI-fit values, encoded with **per-UE row
@@ -172,7 +171,10 @@ diffuser re-amplifying infeasible states).
   matrices (seed 20260704, forced flat rows + 40% sparsity + row scale skew),
   0 no-candidates, 0 suboptimal; the Fig.4 pair (5QI 2 vs 9) yields
   [DRB1, DRB4] — the published 8:1 weight structure.
-- **C integration** (`qxapp_unified.c`): NES — the lowest-capacity cell
+- **C integration** (`qxapp_unified.c`): TS invokes the v5 default with only
+  the live per-cell cap (the rejected historical `--feas-iter/--qual-iter`
+  caller form was removed) and uses a 120-second safety timeout, above the
+  recorded 43.18-second holdout maximum. NES — the lowest-capacity cell
   (forced-sleep aware) is the sleep candidate and the remaining two cells
   form the 4×2 columns; QoS — per-cell matching (each O-RU offers all 4
   DRBs; a lone UE takes its best DRB classically, which is trivially
@@ -280,7 +282,7 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 
 | Item | Contract / result |
 |------|-------------------|
-| Status / user decision | The proposal to make Aer the canonical default (bit-identical drop-in replacement) was REJECTED after the strict A/B acceptance failed on exact ties (option A, 2026-07-20). CANONICAL DEFAULT in all four solver files (`dqna_ts.py`, `dqna_42.py`, `dqna_qos.py`, `dqna_modes.py`) is the original `Statevector.from_instruction` reference path; canonical paper results use the reference backend. Aer runs ONLY with an explicit `--sv-backend aer`. |
+| Status / user decision | The proposal to make Aer the canonical default (bit-identical drop-in replacement) was REJECTED after the strict A/B acceptance failed on exact ties (option A, 2026-07-20). Canonical circuit execution in `dqna_ts.py`, `dqna_qos.py`, `dqna_modes.py`, and both `dqna_42.py` paths uses `Statevector.from_instruction`. The default NES path executes a five-qubit weighted-AA circuit on the validated reference backend; explicit Aer remains available for its preserved legacy circuit and the other experimental circuit paths. |
 | Equivalence facts | (1) State fidelity and probability distributions are equivalent within the specified tolerances: global-phase-invariant fidelity >= 1-1e-12 and probability max abs error <= 1e-12 on every solver circuit at optimization_level 0/1/3 (`scripts/validate_aer_ab.py`, 69/69 fid/prob checks; the v5 fixed-seed pipeline was result+counter identical in these runs). (2) On EXACT-TIE boundaries, floating-point last-bit differences change top-K order/set and can select a different equal-score tie-break assignment (observed: all-uniform matrix, score identical). (3) Aer is therefore NOT a bit-identical drop-in replacement — `scripts/aer_strict_probe.py` shows no probed configuration (no-transpile / fusion off / single thread combinations) reproduces the reference statevector bit-for-bit. (4) Consequently canonical paper results use the reference backend. The strict A/B validator keeps recording these tie failures honestly (`AER_AB_STRICT=FAIL` is EXPECTED and is not a canonical regression). |
 | Performance (kept strictly separate) | Single-circuit/kernel microbenchmark (warm p50, reference -> Aer L0): ts_legacy 15q 2687 -> 66 ms, ts_v5_k0 17q 1857 -> 56 ms, nes 10q 34 -> 30 ms, qos 8q 4 -> 26 ms (Aer SLOWER on the small circuit — transpile fixed cost). FULL current-default adaptive v5 solve END-TO-END (n=20, untimed warm-up, result+counters exact every rep): warm p50 reference 20.60 s -> Aer L0 19.65 s (~5%), cold CLI 22.2 -> 20.4 s. Kernel speedups MUST NOT be quoted as full-solver speedups — the v5 runtime is dominated by classical sampling over cached statevectors. `reports/aer_benchmark_report.json` keeps the two tables separate. |
 | Follow-up (documented only, NOT implemented) | Backend-independent deterministic tie-breaking: resolve equal-objective candidates by a canonical rule on the candidate itself (e.g. smallest candidate index / lexicographically smallest assignment bitstring at equal score, applied to rank ties within the probability tolerance) instead of raw float rank order, so top-K selection becomes identical across numerically equivalent backends. Registered as future work; no solver code change in this checkpoint. |
@@ -289,6 +291,6 @@ legacy v4.1 and the section-16 dispatch) are unchanged in this stage.
 
 | Item | Contract / result |
 |------|-------------------|
-| NES 4x2 deterministic suite | `scripts/validate_nes_suite.py` (seed 20260721: 300 generated cases across 6 categories + 6 builtin/edge incl. all-zero and tie matrices). Criterion: solver score == independent harness-local exhaustive-oracle optimum over all 16 assignments (equal-score ties allowed; production solver helpers not used). Result: **PASS 306/306**, 0 no-candidate → `reports/nes_suite_report.json` (wall time recorded in the report's `elapsed_s`). |
+| NES 4x2 weighted-AA deterministic suite | `scripts/validate_nes_suite.py` (seed 20260721: 300 generated cases across 6 categories + 6 builtin/edge incl. all-zero and tie matrices). Criterion: weighted-AA solver score == independent harness-local exhaustive-oracle optimum over all 16 assignments (equal-score ties allowed; production solver helpers not used). Result: **PASS 306/306**, 0 no-candidate, first-peak rounds 1/2/57 min/median/max, minimum amplified good probability 84.375% → `reports/nes_suite_report.json`. |
 | QoS-RA exhaustive suite | `scripts/validate_qos_exhaustive.py`: ALL {0,1,10}^8 = 6,561 utility matrices vs an independent harness-local oracle over the 16 total (d0,d1) pairs, of which 12 are feasible under d0 != d1 (production solver helpers not used). Result: **PASS 6,561/6,561** (477 flat-row classical-reduction cases + 6,084 quantum-path cases) → `reports/qos_exhaustive_report.json` (wall time in `elapsed_s`). |
 | Claim → command → report map | `docs/validation_matrix.json` (machine-readable; root entrypoint `verify.sh` with quick / solver / full / gui tiers). R5.4 Fig.4 raw provenance is DEFERRED BY USER; LICENSE is USER DECISION REQUIRED. |

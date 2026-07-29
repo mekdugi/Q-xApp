@@ -22,12 +22,13 @@ static int a1_max_ue_per_cell = 2;
  * Quantum is the default assignment engine (Q-xApp). The quantum config file
  * first line "0"/"off" forces the legacy greedy placeholder (debug / historic
  * Fig.4 reproduction); missing file = quantum ON. Paths can be overridden via
- * env QXAPP_PY / QXAPP_TS_SCRIPT. TS uses the 4x3 circuit now; QoS/NES switch
- * to a 4x2 circuit when it lands, after which greedy is removed. */
+ * env QXAPP_PY / QXAPP_TS_SCRIPT. TS uses the canonical 4x3 full-state
+ * weighted-AA solver; NES uses the 4x2 five-qubit weighted-AA solver.
+ * Classical matchers remain explicit failure fallbacks. */
 #define QUANTUM_CONFIG_FILE_NAME "xapp_quantum.txt"
 #define QXAPP_PY_DEFAULT        "/root/qxapp-venv/bin/python"
 #define QXAPP_TS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_ts.py"
-#define QXAPP_TS_TIMEOUT_S 10
+#define QXAPP_TS_TIMEOUT_S 120
 
 /* == QoS-based Resource Allocation ========================================= */
 #define NUM_DRB 4
@@ -282,12 +283,15 @@ static int quantum_ts_match(int assignment[NUM_UE], double *q_score, int *q_elap
     fclose(fi);
   }
 
-  /* 2. Invoke solver (Stage-0 tuned parameters) */
+  /* 2. Invoke the canonical v5 weighted-AA solver.  Passing the historical
+   * --feas-iter/--qual-iter form selects legacy semantics and is deliberately
+   * rejected by dqna_ts.py's v5 contract.  Keep only the live A1 cap here;
+   * the frozen v5 quality-first defaults remain owned by the solver. */
   {
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
-             "timeout %d '%s' '%s' --feas-iter=1 --qual-iter=1 --qual-lambda=4.0 "
-             "--max-per-cell=%d < '%s' > '%s' 2> '%s'",
+             "timeout %d '%s' '%s' --max-per-cell=%d "
+             "< '%s' > '%s' 2> '%s'",
              QXAPP_TS_TIMEOUT_S, qx_py(), qx_ts_script(), a1_max_ue_per_cell,
              fin, fout, ferr);
     int rc = system(cmd);

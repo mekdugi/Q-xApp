@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""NES (4x2) deterministic 300-case validation suite (remediation R5.3).
+"""NES (4x2) weighted-AA deterministic validation suite.
 
-Runs flexric/xApp/dqna_42.py `quantum_solve` (canonical reference
-statevector backend, deterministic: one statevector evaluation + top-K
-classical post-selection, no sampling) on a FIXED generated suite of 300
-rate matrices plus edge/builtin cases, and compares the returned score
-against the classical brute-force optimum over all 2^4 = 16 assignments.
+Runs flexric/xApp/dqna_42.py `quantum_solve` (ideal five-qubit weighted-AA
+circuit, deterministic top-K classical post-selection, no sampling) on a
+FIXED generated suite of 300 rate matrices plus edge/builtin cases, and
+compares the returned score against the classical brute-force optimum over
+all 2^4 = 16 assignments.
 
 Suite (seed 20260721, np.random.default_rng, generation order is part of
 the contract):
@@ -33,7 +33,7 @@ the solver-reported score.
 
 The report records per-category counts, any mismatches, and the exact
 solver/harness SHA-256. Writes reports/nes_suite_report.json.
-Runtime: well under a minute (16-state enumeration, 10-qubit statevector).
+Runtime: a few seconds (16 assignment states + one good/bad marker).
 """
 
 import hashlib
@@ -131,9 +131,13 @@ def main():
     assert len(cases) == N_GEN + 6, len(cases)
     cats = {}
     mismatches = []
+    rounds = []
+    good_probabilities = []
     for i, (cat, rate) in enumerate(cases):
         opt = oracle_optimum(rate)
-        q, qs, feas_mass, _ = d42.quantum_solve(rate, 0, 1)
+        q, qs, feas_mass, metadata = d42.quantum_solve(rate, 0, 1)
+        rounds.append(metadata["amplification_rounds_used"])
+        good_probabilities.append(feas_mass)
         row = cats.setdefault(cat, {"n": 0, "optimal_score": 0,
                                     "no_candidate": 0})
         row["n"] += 1
@@ -178,8 +182,8 @@ def main():
         "n_generated": N_GEN, "n_builtin": 6, "n_total": total,
         "criterion": "solver score == independent-oracle optimum (<=1e-9); "
                      "equal-score assignment ties allowed; deterministic "
-                     "statevector + top-%d post-selection, canonical "
-                     "reference backend" % d42.TOP_K,
+                     "ideal weighted-AA circuit statevector + top-%d "
+                     "post-selection" % d42.TOP_K,
         "oracle": "INDEPENDENT harness-local exhaustive enumerator over all "
                   "16 assignments (cap<=2 per cell, raw sum objective); the "
                   "production helpers d42.brute_force_best/is_feasible/score "
@@ -187,7 +191,18 @@ def main():
                   "checked for shape/domain/feasibility and their raw "
                   "objective is recomputed and required to equal the "
                   "solver-reported score",
-        "backend": d42.SV_BACKEND,
+        "backend": "qiskit.quantum_info.Statevector.from_instruction "
+                   "(ideal five-qubit weighted-AA circuit)",
+        "algorithm": "utility-weighted amplitude amplification",
+        "qual_lambda": d42.QUAL_LAMBDA,
+        "amplification_rounds": {
+            "min": int(min(rounds)),
+            "median": float(np.median(rounds)),
+            "max": int(max(rounds)),
+        },
+        "minimum_analytic_good_probability": float(
+            min(good_probabilities)
+        ),
         "verdict": verdict,
         "optimal_score_cases": n_opt,
         "mismatches": mismatches,

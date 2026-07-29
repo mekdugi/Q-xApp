@@ -4,9 +4,17 @@
  "n_generated": 300,
  "n_builtin": 6,
  "n_total": 306,
- "criterion": "solver score == independent-oracle optimum (<=1e-9); equal-score assignment ties allowed; deterministic statevector + top-4 post-selection, canonical reference backend",
+ "criterion": "solver score == independent-oracle optimum (<=1e-9); equal-score assignment ties allowed; deterministic ideal weighted-AA circuit statevector + top-4 post-selection",
  "oracle": "INDEPENDENT harness-local exhaustive enumerator over all 16 assignments (cap<=2 per cell, raw sum objective); the production helpers d42.brute_force_best/is_feasible/score are NOT called; returned assignments are independently checked for shape/domain/feasibility and their raw objective is recomputed and required to equal the solver-reported score",
- "backend": "reference",
+ "backend": "qiskit.quantum_info.Statevector.from_instruction (ideal five-qubit weighted-AA circuit)",
+ "algorithm": "utility-weighted amplitude amplification",
+ "qual_lambda": 4.0,
+ "amplification_rounds": {
+  "min": 1,
+  "median": 2.0,
+  "max": 57
+ },
+ "minimum_analytic_good_probability": 0.8437500000000002,
  "verdict": "PASS",
  "optimal_score_cases": 306,
  "mismatches": [],
@@ -72,12 +80,12 @@
    "no_candidate": 0
   }
  },
- "elapsed_s": 14.0,
+ "elapsed_s": 53.6,
  "environment": {
-  "python": "3.12.3",
+  "python": "3.8.10",
   "qiskit": "1.2.4",
-  "numpy": "1.26.4"
+  "numpy": "1.23.5"
  },
- "solver_sha256": "916ef606ac8ab5578dc354b9a422d907ed5ff0b93b4734845bcec7942da956be",
- "harness_sha256": "fc0ff5870bfbdaaf45e7b56240936f838ff2b09b90bf1bf7a2455bbac2216fce"
+ "solver_sha256": "6113466c3556f81ebb9da7fc97a834ecc884b4a7196ffb6a719bbcd855c0f9aa",
+ "harness_sha256": "66e41102fb521dd538f102c82b1ee93eb417c137cb98c7a1c63e067af7c6de71"
 }

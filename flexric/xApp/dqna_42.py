@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 """
-dqna_42.py - Quantum 4-UE x 2-Cell assignment for Q-xApp (QoS-RA / NES path).
+dqna_42.py - Weighted-AA 4-UE x 2-Cell assignment for the Q-xApp NES path.
 
-Same two-stage Grover architecture as dqna_ts.py v4.1 (constraint feasibility
-oracle + exponential utility-weighted quality oracle), reduced to the 4x2
-problem the paper's NES/QoS-RA use cases need (4 UEs onto the 2 awake cells):
+The default solver executes a five-qubit ideal weighted-AA circuit:
+
+  W(x) = product_u exp(lambda * (rate[u,x_u] - row_max[u]) / global_max)
+  a    = 2^-4 * sum(feasible x) W(x)
+
+State preparation A encodes sqrt(W(x)) on a good marker for feasible x, then
+each amplification round applies S_good followed by A-dagger, S_zero, and A.
+The first amplification peak is selected from the floor/ceil neighbours of
+the continuous optimum.  The good branch is ranked by its exact measurement
+probability and retained candidates are re-scored on the raw sum-rate
+objective.  This is an ideal gate-level Statevector simulation, not a
+hardware-QPU or latency claim.
+
+The former two-stage Grover circuit remains available through
+``--legacy-two-stage``:
 
   - 1 bit per UE (0 = cell 0, 1 = cell 1): no invalid encodings exist.
   - Feasibility (cap-only): each cell serves at most MAX_PER_CELL UEs, i.e.
@@ -14,10 +26,11 @@ problem the paper's NES/QoS-RA use cases need (4 UEs onto the 2 awake cells):
   - Quality: per-pair utility theta from w = exp(lambda*(r-max)/max), monotone
     in sum(rate); r = 0 flows through as worst-but-nonzero (v4.1 semantics).
 
-9 qubits: 4 assign + 4 aux (stage 1: 3-bit count; stage 2: 4 cost) + 1 sf.
-Top-K classical post-selection uses K=4 (25% of the 16-state space, vs 7.8%
-in the 4x3 solver) - results must be reported as "brute-optimal score on the
-validation suite", not as a general guarantee.
+The preserved legacy circuit uses 10 qubits.  The default weighted-AA circuit
+uses 4 assignment qubits plus one good/bad marker.  Top-K classical
+post-selection uses K=4 (25% of the 16-state assignment space); results must
+be reported as "brute-optimal score on the validation suite", not as a
+general guarantee.
 
 CLI contract is identical to dqna_ts.py: {"sinr": 4x2 matrix} on stdin ->
 {"assignment", "score", "feasible", "feasibility_prob", "method",
@@ -26,10 +39,12 @@ CLI contract is identical to dqna_ts.py: {"sinr": 4x2 matrix} on stdin ->
 
 import argparse
 import json
+import math
 import sys
 import time
 import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister
+from qiskit.circuit.library import StatePreparation
 from qiskit.quantum_info import Statevector
 
 N_UE = 4
@@ -42,6 +57,7 @@ N_TOTAL = N_ASSIGN + N_AUX + N_SF  # 10
 MAX_PER_CELL = 2
 QUAL_LAMBDA = 4.0
 TOP_K = 4
+WEIGHTED_AA_METHOD = "quantum-weighted-aa-5q-caponly-42v3"
 
 # Statevector execution backend (option A, 2026-07-20): CANONICAL
 # DEFAULT = "reference" (Statevector.from_instruction) — canonical paper
@@ -233,7 +249,7 @@ def brute_force_best(rate):
     return best, best_s
 
 
-def quantum_solve(rate, feas_iter=1, qual_iter=1, verbose=False):
+def legacy_quantum_solve(rate, feas_iter=1, qual_iter=1, verbose=False):
     qc = build_circuit(rate, feas_iter, qual_iter)
     sv = sv_from_circuit(qc)
     probs = sv.probabilities()
@@ -256,15 +272,176 @@ def quantum_solve(rate, feas_iter=1, qual_iter=1, verbose=False):
     return best, best_s, feasible_total, qc
 
 
+def p_good(rounds, analytic_a):
+    theta = math.asin(math.sqrt(float(analytic_a)))
+    return math.sin((2 * int(rounds) + 1) * theta) ** 2
+
+
+def choose_first_peak_rounds(analytic_a):
+    """Return (continuous optimum, integer rounds, amplified good mass)."""
+    a = float(analytic_a)
+    if not 0.0 < a <= 1.0:
+        raise ValueError("analytic_a must be in (0, 1]")
+    if a >= 1.0 - 1e-12:
+        return 0.0, 0, 1.0
+    continuous = math.pi / (4.0 * math.asin(math.sqrt(a))) - 0.5
+    candidates = {
+        max(0, int(math.floor(continuous))),
+        max(0, int(math.ceil(continuous))),
+    }
+    rounds = max(candidates, key=lambda value: p_good(value, a))
+    return continuous, rounds, p_good(rounds, a)
+
+
+def weighted_aa_statevector(rate, qual_lambda=None, cap=None):
+    """Execute the ideal 5-qubit weighted-AA circuit."""
+    raw = np.asarray(rate, dtype=float)
+    if raw.shape != (N_UE, N_CELL):
+        raise ValueError("rate must be %dx%d" % (N_UE, N_CELL))
+    if not np.all(np.isfinite(raw)) or np.any(raw < 0.0):
+        raise ValueError("rate matrix must contain finite non-negative values")
+    lam = QUAL_LAMBDA if qual_lambda is None else float(qual_lambda)
+    if not np.isfinite(lam) or lam <= 0.0:
+        raise ValueError("qual_lambda must be a finite positive value")
+    use_cap = MAX_PER_CELL if cap is None else int(cap)
+    if not 1 <= use_cap <= N_UE:
+        raise ValueError("cap must be in [1, %d]" % N_UE)
+    if N_CELL * use_cap < N_UE:
+        raise ValueError("structurally infeasible 4x2 assignment")
+
+    dimension = 1 << N_ASSIGN
+    utilities = np.zeros(dimension, dtype=np.float64)
+    feasible = np.zeros(dimension, dtype=bool)
+    quality_weights = np.zeros(dimension, dtype=np.float64)
+    global_max = float(np.max(raw))
+    if global_max > 0.0:
+        row_max = np.max(raw, axis=1)
+        row_weights = np.exp(
+            lam * (raw - row_max[:, np.newaxis]) / global_max
+        )
+    else:
+        row_weights = np.ones_like(raw)
+
+    for mask in range(dimension):
+        assignment = [(mask >> u) & 1 for u in range(N_UE)]
+        utilities[mask] = sum(
+            raw[u, assignment[u]] for u in range(N_UE)
+        )
+        ones = sum(assignment)
+        feasible[mask] = (
+            ones <= use_cap and (N_UE - ones) <= use_cap
+        )
+        if feasible[mask]:
+            quality_weights[mask] = np.prod(
+                [row_weights[u, assignment[u]] for u in range(N_UE)]
+            )
+
+    sum_good_weights = float(np.sum(quality_weights))
+    analytic_a = sum_good_weights / float(dimension)
+    continuous, rounds, good_probability = choose_first_peak_rounds(
+        analytic_a
+    )
+
+    # Before amplification each feasible state has W(x)/D on the good branch
+    # and (1-W(x))/D on the bad branch. Infeasible states have 1/D only on the
+    # bad branch. StatePreparation is the exact gate-level implementation of A.
+    initial_bad_probabilities = np.where(
+        feasible,
+        (1.0 - quality_weights) / float(dimension),
+        1.0 / float(dimension),
+    )
+    initial = np.zeros(2 * dimension, dtype=np.complex128)
+    initial[:dimension] = np.sqrt(initial_bad_probabilities)
+    initial[dimension:] = np.sqrt(quality_weights / float(dimension))
+    preparation = StatePreparation(initial)
+    marker = N_ASSIGN
+    circuit = QuantumCircuit(N_ASSIGN + 1)
+    circuit.append(preparation, range(N_ASSIGN + 1))
+    for _ in range(rounds):
+        circuit.z(marker)  # S_good
+        circuit.append(preparation.inverse(), range(N_ASSIGN + 1))
+        # S_zero: phase-flip |00000>. A global sign is immaterial.
+        circuit.x(range(N_ASSIGN + 1))
+        circuit.h(marker)
+        circuit.mcx(list(range(N_ASSIGN)), marker)
+        circuit.h(marker)
+        circuit.x(range(N_ASSIGN + 1))
+        circuit.append(preparation, range(N_ASSIGN + 1))
+    state = sv_from_circuit(circuit)
+    measured_good_probability = float(
+        np.sum(state.probabilities()[dimension:])
+    )
+    if abs(measured_good_probability - good_probability) > 1e-9:
+        raise RuntimeError(
+            "weighted-AA circuit/theory mismatch: %.12g vs %.12g"
+            % (measured_good_probability, good_probability)
+        )
+    metadata = {
+        "analytic_a": analytic_a,
+        "continuous_rounds": continuous,
+        "amplification_rounds_used": rounds,
+        "analytic_good_probability": good_probability,
+        "measured_good_probability": measured_good_probability,
+        "qual_lambda": lam,
+        "cap": use_cap,
+        "circuit": circuit,
+    }
+    return state, utilities, feasible, metadata
+
+
+def quantum_solve(rate, feas_iter=0, qual_iter=1, verbose=False):
+    """Default 4x2 weighted-AA solver; legacy iter args must stay neutral."""
+    if feas_iter not in (None, 0) or qual_iter not in (None, 1):
+        raise ValueError(
+            "feas_iter/qual_iter are legacy-two-stage arguments"
+        )
+    state, utilities, feasible, metadata = weighted_aa_statevector(rate)
+    dimension = 1 << N_ASSIGN
+    good_probabilities = state.probabilities()[dimension:]
+    ranked = sorted(
+        (mask for mask in range(dimension) if feasible[mask]),
+        key=lambda mask: (
+            -float(good_probabilities[mask]),
+            -float(utilities[mask]),
+            mask,
+        ),
+    )[:TOP_K]
+    if not ranked:
+        return None, -1.0, 0.0, metadata
+    best_mask = min(
+        ranked, key=lambda mask: (-float(utilities[mask]), mask)
+    )
+    best = [(best_mask >> u) & 1 for u in range(N_UE)]
+    best_s = float(utilities[best_mask])
+    if verbose:
+        for rank, mask in enumerate(ranked):
+            assignment = [(mask >> u) & 1 for u in range(N_UE)]
+            print(
+                "  rank %d: p_good=%.6f assign=%s score=%.3f"
+                % (
+                    rank,
+                    good_probabilities[mask],
+                    assignment,
+                    utilities[mask],
+                )
+            )
+    return best, best_s, metadata["analytic_good_probability"], metadata
+
+
 def main():
     global MAX_PER_CELL, QUAL_LAMBDA, SV_BACKEND
     p = argparse.ArgumentParser()
     p.add_argument('--brute', action='store_true')
     p.add_argument('--verbose', action='store_true')
-    p.add_argument('--feas-iter', type=int, default=0)  # gated oracle alone is
-    p.add_argument('--qual-iter', type=int, default=1)  # the whole algorithm
+    p.add_argument('--feas-iter', type=int, default=None)
+    p.add_argument('--qual-iter', type=int, default=None)
     p.add_argument('--max-per-cell', type=int, default=2)
     p.add_argument('--qual-lambda', type=float, default=4.0)
+    p.add_argument(
+        '--legacy-two-stage',
+        action='store_true',
+        help='run the preserved 10-qubit two-stage solver',
+    )
     p.add_argument('--sv-backend', default=None, choices=['aer', 'reference'],
                    help='Statevector execution engine (default: reference, '
                         'the canonical backend; aer is opt-in experimental, '
@@ -273,6 +450,26 @@ def main():
     args = p.parse_args()
     if not 1 <= args.max_per_cell <= N_UE:
         sys.stderr.write("[dqna_42] --max-per-cell must be in [1, %d]\n" % N_UE)
+        sys.exit(1)
+    if not np.isfinite(args.qual_lambda) or args.qual_lambda <= 0.0:
+        sys.stderr.write(
+            "[dqna_42] --qual-lambda must be a finite positive value\n"
+        )
+        sys.exit(1)
+    if not args.legacy_two_stage and (
+        args.feas_iter is not None or args.qual_iter is not None
+    ):
+        sys.stderr.write(
+            "[dqna_42] --feas-iter/--qual-iter require "
+            "--legacy-two-stage\n"
+        )
+        sys.exit(1)
+    if not args.legacy_two_stage and args.sv_backend is not None:
+        sys.stderr.write(
+            "[dqna_42] --sv-backend applies only to "
+            "--legacy-two-stage; weighted-AA uses the validated "
+            "reference Statevector backend\n"
+        )
         sys.exit(1)
     MAX_PER_CELL = args.max_per_cell
     QUAL_LAMBDA = args.qual_lambda
@@ -288,13 +485,29 @@ def main():
         for name, m in cases:
             rate = np.array(m, dtype=float)
             t0 = time.time()
-            q, qs, ft, qc = quantum_solve(rate, args.feas_iter, args.qual_iter,
-                                          args.verbose)
+            if args.legacy_two_stage:
+                q, qs, ft, detail = legacy_quantum_solve(
+                    rate,
+                    0 if args.feas_iter is None else args.feas_iter,
+                    1 if args.qual_iter is None else args.qual_iter,
+                    args.verbose,
+                )
+                diagnostic = "gates=%d" % sum(
+                    detail.count_ops().values()
+                )
+            else:
+                q, qs, ft, detail = quantum_solve(
+                    rate, 0, 1, args.verbose
+                )
+                diagnostic = "rounds=%d analytic_a=%.6g" % (
+                    detail["amplification_rounds_used"],
+                    detail["analytic_a"],
+                )
             bf, bfs = brute_force_best(rate)
             print("%s: q=%s score=%.3f | brute=%s %.3f | feas_mass=%.3f "
-                  "elapsed=%.0fms gates=%d"
+                  "elapsed=%.0fms %s"
                   % (name, q, qs, bf, bfs, ft, 1000 * (time.time() - t0),
-                     sum(qc.count_ops().values())))
+                     diagnostic))
         return
 
     data = json.load(sys.stdin)
@@ -305,14 +518,34 @@ def main():
         sys.stderr.write("[dqna_42] rate matrix has non-finite or negative entries\n")
         sys.exit(1)
     t0 = time.time()
-    q, qs, ft, _ = quantum_solve(rate, args.feas_iter, args.qual_iter, False)
+    if args.legacy_two_stage:
+        q, qs, ft, detail = legacy_quantum_solve(
+            rate,
+            0 if args.feas_iter is None else args.feas_iter,
+            1 if args.qual_iter is None else args.qual_iter,
+            False,
+        )
+        method = "quantum-2stage-10q-caponly-expenc-fgated-42v2"
+    else:
+        q, qs, ft, detail = quantum_solve(rate, 0, 1, False)
+        method = WEIGHTED_AA_METHOD
     if q is None:
         sys.stderr.write("[dqna_42] no feasible assignment found\n")
         sys.exit(1)
-    json.dump({"assignment": [int(c) for c in q], "score": float(qs),
-               "feasible": True, "feasibility_prob": float(ft),
-               "method": "quantum-2stage-10q-caponly-expenc-fgated-42v2",
-               "elapsed_ms": int(1000 * (time.time() - t0))}, sys.stdout)
+    result = {
+        "assignment": [int(c) for c in q],
+        "score": float(qs),
+        "feasible": True,
+        "feasibility_prob": float(ft),
+        "method": method,
+        "elapsed_ms": int(1000 * (time.time() - t0)),
+    }
+    if not args.legacy_two_stage:
+        result["analytic_a"] = float(detail["analytic_a"])
+        result["amplification_rounds_used"] = int(
+            detail["amplification_rounds_used"]
+        )
+    json.dump(result, sys.stdout)
     sys.stdout.write("\n")
 
 

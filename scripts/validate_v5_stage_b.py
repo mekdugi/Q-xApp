@@ -28,6 +28,7 @@ import dqna_ts as dts  # noqa: E402
 import qiskit  # noqa: E402
 
 DQNA = os.path.join(XAPP, "dqna_ts.py")
+QXAPP_UNIFIED = os.path.join(XAPP, "qxapp_unified.c")
 ROUND7 = [[17.01, 0.00, 1.19], [4.55, 0.00, 2.58],
           [0.00, 5.78, 1.80], [1.40, 0.00, 13.77]]
 ROUND7_STDIN = json.dumps({"sinr": ROUND7})
@@ -297,6 +298,16 @@ def main():
     t0 = time.time()
     s0_6()
     cli_contract()
+    with open(QXAPP_UNIFIED, encoding="utf-8") as stream:
+        c_source = stream.read()
+    check(
+        "C runtime invokes v5 with cap-only CLI",
+        "\"timeout %d '%s' '%s' --max-per-cell=%d \"" in c_source,
+    )
+    check(
+        "C runtime timeout covers validated holdout maximum",
+        "#define QXAPP_TS_TIMEOUT_S 120" in c_source,
+    )
     RESULTS["environment"] = {
         "python": sys.version.split()[0], "qiskit": qiskit.__version__,
         "numpy": np.__version__, "elapsed_s": round(time.time() - t0, 1)}

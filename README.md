@@ -54,7 +54,7 @@ solver with constraint oracles and utility-weighted amplification:
 | Use case | Solver | Problem | Qubits |
 |----------|--------|---------|--------|
 | TS | [`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py) | 4 UE × 3 cells | 17 (canonical v5 full-state weighted-AA); 15 (preserved legacy v4.1 two-stage, `--legacy-two-stage`) |
-| NES | [`flexric/xApp/dqna_42.py`](flexric/xApp/dqna_42.py) | 4 UE × 2 awake cells | 10 |
+| NES | [`flexric/xApp/dqna_42.py`](flexric/xApp/dqna_42.py) | 4 UE × 2 awake cells | 5-qubit ideal weighted-AA circuit (legacy 10-qubit two-stage via `--legacy-two-stage`) |
 | QoS-RA | [`flexric/xApp/dqna_qos.py`](flexric/xApp/dqna_qos.py) | 2 UE × 4 DRBs per O-RU | 8 |
 
 Constraints (per-cell UE caps, distinct DRBs) are enforced by a feasibility
@@ -75,8 +75,13 @@ machine-readable claim → command → report map is
   legacy v4.1 two-stage path (`--legacy-two-stage`) matches its recorded
   goldens byte-for-byte. Harness: `scripts/validate_dqna_ts.py`
   (S0 acceptance `--v5-stage all`, holdout `--v5-stage holdout`).
-- **NES** — brute-force-optimal score on **306/306** cases of the
-  deterministic seed-20260721 suite (`scripts/validate_nes_suite.py`).
+- **NES** — the default is ideal utility-weighted amplitude amplification
+  with first-peak calibration and raw-objective re-scoring of the retained
+  candidates. It returned a brute-force-optimal score on **306/306** cases of
+  the deterministic seed-20260721 suite; first-peak rounds were 1/2/57
+  (min/median/max) and the minimum amplified good probability was 84.375%
+  (`scripts/validate_nes_suite.py`). The former 10-qubit two-stage solver is
+  preserved behind `--legacy-two-stage`.
 - **QoS-RA** — brute-force-optimal score on the full exhaustive
   {0,1,10}^8 input grid, **6,561/6,561** (477 flat-row classical
   reductions + 6,084 quantum-path cases,
@@ -97,9 +102,11 @@ one-shot RC handover for mismatched UEs, fresh confirmation; not a solver
 fallback). The classical greedy/DRB matchers also serve as automatic
 fallbacks if a quantum solver fails on a given decision, counted separately.
 
-**Statevector backend** — the canonical execution engine is
+**Statevector backend** — the canonical circuit-execution engine is
 `qiskit.quantum_info.Statevector.from_instruction` (the *reference*
-backend); all canonical results above use it. An **opt-in experimental**
+backend). The default NES weighted-AA path executes a five-qubit ideal
+circuit on the validated reference Statevector backend. Its preserved legacy
+circuit supports the **opt-in experimental**
 Qiskit-Aer engine (`--sv-backend aer`) is equivalent within 1e-12 in state
 fidelity and probabilities but is **not a bit-identical drop-in
 replacement** (on exact ties, top-K order/set and equal-score tie-break
@@ -108,7 +115,9 @@ picks can differ), so canonical results stay on reference. Aer speeds up a
 end-to-end solve by only ~5% (its runtime is dominated by classical
 sampling over cached statevectors) — kernel speedups are not solver
 speedups. These are offline simulator numbers: no QPU execution, no
-near-RT-latency or quantum-advantage claim. Requires Python with `qiskit`
+near-RT-latency or quantum-advantage claim. The C controller gives the TS
+v5 process a 120-second safety timeout; this is failure containment, not a
+near-RT latency claim. Requires Python with `qiskit`
 (validated with qiskit 1.2.4; lock in
 [`install/solver_requirements.txt`](install/solver_requirements.txt)); the
 solver interpreter path is set via `QXAPP_PY`.
