@@ -7,6 +7,7 @@ MODE=${1:-}
 case "$MODE" in on|off) ;; *) echo "usage: smoke_e2e.sh on|off [RngRun] [outbase]"; exit 2 ;; esac
 RNGRUN=${2:-1}
 OUTBASE=${3:-/home/wookjin/qxapp_runs/quantum_smoke}
+SIMTIME=${QXAPP_SMOKE_SIMTIME:-7}
 NS=/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
 OUT=$OUTBASE/${MODE}_rng${RNGRUN}
 mkdir -p "$OUT"
@@ -32,7 +33,7 @@ rm -f "$NS/drb_control_log.csv" "$NS/scheduler_weights.csv" "$NS/ue_position.txt
 
 # manifest (Codex 14+15차): full provenance per run
 {
-  echo "rngrun=$RNGRUN quantum=$MODE date=$(date -Iseconds)"
+  echo "rngrun=$RNGRUN quantum=$MODE simtime=$SIMTIME date=$(date -Iseconds)"
   echo "build_cmd: cmake --build . --target xapp_qxapp_unified -j4"
   ls -la /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified
   sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_ts.py
@@ -46,7 +47,7 @@ if [ -f "$NS/xapp_quantum.txt" ]; then cp "$NS/xapp_quantum.txt" "$OUT/"; else e
 
 /root/flexric/build/examples/ric/nearRT-RIC > "$OUT/ric.txt" 2>&1 &
 sleep 6
-sudo -u wookjin bash -c "cd $NS && ./ns3 run 'scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=7 --RngRun=$RNGRUN'" > "$OUT/ns3.txt" 2>&1 &
+sudo -u wookjin bash -c "cd $NS && ./ns3 run 'scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=$SIMTIME --RngRun=$RNGRUN'" > "$OUT/ns3.txt" 2>&1 &
 NS3_WRAP=$!
 sleep 12
 QXAPP_PY=/root/qxapp-venv/bin/python stdbuf -oL \

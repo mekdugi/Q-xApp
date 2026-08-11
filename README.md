@@ -22,7 +22,12 @@ Switch between them in real-time from the GUI — no restart needed.
 
 ## 2. Fig.4 Results
 
-For this figure the xApp runs in **auto mode**, cycling through **TS → TS+QoS-RA → NES → TS** so all use cases appear in one figure; in the GUI an operator can also select each use case manually in real time. The GUI (left) shows one live run; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
+For this figure the xApp runs in **auto mode**, cycling through
+**TS → TS+QoS-RA → NES → TS** so all use cases appear in one figure; in the
+GUI an operator can also select each use case manually in real time. The final
+paper plot is the mean of **100 independent weighted-AA runs** (RngRun seeds
+1–100) of `scenario-fig4-qxapp.cc`. All 100 runs completed with the TS, NES,
+and QoS-RA quantum solver paths active and with zero solver fallbacks.
 
 ### GUI (one live run)
 
@@ -30,18 +35,46 @@ For this figure the xApp runs in **auto mode**, cycling through **TS → TS+QoS-
 
 The GUI carries the axes and legends the averaged plot shares: **UE Throughput** (per-UE, Mbps) and **O-RU Power Consumption** (per-O-RU, W) over **simulation time (s)**, plus the Simulation Grid (O-RU triangles, UE circles colored by serving cell; a sleeping O-RU turns gray).
 
-### 50-run average
+### Latest 100-run weighted-AA average (final paper)
 
-![Fig.4: 50-run average of UE throughput (top) and O-RU power (bottom)](fig4_ppt/fig4_50run_combined.png)
+![Fig.4: 100-run weighted-AA average of UE throughput (top) and measured-profile O-RU power (bottom)](fig4_ppt/fig4_weighted_100run_combined.png)
 
 **Control modes (left → right):**
 
-- **TS** — UEs steered to best-SINR cells. The equidistant pair UE1 / UE4 gets comparable throughput (**254.5 / 261.0 Mbps**).
-- **TS+QoS-RA** — DRB weights enforce 5QI priority: high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
-- **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
-- **TS** (resumed after NES) — O-RU 2 wakes (power back to ~3.3 kW) and UE2 returns to **~103.7%** of its first-TS level (521.6 Mbps).
+- **TS** — UEs are steered to high-rate cells. The equidistant pair UE1 / UE4
+  gets comparable throughput (**258.8 / 261.8 Mbps**).
+- **TS+QoS-RA** — DRB weights enforce 5QI priority: high-priority UE1 vs
+  low-priority UE4 ≈ **6.2:1** (**440.6 / 71.5 Mbps**).
+- **NES** — O-RU 2 enters sleep (**14.3 W** on the calibrated supply-power
+  profile). UE2 is displaced and its throughput drops **~71.6%**
+  (**508.6 → 144.3 Mbps**).
+- **TS** (resumed after NES) — O-RU 2 wakes and UE2 returns to **~101.9%** of
+  its first-TS level (**518.4 Mbps**).
 
-Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv) and [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); the plotting script is [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py).
+Per-run phase means are in
+[`fig4_ppt/runs_summary_100run.csv`](fig4_ppt/runs_summary_100run.csv) and
+[`fig4_ppt/phase_stats_raw_100run.txt`](fig4_ppt/phase_stats_raw_100run.txt).
+The plotting script, frozen power-model input, checksums, and execution record
+are in [`fig4_ppt/qxapp_fig4_plot_100run.py`](fig4_ppt/qxapp_fig4_plot_100run.py),
+[`fig4_ppt/oru_power_model_100run.json`](fig4_ppt/oru_power_model_100run.json),
+[`fig4_ppt/SHA256SUMS_100run.txt`](fig4_ppt/SHA256SUMS_100run.txt), and
+[`fig4_ppt/PROVENANCE_100RUN.md`](fig4_ppt/PROVENANCE_100RUN.md).
+
+### Legacy 50-run average (historical comparison)
+
+The earlier 50-run figure is retained as a legacy artifact. Its throughput
+phase transitions have nearly the same qualitative shape, but the batch
+predates the current quantum-controller integration and used the classical
+TS/QoS/NES controller paths. It also reports the simulator's historical
+multi-kW power scale, so its absolute power values must not be compared with
+the measured-profile watt scale in the final 100-run figure.
+
+![Legacy Fig.4: historical 50-run average](fig4_ppt/fig4_50run_combined.png)
+
+Legacy data and checksums remain in
+[`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv),
+[`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt), and
+[`fig4_ppt/SHA256SUMS_50run.txt`](fig4_ppt/SHA256SUMS_50run.txt).
 
 ---
 
@@ -87,7 +120,7 @@ machine-readable claim → command → report map is
   reductions + 6,084 quantum-path cases,
   `scripts/validate_qos_exhaustive.py`).
 
-The Fig.4 cycle runs end-to-end with all three quantum assignment
+The latest 100-run Fig.4 cycle runs end-to-end with all three quantum assignment
 subproblems (TS, NES, QoS-RA) active in one cycle and zero solver fallbacks
 on those three paths — "all-three quantum E2E" means exactly that (the three
 solver subpaths were active in one cycle with zero subpath fallbacks), not
@@ -426,13 +459,14 @@ Q-xApp/
 │   ├── mmwave-enb-net-device.cc
 │   ├── mmwave-flex-tti-pf-mac-scheduler.cc
 │   └── mmwave-flex-tti-pf-mac-scheduler.h
-├── fig4_ppt/                       # Fig.4 results (50-run average)
+├── fig4_ppt/                       # Latest 100-run Fig.4 + legacy 50-run artifacts
 │   ├── fig4_gui_capture.png        # GUI screenshot (one live run, labeled axes)
-│   ├── fig4_50run_combined.png     # the averaged figure (also .pdf for high-res / paper)
-│   ├── qxapp_fig4_plot_ppt_v5.py   # plotting script (x-axis 4.5s, marker from scheduler_weights.csv)
-│   ├── runs_summary_50run.csv      # per-run phase means (seeds 1–50)
-│   ├── phase_stats_raw_50run.txt   # aggregate phase means ± std
-│   └── SHA256SUMS_50run.txt        # checksums of the public Fig.4 files
+│   ├── fig4_weighted_100run_combined.png  # final-paper figure (+ PDF)
+│   ├── qxapp_fig4_plot_100run.py   # exact 100-run aggregation/plotting script
+│   ├── runs_summary_100run.csv     # per-run phase means (seeds 1–100)
+│   ├── PROVENANCE_100RUN.md        # solver hashes, batch checks, reproduction
+│   ├── fig4_50run_combined.png     # legacy historical figure (+ PDF)
+│   └── SHA256SUMS_{100run,50run}.txt
 ├── gui/
 │   ├── main.py                           # FastAPI entrypoint (ACTIVE import root)
 │   ├── requirements.txt
