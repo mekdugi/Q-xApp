@@ -153,8 +153,8 @@
   "deferred": [
     {
       "id": "fig4_raw_provenance",
-      "status": "R5.4 = DEFERRED BY USER (not a code blocker)",
-      "note": "Fig.4 50-run raw-input provenance (raw logs / immutable archive / tracked runner) is intentionally out of scope of this checkpoint; fig4_ppt/** untouched."
+      "status": "100-run compact artifact tracked; 1.7 GiB raw archive retained externally",
+      "note": "The final 100-run weighted-AA Fig.4 tracks its runner, plotter, exact solver and binary hashes, frozen power model, per-run phase summary, aggregate statistics, final PNG/PDF, checksums, and a deterministic raw-tree digest in fig4_ppt/PROVENANCE_100RUN.md. The 2,004-file raw archive is too large for the regular Git repository and remains externally retained. The historical 50-run classical-control artifact remains tracked as legacy."
     },
     {
       "id": "license",
