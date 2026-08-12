@@ -101,7 +101,7 @@ $$
 t_{\mathrm{class}}(n)=0.182n^3\ \mathrm{ns}.
 $$
 
-![Circuit-derived Q-xApp runtime curves](fig/qxapp_complexity_trendlines.png)
+![Circuit-derived Q-xApp runtime curves](qxapp_complexity_trendlines.png)
 
 The intersections with the classical reference curve are:
 
