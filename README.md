@@ -84,7 +84,9 @@ The public compact evidence consists of:
 - [`SHA256SUMS_100run.txt`](fig4_ppt/SHA256SUMS_100run.txt)
 
 ```bash
-sha256sum -c fig4_ppt/SHA256SUMS_100run.txt
+# Cross-platform: applies the repository's LF policy to text artifacts and
+# retains byte-exact checks for binary/Fig. 5 release files.
+python scripts/check_release_integrity.py
 
 export QXAPP_NS_ROOT=/path/to/ns-O-RAN-flexric/mmwave-LENA-oran
 export QXAPP_FLEXRIC_ROOT=/path/to/flexric

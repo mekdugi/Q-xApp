@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+FIG4_TEXT_SUFFIXES = {".csv", ".json", ".md", ".py", ".sh", ".txt"}
 
 
 def digest(path: Path, normalize_lf: bool = False) -> str:
@@ -37,7 +38,12 @@ def check_manifests(failures: list[str]) -> int:
     return checked
 
 
-def check_sum_file(sum_file: Path, base: Path, failures: list[str]) -> int:
+def check_sum_file(
+    sum_file: Path,
+    base: Path,
+    failures: list[str],
+    normalize_text_lf: bool = False,
+) -> int:
     checked = 0
     for line in sum_file.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -46,7 +52,8 @@ def check_sum_file(sum_file: Path, base: Path, failures: list[str]) -> int:
         relative = relative.lstrip(" *")
         checked += 1
         target = base / relative
-        if not target.is_file() or digest(target) != expected.lower():
+        normalize_lf = normalize_text_lf and target.suffix.lower() in FIG4_TEXT_SUFFIXES
+        if not target.is_file() or digest(target, normalize_lf) != expected.lower():
             failures.append(f"{sum_file.relative_to(ROOT)}: {relative}")
     return checked
 
@@ -55,7 +62,10 @@ def main() -> int:
     failures: list[str] = []
     manifest_count = check_manifests(failures)
     fig4_count = check_sum_file(
-        ROOT / "fig4_ppt/SHA256SUMS_100run.txt", ROOT, failures
+        ROOT / "fig4_ppt/SHA256SUMS_100run.txt",
+        ROOT,
+        failures,
+        normalize_text_lf=True,
     )
     fig5_base = ROOT / "fig5/releases/2026-08-12-limited-projection"
     fig5_count = check_sum_file(
