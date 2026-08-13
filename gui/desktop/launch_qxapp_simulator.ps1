@@ -1,5 +1,9 @@
 param(
-    [string]$Url = "http://127.0.0.1:8000/?capture"
+    [string]$Url = "http://127.0.0.1:8000/?capture",
+    [string]$WslDistro = "Ubuntu",
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$HostData
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,8 +14,14 @@ if (-not (Test-Path -LiteralPath $Python)) {
     throw "Q-xApp desktop environment is missing. Install gui/desktop/requirements.txt first."
 }
 
-Start-Process -FilePath $Python -ArgumentList @(
+$Arguments = @(
     (Join-Path $DesktopDir "qxapp_simulator.py"),
     "--url",
-    $Url
+    $Url,
+    "--wsl-distro",
+    $WslDistro,
+    "--host-data",
+    $HostData
 )
+
+Start-Process -FilePath $Python -ArgumentList $Arguments

@@ -2,12 +2,11 @@
 """dqna_constraints.py - Modular reversible constraint layer for the Q-xApp
 4 UE x 3 cell quantum assignment solver. (v5b-constraints, 2026-07-18)
 
-Phase 1/2 of the combined oracle / PRB / weighted-AA work plan. This module is
-NOT wired into the runtime xApp path yet: flexric/xApp/dqna_ts.py (legacy v4.1
-two-stage) is preserved byte-identical and remains the production solver. The
-constraint modules here are validated standalone (scripts/validate_constraints.py)
-and will be composed into the gated-heuristic and formal weighted-AA solver
-modes in a later phase.
+This is the active reversible constraint layer used by the current generalized
+solver path in dqna_modes.py. It supports both unit-count assignment and the
+weighted-PRB multiple-knapsack configuration, and is also validated directly
+by scripts/validate_constraints.py. The controller-default cap-only assignment
+remains implemented in dqna_ts.py.
 
 Contract (per module):
   - compute(qc, assign, work, bad): accumulate violation events into the shared

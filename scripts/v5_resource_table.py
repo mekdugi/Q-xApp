@@ -11,9 +11,8 @@
 Reports, per block and per fixed-k full circuit: logical qubits, synthesis
 ancillas, pre-transpile op counts, post-transpile CX / single-qubit gates,
 parameterized-rotation count (float64 angles), total depth and two-qubit
-depth. The 16-qubit no-ancilla reflection variant is measured for RESOURCE
-COMPARISON ONLY (brief 6.2) and is not a solver path. Statevector elapsed
-times elsewhere are classical simulator runtimes, not QPU latency; rotations
+depth. Only blocks used by the current 17-qubit solver path are emitted.
+Statevector elapsed times elsewhere are classical simulator runtimes, not QPU latency; rotations
 are treated as ideal continuous gates by the simulator (no fault-tolerant
 gate-set cost is claimed).
 
@@ -21,7 +20,6 @@ Usage: python scripts/v5_resource_table.py
 """
 
 import csv
-import json
 import os
 import sys
 import time
@@ -169,9 +167,6 @@ def main():
     rows.append(profile(reflection_circuit("S_0"), "S_0 (17q recursion)"))
     rows.append(profile(reflection_circuit("both"),
                         "S_G + S_0 pair (17q recursion)"))
-    rows.append(profile(reflection_circuit("both", True),
-                        "S_G + S_0 pair (16q no-ancilla, comparison only)",
-                        ancillas=0, extra="noancilla"))
     rows.append(profile(q_standalone(), "Q standalone (S_G,Adg,S_0,A)"))
     contract_fail = False
     for k in range(4):
@@ -211,10 +206,7 @@ def main():
         "rows": rows,
         "elapsed_s": round(time.time() - t0, 1),
     }
-    out = os.path.join(HERE, "..", "reports", "v5_resource_table.json")
-    with open(out, "w") as f:
-        json.dump(report, f, indent=1)
-    csv_out = out.replace(".json", ".csv")
+    csv_out = os.path.join(HERE, "..", "reports", "v5_resource_table.csv")
     keys = ["block", "total_qubits", "algo_register_qubits",
             "synthesis_ancillas", "pre_transpile_ops",
             "pre_numerical_rotations", "utility_nonzero_thetas", "post_cx",
@@ -235,7 +227,7 @@ def main():
                                             r.get("S_G_calls", "-"),
                                             r.get("S_0_calls", "-"),
                                             r.get("call_contract_ok", "-"))))
-    print("report: %s / %s" % (out, csv_out))
+    print("report: %s" % csv_out)
     print("V5_RESOURCE=DONE (%.0fs)" % report["elapsed_s"])
     return 0
 

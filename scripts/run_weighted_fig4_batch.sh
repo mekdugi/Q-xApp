@@ -7,9 +7,13 @@ set -u
 START=${1:?usage: run_weighted_fig4_batch.sh <start> <end> <output-dir>}
 END=${2:?usage: run_weighted_fig4_batch.sh <start> <end> <output-dir>}
 OUT=${3:?output-dir is required}
-REPO=/mnt/c/Users/Wookjin/Desktop/Q-xApp
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 SMOKE=$REPO/scripts/smoke_e2e_quantum.sh
-NS=/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
+NS=${QXAPP_NS_ROOT:?set QXAPP_NS_ROOT to the mmwave-LENA-oran directory}
+FLEXRIC=${QXAPP_FLEXRIC_ROOT:?set QXAPP_FLEXRIC_ROOT to the FlexRIC checkout}
+XAPP_BIN=${QXAPP_XAPP_BIN:-$FLEXRIC/build/examples/xApp/c/ctrl/xapp_qxapp_unified}
+SOLVER_DIR=${QXAPP_SOLVER_DIR:-$FLEXRIC/examples/xApp/c/ctrl}
 
 case "$START:$END" in
   *[!0-9:]*|:*) echo "seed range must be positive integers" >&2; exit 2 ;;
@@ -28,10 +32,10 @@ if [ ! -f "$OUT/manifest.txt" ]; then
     echo "repo_commit=$(git -c safe.directory="$REPO" -C "$REPO" rev-parse HEAD)"
     echo "repo_status=$(git -c safe.directory="$REPO" -C "$REPO" status --porcelain | wc -l) changed_paths"
     echo "scenario_sha256=$(sha256sum "$NS/scratch/scenario-fig4-qxapp.cc" | cut -d' ' -f1)"
-    echo "xapp_sha256=$(sha256sum /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified | cut -d' ' -f1)"
-    echo "ts_solver_sha256=$(sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_ts.py | cut -d' ' -f1)"
-    echo "nes_solver_sha256=$(sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_42.py | cut -d' ' -f1)"
-    echo "qos_solver_sha256=$(sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_qos.py | cut -d' ' -f1)"
+    echo "xapp_sha256=$(sha256sum "$XAPP_BIN" | cut -d' ' -f1)"
+    echo "ts_solver_sha256=$(sha256sum "$SOLVER_DIR/dqna_ts.py" | cut -d' ' -f1)"
+    echo "nes_solver_sha256=$(sha256sum "$SOLVER_DIR/dqna_42.py" | cut -d' ' -f1)"
+    echo "qos_solver_sha256=$(sha256sum "$SOLVER_DIR/dqna_qos.py" | cut -d' ' -f1)"
     echo "smoke_sha256=$(sha256sum "$SMOKE" | cut -d' ' -f1)"
     echo "batch_sha256=$(sha256sum "$0" | cut -d' ' -f1)"
   } > "$OUT/manifest.txt"
@@ -61,7 +65,9 @@ for seed in $(seq "$START" "$END"); do
           grep -qF "SMOKE=PASS" "$source_dir/smoke_summary.txt"; then
         mv -- "$source_dir" "$final"
         rm -rf -- "$attempt_dir"
-        chown -R wookjin:wookjin "$final" 2>/dev/null || true
+        if [ -n "${QXAPP_RUN_OWNER:-}" ]; then
+          chown -R "$QXAPP_RUN_OWNER" "$final" 2>/dev/null || true
+        fi
         log "seed $seed complete $(date -Is)"
         ok=1
         break

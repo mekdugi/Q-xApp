@@ -1,5 +1,5 @@
 # Q-xApp quantum solver environment lock (remediation R3.4).
-# Exact `pip freeze` of the validated venv (/root/qxapp-venv, Python 3.12.3)
+# Exact `pip freeze` of the validated Python 3.12.3 environment
 # the Stage-0/combined-oracle results were produced with. Direct pins:
 # qiskit==1.2.4, numpy==1.26.4; everything else is their transitive closure.
 # qiskit-aer==0.15.1 (+ its psutil dependency) added on
