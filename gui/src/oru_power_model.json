@@ -1,9 +1,11 @@
 {
-  "profile": "reference-mmwave-o-ru-v1",
-  "kind": "affine-prb-with-deep-sleep",
-  "active_base_w": 350.0,
-  "dynamic_full_load_w": 100.0,
-  "deep_sleep_w": 75.0,
-  "description": "Reference-only O-RU supply-power profile: active power is active_base_w + (DL PRB utilisation / 100) * dynamic_full_load_w; deep sleep is a non-zero fixed supply power.",
-  "calibration_note": "These values are a transparent reference profile for the Fig.4 mmWave O-RUs, not a measurement of a specific vendor device. Replace them with low-load, full-load, and sleep measurements for the deployed O-RU before using absolute W or Wh results."
+  "profile": "fnwf-2025-oru-b-30.5dbm-v1",
+  "kind": "measured-curve-calibrated-sim-trace-with-sleep",
+  "prb_utilisation_percent": [0.0, 30.0, 50.0, 100.0],
+  "active_power_w": [57.4, 62.5, 66.1, 71.7],
+  "sleep_power_w": 14.3,
+  "simulator_active_idle_w": 2706.25,
+  "simulator_active_full_w": 3330.0,
+  "description": "The slope of the old ns-3 cumulative-energy trace supplies the temporal shape; its active range is calibrated onto the measured 4-chain, 100 MHz, TDD O-RU-B DC input-power curve, while sleep remains non-zero.",
+  "source": "Active power: Z. Li et al., IEEE FNWF 2025, Table II (30.5 dBm row). Simulator anchors: the pinned active-idle baseline and the 3.33 kW upper active envelope validated by the GUI full-cycle trace. Sleep: conservative 80% advanced-sleep saving from M. Q. Usman et al., IEEE CCNC 2025."
 }

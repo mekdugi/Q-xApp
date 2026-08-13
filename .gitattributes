@@ -27,3 +27,8 @@
 *.jpg   binary
 *.ico   binary
 *.pdf   binary
+*.eps   binary
+
+# Preserve the entire byte-exact final Fig. 5 source bundle. This also keeps
+# generated SVG whitespace and CSV line endings identical to the source ZIP.
+fig5/releases/2026-08-12-limited-projection/** binary

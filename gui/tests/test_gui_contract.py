@@ -425,3 +425,151 @@ def test_no_subprocess_import():
     assert "subprocess" not in src.replace(
         "# side (requests.post instead of subprocess+curl).", "")
     assert "shell=True" not in src
+
+
+# ---- O-RU measured power + fixed auto-cycle layout ------------------------
+def test_oru_power_curve_endpoints_interpolation_and_clamp():
+    model = dc._validate_oru_power_model(dict(dc._ORU_POWER_MODEL_FALLBACK))
+    assert dc.estimate_oru_power(0, 0, model) == pytest.approx(57.4)
+    assert dc.estimate_oru_power(30, 0, model) == pytest.approx(62.5)
+    assert dc.estimate_oru_power(50, 0, model) == pytest.approx(66.1)
+    assert dc.estimate_oru_power(100, 0, model) == pytest.approx(71.7)
+    assert dc.estimate_oru_power(-20, 0, model) == pytest.approx(57.4)
+    assert dc.estimate_oru_power(120, 0, model) == pytest.approx(71.7)
+    assert dc.estimate_oru_power(76, 0, model) == pytest.approx(69.012)
+    idle = model["simulator_active_idle_w"]
+    full = model["simulator_active_full_w"]
+    assert dc.estimate_oru_power(None, 0, model, idle) == pytest.approx(57.4)
+    assert dc.estimate_oru_power(None, 0, model, full) == pytest.approx(71.7)
+    assert dc.estimate_oru_power(
+        None, 0, model, idle + 0.5 * (full - idle)) == pytest.approx(66.1)
+
+
+def test_oru_power_uses_actual_sleep_state_and_rejects_unknown_state():
+    model = dc._validate_oru_power_model(dict(dc._ORU_POWER_MODEL_FALLBACK))
+    assert dc.estimate_oru_power(100, 1, model) == pytest.approx(14.3)
+    assert dc.estimate_oru_power(100, True, model) == pytest.approx(14.3)
+    assert dc.estimate_oru_power(50, None, model) is None
+    assert dc.estimate_oru_power(None, 0, model) is None
+
+
+def test_oru_power_model_rejects_invalid_curve():
+    invalid = dict(dc._ORU_POWER_MODEL_FALLBACK)
+    invalid["prb_utilisation_percent"] = [0, 50, 40, 100]
+    with pytest.raises(ValueError):
+        dc._validate_oru_power_model(invalid)
+    invalid = dict(dc._ORU_POWER_MODEL_FALLBACK)
+    invalid["sleep_power_w"] = 1000
+    with pytest.raises(ValueError):
+        dc._validate_oru_power_model(invalid)
+    invalid = dict(dc._ORU_POWER_MODEL_FALLBACK)
+    invalid["simulator_active_full_w"] = \
+        invalid["simulator_active_idle_w"]
+    with pytest.raises(ValueError):
+        dc._validate_oru_power_model(invalid)
+
+
+def test_live_simulator_power_uses_cumulative_energy_slope(tmp_path):
+    dc._ENERGY_TRACE_SAMPLE.clear()
+    dc._ENERGY_TRACE_POWER.clear()
+    for cell_id in (2, 3, 4):
+        (tmp_path / f"energyfilecell{cell_id}.csv").write_text(
+            "time,total,delta\n0.0,0.0,0.0\n",
+            encoding="utf-8")
+    assert dc.load_live_simulator_power(str(tmp_path)) == {}
+    expected = {2: 3275.15, 3: 2706.25, 4: 3164.72}
+    for cell_id, power in expected.items():
+        with (tmp_path / f"energyfilecell{cell_id}.csv").open(
+                "a", encoding="utf-8") as file:
+            file.write(f"0.1,{power * 0.1},0.0\n")
+    assert dc.load_live_simulator_power(str(tmp_path)) == pytest.approx(expected)
+
+
+def test_power_intervals_preserve_origin_and_sleep_step(tmp_path):
+    model = dc.load_oru_power_model()
+    for cell_id in (2, 3, 4):
+        (tmp_path / f"energyfilecell{cell_id}.csv").write_text(
+            "0.0,0.0,0.0\n"
+            "0.5,1353.125,0.0\n"
+            "0.8,1482.575,0.0\n",
+            encoding="utf-8")
+    intervals = dc.load_oru_power_intervals(model, str(tmp_path))
+    for cell_id in (2, 3, 4):
+        assert intervals[cell_id][0] == pytest.approx({
+            "start": 0.0, "end": 0.05, "value": 57.4})
+        sleep = next(item for item in intervals[cell_id]
+                     if item["start"] == pytest.approx(0.5))
+        assert sleep == pytest.approx({
+            "start": 0.5, "end": 0.55, "value": 14.3})
+
+
+def test_live_pdcp_throughput_uses_latest_complete_interval(tmp_path):
+    header = ("% start end CellId IMSI RNTI LCID nTxPDUs TxBytes "
+              "nRxPDUs RxBytes delay\n")
+    rows = []
+    for ue_id, rx_bytes in enumerate((1_000_000, 2_000_000,
+                                      3_000_000, 4_000_000), start=1):
+        rows.append(
+            f"0 0.25 1 {ue_id} 1 3 0 0 0 {rx_bytes} 0\n")
+    # A newer partial bin must not replace the last internally consistent bin.
+    rows.append("0.25 0.5 1 1 1 3 0 0 0 9000000 0\n")
+    (tmp_path / "DlPdcpStats.txt").write_text(
+        header + "".join(rows), encoding="utf-8")
+    throughput, sample_time = dc.load_latest_pdcp_throughput(str(tmp_path))
+    assert sample_time == pytest.approx(0.25)
+    assert throughput == pytest.approx({
+        1: 32.0,
+        2: 64.0,
+        3: 96.0,
+        4: 128.0,
+    })
+    series = dc.load_pdcp_throughput_series(str(tmp_path))
+    assert series[1][0] == pytest.approx({"time": 0.0, "value": 32.0})
+    assert series[1][1] == pytest.approx({"time": 0.25, "value": 32.0})
+
+
+def test_gui_keeps_power_title_and_uses_actual_simulation_time():
+    chart = open(os.path.join(GUI_ROOT, "src", "templates",
+                              "chart.html"), encoding="utf-8").read()
+    assert '<span class="chart-title">O-RU Power Consumption</span>' in chart
+    assert "Modelled O-RU Power" not in chart
+    assert "energyChart.options.scales.y.max = 100" in chart
+    assert "SIMULATION_TIME_MAX = 7.0" in chart
+    assert "Simulation time (s)" in chart
+    assert "{ key: 'ts1', firstRound: 1,  lastRound: 5 }" in chart
+    assert "{ key: 'qos', firstRound: 6,  lastRound: 10 }" in chart
+    assert "{ key: 'nes', firstRound: 11, lastRound: 15 }" in chart
+    assert "{ key: 'ts2', firstRound: 16, lastRound: null }" in chart
+    assert "slots:" not in chart
+    assert "pdcpSampleTime: Number(data.ue_pdcp_sample_time)" in chart
+    assert "function backendTracePoints(series, id, endTime)" in chart
+    assert "function writeTimedIntervals(target, intervals, endTime)" in chart
+    assert "function writeTimedSeries(target, points)" in chart
+    assert "data.oru_power_intervals" in chart
+    assert "data.ue_pdcp_throughput_series" in chart
+    assert "data.ue_pdcp_throughput_mbps" in chart
+
+
+def test_gui_freezes_only_after_measured_recovery():
+    chart = open(os.path.join(GUI_ROOT, "src", "templates",
+                              "chart.html"), encoding="utf-8").read()
+    assert "function allOrusMeasuredActive(data)" in chart
+    assert "_recoveryActiveSamples >= 2" in chart
+    assert "AUTO_FINAL_PDCP_TIME = 7.0" in chart
+    assert "pdcpTraceComplete" in chart
+    assert "function sleptOrusHaveRecoveredPower(data)" in chart
+    assert "function preSleepPowerReference(cid)" in chart
+    assert "recovered >= reference - 1.0" in chart
+    assert "if (_recoveryComplete) {" in chart
+
+
+def test_gui_commits_each_auto_phase_once_without_rewriting_points():
+    chart = open(os.path.join(GUI_ROOT, "src", "templates",
+                              "chart.html"), encoding="utf-8").read()
+    assert "function commitAutoPhase(phaseIndex)" in chart
+    assert "if (committedPhases[phaseIndex]) return false;" in chart
+    assert "function appendAccuratePhaseSnapshot(phaseIndex, snapshot)" in chart
+    assert "snapshot.sampleTime === last.sampleTime" in chart
+    assert "commitThroughPhase(phaseIndex - 1)" in chart
+    assert "Do not attribute the transition poll to the new phase" in chart
+    assert "autoRoundHistory" not in chart

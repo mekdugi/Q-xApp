@@ -54,7 +54,17 @@ The tracked per-run phase summary, aggregate statistics, final PNG/PDF,
 plotter, frozen power model, and checksums provide the compact public artifact.
 The checksum file records the repository's LF-normalized blobs; run the check
 from the repository root after checkout.
-To regenerate them from a retained or newly reproduced batch:
+
+The three executed solver blobs identified above are retained at Git commit
+`2afabfe` and match the recorded hashes exactly. The current `main` solver
+files have since changed; notably, its `dqna_42.py` is a 10-qubit preserved
+two-stage path rather than the five-qubit weighted-AA blob used by this batch.
+Therefore, running the current checkout is a new protocol-level experiment,
+not a bit-for-bit reproduction. Restore the frozen solver blobs and verify all
+recorded execution hashes before claiming a frozen-code reproduction.
+
+To run the same protocol on a retained or newly configured workspace and then
+regenerate its aggregate artifacts:
 
 ```bash
 bash scripts/run_weighted_fig4_batch.sh 1 100 <batch-dir>

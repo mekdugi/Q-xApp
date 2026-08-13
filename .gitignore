@@ -60,7 +60,7 @@ HANDOVER_CODEX.md
 add_energy_to_xapp.py
 gui_check*.png
 
-# Superseded Fig.4 intermediates (kept locally; 50-run is the final published result)
+# Superseded Fig.4 intermediates (kept locally; 100-run is the current final result)
 fig4_out/
 fig4_out_v3/
 fig4_out_v4/
@@ -75,3 +75,6 @@ fig4_ppt/qxapp_fig4_plot_ppt.py
 ns3/scenario/scenario-fig4-qxapp.cc
 scripts/qxapp_batch_v3.sh
 quantum_dev/
+
+# Locally regenerated Fig. 5 outputs (the frozen release results are tracked)
+fig5/reproductions/

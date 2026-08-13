@@ -7,7 +7,6 @@ import tempfile
 from dataclasses import asdict
 
 import requests
-import json
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
@@ -24,40 +23,403 @@ templates = Jinja2Templates(directory="src/templates")
 # removing hard-coded deployment paths).
 HOST_DATA_DIR = os.getenv("HOST_DATA_DIR", "/host_data")
 
-# Power is intentionally modelled from the ns-3 DU's per-cell DL PRB
-# utilisation rather than from the fork's fixed PHY-state currents.  The
-# profile is a reference only: a deployment must replace its three values with
-# measured low-load, full-load and sleep supply powers before treating the W
-# values as device measurements.
+# The GUI power trace keeps the pinned ns-3 interval-energy shape and actual
+# energy state, while calibrating its active range to the measured 4-chain,
+# 100 MHz, TDD O-RU-B data at 30.5 dBm in Li et al., "Energy Efficiency
+# Testing and Power Modeling of O-RAN Radio Units" (IEEE FNWF 2025, Table II).
+# PRB is only a fallback if the interval-energy trace is temporarily absent.
 _ORU_POWER_MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                      "oru_power_model.json")
 _ORU_POWER_MODEL_FALLBACK = {
-    "profile": "reference-mmwave-o-ru-v1",
-    "kind": "affine-prb-with-deep-sleep",
-    "active_base_w": 350.0,
-    "dynamic_full_load_w": 100.0,
-    "deep_sleep_w": 75.0,
-    "description": "Reference-only PRB-based O-RU supply-power model.",
-    "calibration_note": "Replace with measured O-RU values before using absolute W or Wh results.",
+    "profile": "fnwf-2025-oru-b-30.5dbm-v1",
+    "kind": "measured-curve-calibrated-sim-trace-with-sleep",
+    "prb_utilisation_percent": [0.0, 30.0, 50.0, 100.0],
+    "active_power_w": [57.4, 62.5, 66.1, 71.7],
+    "sleep_power_w": 14.3,
+    "simulator_active_idle_w": 2706.25,
+    "simulator_active_full_w": 3330.0,
+    "description": "Measured 4-chain 100 MHz TDD active-power curve driven by the ns-3 energy-trace slope, with a non-zero advanced-sleep estimate.",
+    "source": "Li et al., IEEE FNWF 2025, Table II (30.5 dBm row); simulator anchors use the pinned active-idle baseline and validated 3.33 kW upper active envelope; sleep <=20% of full-load power follows Usman et al., IEEE CCNC 2025.",
 }
 
 
+def _validate_oru_power_model(model):
+    """Return a normalized piecewise power profile or raise ValueError."""
+    if not isinstance(model, dict):
+        raise ValueError("power model must be an object")
+    profile = model.get("profile")
+    if not isinstance(profile, str) or not profile:
+        raise ValueError("profile must be a non-empty string")
+
+    utilisation = model.get("prb_utilisation_percent")
+    active_power = model.get("active_power_w")
+    if not isinstance(utilisation, list) or not isinstance(active_power, list):
+        raise ValueError("power curve fields must be arrays")
+    if len(utilisation) < 2 or len(utilisation) != len(active_power):
+        raise ValueError("power curve arrays must have equal length >= 2")
+    try:
+        utilisation = [float(value) for value in utilisation]
+        active_power = [float(value) for value in active_power]
+        sleep_power = float(model["sleep_power_w"])
+        simulator_idle = float(model["simulator_active_idle_w"])
+        simulator_full = float(model["simulator_active_full_w"])
+    except (TypeError, ValueError, KeyError) as exc:
+        raise ValueError("power curve values must be numeric") from exc
+    if not all(math.isfinite(value)
+               for value in utilisation + active_power +
+               [sleep_power, simulator_idle, simulator_full]):
+        raise ValueError("power curve values must be finite")
+    if utilisation[0] != 0.0 or utilisation[-1] != 100.0:
+        raise ValueError("power curve must cover 0..100% PRB")
+    if any(right <= left for left, right
+           in zip(utilisation, utilisation[1:])):
+        raise ValueError("PRB knots must be strictly increasing")
+    if any(value < 0 for value in active_power) or sleep_power < 0:
+        raise ValueError("power values must be non-negative")
+    if any(right < left for left, right
+           in zip(active_power, active_power[1:])):
+        raise ValueError("active power must not decrease with PRB load")
+    if sleep_power > active_power[0]:
+        raise ValueError("sleep power must not exceed active-idle power")
+    if simulator_idle < 0 or simulator_full <= simulator_idle:
+        raise ValueError("simulator energy anchors must satisfy 0 <= idle < full")
+
+    normalized = dict(model)
+    normalized["prb_utilisation_percent"] = utilisation
+    normalized["active_power_w"] = active_power
+    normalized["sleep_power_w"] = sleep_power
+    normalized["simulator_active_idle_w"] = simulator_idle
+    normalized["simulator_active_full_w"] = simulator_full
+    return normalized
+
+
 def load_oru_power_model():
-    """Return a safe, explicit O-RU reference power profile for the GUI."""
+    """Return the measured reference profile, falling back to the same curve."""
     try:
         with open(_ORU_POWER_MODEL_PATH, encoding="utf-8") as f:
             model = json.load(f)
-        for field in ("active_base_w", "dynamic_full_load_w", "deep_sleep_w"):
-            value = float(model[field])
-            if value < 0:
-                raise ValueError(f"{field} must be non-negative")
-            model[field] = value
-        if not isinstance(model.get("profile"), str) or not model["profile"]:
-            raise ValueError("profile must be a non-empty string")
-        return model
+        return _validate_oru_power_model(model)
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        print(f"[GUI] Invalid O-RU power model ({exc}); using reference fallback")
-        return dict(_ORU_POWER_MODEL_FALLBACK)
+        print(f"[GUI] Invalid O-RU power model ({exc}); using measured fallback")
+        return _validate_oru_power_model(dict(_ORU_POWER_MODEL_FALLBACK))
+
+
+def _measured_sleep_state(value):
+    """Map the gnbs.txt/Influx energy-state value to bool; unknown stays None."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        value = value.strip().lower()
+        if value in ("true", "1"):
+            return True
+        if value in ("false", "0"):
+            return False
+        return None
+    if isinstance(value, (int, float)) and math.isfinite(float(value)):
+        if float(value) == 1.0:
+            return True
+        if float(value) == 0.0:
+            return False
+    return None
+
+
+def estimate_oru_power(prb_utilisation, es_state, model,
+                       simulator_active_power=None):
+    """Estimate supply power from measured state and calibrated load shape."""
+    sleeping = _measured_sleep_state(es_state)
+    if sleeping is None:
+        return None
+    if sleeping:
+        return model["sleep_power_w"]
+    try:
+        simulator_power = float(simulator_active_power)
+    except (TypeError, ValueError):
+        simulator_power = None
+    if simulator_power is not None and math.isfinite(simulator_power):
+        idle = model["simulator_active_idle_w"]
+        full = model["simulator_active_full_w"]
+        utilisation = 100.0 * (simulator_power - idle) / (full - idle)
+    else:
+        try:
+            utilisation = float(prb_utilisation)
+        except (TypeError, ValueError):
+            return None
+    if not math.isfinite(utilisation):
+        return None
+    utilisation = min(100.0, max(0.0, utilisation))
+    knots = model["prb_utilisation_percent"]
+    powers = model["active_power_w"]
+    for index in range(1, len(knots)):
+        if utilisation <= knots[index]:
+            left_x, right_x = knots[index - 1], knots[index]
+            fraction = (utilisation - left_x) / (right_x - left_x)
+            return powers[index - 1] + fraction * (
+                powers[index] - powers[index - 1])
+    return powers[-1]
+
+
+_ENERGY_TRACE_SAMPLE = {}
+_ENERGY_TRACE_POWER = {}
+_POWER_INTERVAL_CACHE = {}
+
+
+def _read_last_energy_trace_sample(path):
+    """Read the last complete time,total-energy row without loading the file."""
+    try:
+        with open(path, "rb") as file:
+            file.seek(0, os.SEEK_END)
+            end = file.tell()
+            if end == 0:
+                return None
+            position = end - 1
+            while position > 0:
+                file.seek(position)
+                if file.read(1) == b"\n" and position < end - 1:
+                    break
+                position -= 1
+            file.seek(position + 1 if position > 0 else 0)
+            row = file.readline().decode("utf-8", errors="replace").strip().split(",")
+        if len(row) < 2 or row[0].lower().startswith("time"):
+            return None
+        sim_time, total_energy = float(row[0]), float(row[1])
+        if not math.isfinite(sim_time) or not math.isfinite(total_energy):
+            return None
+        return sim_time, total_energy
+    except (OSError, ValueError):
+        return None
+
+
+def load_live_simulator_power(host_data_dir=HOST_DATA_DIR):
+    """Return per-cell W from the slope of the old ns-3 cumulative-energy trace."""
+    for cell_id in VALID_SLEEP_CELLS:
+        path = os.path.join(host_data_dir, f"energyfilecell{cell_id}.csv")
+        sample = _read_last_energy_trace_sample(path)
+        if sample is None:
+            continue
+        previous = _ENERGY_TRACE_SAMPLE.get(cell_id)
+        if previous is not None:
+            delta_time = sample[0] - previous[0]
+            delta_energy = sample[1] - previous[1]
+            if delta_time > 0 and delta_energy >= 0:
+                power = delta_energy / delta_time
+                if math.isfinite(power):
+                    _ENERGY_TRACE_POWER[cell_id] = power
+            elif delta_time < 0 or delta_energy < 0:
+                _ENERGY_TRACE_POWER.pop(cell_id, None)
+        _ENERGY_TRACE_SAMPLE[cell_id] = sample
+    return dict(_ENERGY_TRACE_POWER)
+
+
+def load_oru_power_intervals(model, host_data_dir=HOST_DATA_DIR):
+    """Return calibrated power for every complete ns-3 energy interval.
+
+    The cumulative trace describes the interval average between adjacent rows.
+    Returning intervals, rather than only poll-time snapshots, preserves the
+    real 0 s origin and prevents a sleep transition from being drawn as a long
+    diagonal across a period in which the GUI happened not to poll.
+    """
+    result = {}
+    bin_size = 0.05
+    sleep_threshold = 0.5 * model["simulator_active_idle_w"]
+    model_key = json.dumps(model, sort_keys=True)
+    for cell_id in VALID_SLEEP_CELLS:
+        path = os.path.join(host_data_dir, f"energyfilecell{cell_id}.csv")
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+        cache_key = (path, stat.st_mtime_ns, stat.st_size, model_key)
+        cached = _POWER_INTERVAL_CACHE.get(cell_id)
+        if cached and cached[0] == cache_key:
+            result[cell_id] = cached[1]
+            continue
+        samples = []
+        try:
+            with open(path, encoding="utf-8", errors="replace") as file:
+                for line in file:
+                    columns = line.strip().split(",")
+                    try:
+                        sim_time = float(columns[0])
+                        total_energy = float(columns[1])
+                    except (ValueError, IndexError):
+                        continue
+                    if (math.isfinite(sim_time) and
+                            math.isfinite(total_energy)):
+                        samples.append((sim_time, total_energy))
+        except OSError:
+            continue
+        # State-change callbacks write at sub-millisecond granularity. Collapse
+        # equal timestamps, then integrate them into stable 50 ms averages;
+        # plotting adjacent callbacks directly would show the PHY's individual
+        # idle/TX states as an artificial 14--72 W square wave.
+        consolidated = []
+        for sample in samples:
+            if consolidated and sample[0] == consolidated[-1][0]:
+                consolidated[-1] = sample
+            elif not consolidated or sample[0] > consolidated[-1][0]:
+                consolidated.append(sample)
+        if len(consolidated) < 2:
+            continue
+
+        cursor = 0
+
+        def energy_at(sim_time):
+            nonlocal cursor
+            while (cursor + 1 < len(consolidated) and
+                   consolidated[cursor + 1][0] < sim_time):
+                cursor += 1
+            if cursor + 1 >= len(consolidated):
+                return consolidated[-1][1]
+            left, right = consolidated[cursor], consolidated[cursor + 1]
+            if sim_time <= left[0]:
+                return left[1]
+            duration = right[0] - left[0]
+            if duration <= 0:
+                return right[1]
+            fraction = (sim_time - left[0]) / duration
+            return left[1] + fraction * (right[1] - left[1])
+
+        raw_intervals = []
+        start = (0.0 if consolidated[0][0] < bin_size
+                 else consolidated[0][0])
+        end_limit = math.floor(
+            consolidated[-1][0] / bin_size + 1e-6) * bin_size
+        while start < end_limit - 1e-9:
+            end = min(end_limit, start + bin_size)
+            start_energy = energy_at(start)
+            end_energy = energy_at(end)
+            simulator_power = (end_energy - start_energy) / (end - start)
+            if math.isfinite(simulator_power) and simulator_power >= 0:
+                raw_intervals.append({
+                    "start": start,
+                    "end": end,
+                    "simulator_power": simulator_power,
+                })
+            start = end
+
+        # The energy model's lowest PHY state is also used for ordinary idle,
+        # so one low bin is not evidence of NES. Only a sustained, non-startup
+        # low-power run is classified as sleep.
+        sleep_indexes = set()
+        run_start = None
+        for index in range(len(raw_intervals) + 1):
+            is_low = (index < len(raw_intervals) and
+                      raw_intervals[index]["simulator_power"] <
+                      sleep_threshold)
+            if is_low and run_start is None:
+                run_start = index
+            if not is_low and run_start is not None:
+                first = raw_intervals[run_start]["start"]
+                last = raw_intervals[index - 1]["end"]
+                if first >= 0.5 - 1e-9 and last - first >= 0.2 - 1e-9:
+                    sleep_indexes.update(range(run_start, index))
+                run_start = None
+
+        intervals = []
+        for index, interval in enumerate(raw_intervals):
+            power = estimate_oru_power(
+                None, 1 if index in sleep_indexes else 0, model,
+                interval["simulator_power"])
+            if power is not None:
+                intervals.append({
+                    "start": interval["start"],
+                    "end": interval["end"],
+                    "value": power,
+                })
+        if intervals:
+            result[cell_id] = intervals
+            _POWER_INTERVAL_CACHE[cell_id] = (cache_key, intervals)
+    return result
+
+
+def load_latest_pdcp_throughput(host_data_dir=HOST_DATA_DIR):
+    """Return the latest complete 0.25 s per-UE PDCP throughput bin.
+
+    DlPdcpStats is the authoritative source used by the offline Fig.4 plot.
+    Requiring all four UEs from the same completed bin prevents a partially
+    written interval from appearing in the live GUI.
+    """
+    path = os.path.join(host_data_dir, "DlPdcpStats.txt")
+    bins = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as file:
+            for line in file:
+                if not line or line.startswith("%"):
+                    continue
+                columns = line.split()
+                try:
+                    start = float(columns[0])
+                    end = float(columns[1])
+                    ue_id = int(columns[3])
+                    rx_bytes = float(columns[9])
+                except (ValueError, IndexError):
+                    continue
+                duration = end - start
+                if (ue_id not in range(1, ARTIFACT_N_UE + 1) or
+                        duration <= 0 or
+                        not all(math.isfinite(value)
+                                for value in (start, end, rx_bytes))):
+                    continue
+                bins.setdefault(end, {})[ue_id] = \
+                    rx_bytes * 8.0 / duration / 1e6
+    except OSError:
+        return {}, None
+    complete = [
+        (sample_time, values)
+        for sample_time, values in bins.items()
+        if len(values) == ARTIFACT_N_UE
+    ]
+    if not complete:
+        return {}, None
+    sample_time, values = max(complete, key=lambda item: item[0])
+    return values, sample_time
+
+
+def load_pdcp_throughput_series(host_data_dir=HOST_DATA_DIR):
+    """Return all complete four-UE PDCP bins as timestamped points."""
+    path = os.path.join(host_data_dir, "DlPdcpStats.txt")
+    bins = {}
+    starts = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as file:
+            for line in file:
+                if not line or line.startswith("%"):
+                    continue
+                columns = line.split()
+                try:
+                    start = float(columns[0])
+                    end = float(columns[1])
+                    ue_id = int(columns[3])
+                    rx_bytes = float(columns[9])
+                except (ValueError, IndexError):
+                    continue
+                duration = end - start
+                if (ue_id not in range(1, ARTIFACT_N_UE + 1) or
+                        duration <= 0 or
+                        not all(math.isfinite(value)
+                                for value in (start, end, rx_bytes))):
+                    continue
+                bins.setdefault(end, {})[ue_id] = \
+                    rx_bytes * 8.0 / duration / 1e6
+                starts[end] = start
+    except OSError:
+        return {}
+    complete = sorted(
+        (end, values)
+        for end, values in bins.items()
+        if len(values) == ARTIFACT_N_UE
+    )
+    result = {ue_id: [] for ue_id in range(1, ARTIFACT_N_UE + 1)}
+    for index, (end, values) in enumerate(complete):
+        if index == 0:
+            for ue_id in result:
+                result[ue_id].append({
+                    "time": starts[end],
+                    "value": values[ue_id],
+                })
+        for ue_id in result:
+            result[ue_id].append({"time": end, "value": values[ue_id]})
+    return result
 
 
 # The ns-3 host launcher (ports 38866 start / 38867 stop) is OUTSIDE this
@@ -224,13 +586,28 @@ async def refresh_data(request: Request, simulation: Simulation = Depends(get_si
     updated_simulation = SimulationManager.get_simulation()
     if (updated_simulation.number_of_ues == 0 or updated_simulation.number_of_cells == 0) and updated_simulation.simulation_status == 'on':
         updated_simulation.set_ue_cell_number()
+    power_model = load_oru_power_model()
+    simulator_power = load_live_simulator_power()
+    power_intervals = load_oru_power_intervals(power_model)
+    simulator_sample_time = {
+        cell_id: sample[0]
+        for cell_id, sample in _ENERGY_TRACE_SAMPLE.items()
+        if cell_id in VALID_SLEEP_CELLS
+    }
+    pdcp_throughput, pdcp_sample_time = load_latest_pdcp_throughput()
+    pdcp_series = load_pdcp_throughput_series()
     es_state = {}
     sinr = {}
     retx = {}
     prb = {}
+    oru_power = {}
     for cell in updated_simulation.cells:
         es_state[cell.cell_id] = cell.es_state
         prb[cell.cell_id] = cell.dlPrbUsage_percentage
+        if cell.cell_id in VALID_SLEEP_CELLS:
+            oru_power[cell.cell_id] = estimate_oru_power(
+                cell.dlPrbUsage_percentage, cell.es_state, power_model,
+                simulator_power.get(cell.cell_id))
     for ue in updated_simulation.ues:
         sinr[ue.ue_id] = ue.L3servingSINR_dB
         retx[ue.ue_id] = ue.ErrTotalNbrDl
@@ -248,9 +625,16 @@ async def refresh_data(request: Request, simulation: Simulation = Depends(get_si
         "current_power": updated_simulation.current_power,
         "maxec": updated_simulation.maxec,
         "totalcurrec": updated_simulation.totalcurrec,
-        # Reload so a calibrated JSON profile takes effect on the next GUI poll
-        # without requiring a container restart.
-        "oru_power_model": load_oru_power_model(),
+        # Reloaded on each poll so a device-specific calibration can be swapped
+        # in without restarting the GUI container.
+        "oru_power_model": power_model,
+        "oru_power": oru_power,
+        "oru_simulator_power": simulator_power,
+        "oru_simulator_sample_time": simulator_sample_time,
+        "oru_power_intervals": power_intervals,
+        "ue_pdcp_throughput_mbps": pdcp_throughput,
+        "ue_pdcp_sample_time": pdcp_sample_time,
+        "ue_pdcp_throughput_series": pdcp_series,
         "simulation_status": updated_simulation.simulation_status,
     }
 
