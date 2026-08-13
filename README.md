@@ -60,6 +60,15 @@ For browser-only use, run
 
 ## Final paper artifacts
 
+The paper's reference [15] resolves to this repository. The cited implementation
+details are split across the pinned [`install/`](install/) overlays for
+ns-O-RAN/FlexRIC, the unified controller and current solvers under
+[`flexric/xApp/`](flexric/xApp/), the reusable assignment circuits described in
+[Current quantum assignment circuits](#current-quantum-assignment-circuits), and
+the figure artifacts and runtime derivations below. Frozen paper artifacts and
+the current `HEAD` implementation are identified separately wherever they are
+not bit-for-bit equivalent.
+
 ### Fig. 4: 100-run near-RT control
 
 ![Fig. 4 weighted-AA 100-run result](fig4_ppt/fig4_weighted_100run_combined.png)
@@ -101,6 +110,138 @@ The stored 100-run artifact has frozen execution hashes. The current solver
 source has evolved since that batch, so a run from `HEAD` is a new
 protocol-level experiment, not a bit-for-bit reproduction of the frozen raw
 batch. See the provenance file before making an exact-reproduction claim.
+
+### Fig. 4 QPU-active-time projection
+
+The paper's `58.4 ms` result is a hardware-aware projection of the complete
+candidate-generation workload used by the coordination analysis. It is not the
+measured `~24.5 s` wall-clock time of the SDK-based CPU Statevector
+implementation, a single circuit-shot duration, or a measurement from a live
+IBM job. It is also distinct from the `1.888020 ms` single-`AQ`, `44.910600 ms`
+top-1-optimum, `1.045400832 s` adaptive-batch, and analytical
+`O(log^2 N)` crossover figures. The projected workload uses six spatial copies
+of the selected full circuit.
+
+#### Candidate criterion
+
+The candidate semantics are fixed to the paper workload: a raw sample is
+accepted only when `aux == 0`, accepted assignments are checked classically for
+feasibility, duplicates are removed, and the remaining feasible assignments are
+ranked by classical utility. The target is 16 distinct feasible candidates.
+The exact finite-shot occupancy calculation requires **114 independent raw
+samples** to reach that target with probability at least 95%; `114` is therefore
+the top-16 sampling requirement, not an arbitrary shot count.
+
+#### Fez mapping
+
+For this projection, the selected 17-logical-qubit circuit consists of the
+initial weighted state-preparation block followed by two amplification blocks
+(`AQ²`). Six complete copies are composed on disjoint logical registers, with
+no shared ancillas or inter-copy gates. The composite therefore uses
+`6 x 17 = 102` logical qubits and returns six independent candidate samples per
+shot without changing their distribution.
+
+The composite was mapped to a frozen `ibm_fez` target snapshot rather than
+submitted to a live QPU. The target records 156 physical qubits, Heron r2,
+backend version `1.2.8`, properties timestamp
+`2025-02-26T15:16:25-05:00`, and `dt = 4 ns`; the QPU-specific snapshot came
+from the official `qiskit-ibm-runtime 0.48.0` package. Qiskit `1.2.4`,
+transpiler optimization level `2`, `seed_transpiler = 2`, and ASAP scheduling
+produce a Fez-native six-copy circuit with `175,316` `cz` gates, depth `82,444`,
+and scheduled composite duration `3.073008 ms`.
+
+#### 58.4-ms calculation
+
+The six samples returned by each composite shot reduce the sequential shot
+count using an integer ceiling:
+
+```text
+required independent samples = 114
+samples per composite shot   = 6
+composite shots              = ceil(114 / 6) = 19
+
+projected QPU-active time
+= 19 composite shots x 3.073008 ms/composite shot
+= 58.387152 ms
+~= 58.4 ms
+```
+
+`R = 6` was not chosen by assuming ideal `1/R` scaling. Composite circuits for
+`R = 1..9` were actually transpiled on the 156-qubit target with the fixed
+level-2 seed. Layout and routing changed the critical path, so the scheduled
+duration was non-monotonic; `R = 6` was the minimum observed active wall-clock:
+
+| Copies `R` | Logical qubits | Composite duration | Composite shots | Projected active time |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 17 | 2.809632 ms | 114 | 320.298048 ms |
+| 4 | 68 | 2.690568 ms | 29 | 78.026472 ms |
+| 5 | 85 | 6.465652 ms | 23 | 148.709996 ms |
+| **6** | **102** | **3.073008 ms** | **19** | **58.387152 ms** |
+| 8 | 136 | 4.179032 ms | 15 | 62.685480 ms |
+| 9 | 153 | 5.764020 ms | 13 | 74.932260 ms |
+
+#### Scope
+
+The scheduled makespan includes mapped native gates, measurement duration, and
+scheduler-inserted idle `delay`. It excludes reset between shots, repetition
+delay, host/QPU feedback, job queueing, network transport, E2/control-path
+latency, and live-device noise, drift, or crosstalk. Accordingly, `58.4 ms` is
+a **projected QPU-active time**, not end-to-end latency or a live-device
+guarantee. The `~24.5 s` CPU Statevector wall-clock and this scheduled QPU
+projection use different execution definitions, so their ratio is not a
+measured speedup. Their large numerical difference mainly reflects replacing
+numerical CPU Statevector evolution with scheduled native-gate execution, not
+an empirical end-to-end acceleration result.
+
+This hardware-aware projection is separate from the analytical scalability
+model that compares projected `O(log^2 N)` quantum depth with the `O(N^3)`
+Hungarian reference and places the paper's projected crossover at `N = 14-16`.
+Frozen Fez gate durations are not used to derive that analytical crossover, and
+neither result describes the current `HEAD` default solver as a measured
+hardware advantage.
+
+### Analytical scalability model
+
+The paper's `N = 14-16` statement is an analytical, qubit-rich spatial-workspace
+projection, not a benchmark on `ibm_fez`. Independent resource-local workspaces
+are evaluated in parallel and combined with balanced reversible reductions. For
+problem size `n`, the model uses
+
+```text
+h = log2(n)
+P(n) = 2 h (h + 1)
+
+Traffic Steering:
+  m = max(2, n / 10), k = log2(m)
+  D_TS(n) = P(n) + 4 log2(k) + 2h + 2k
+            + 2 log2(m + n) + 2 log2(nm) + 2 log2(nk - 1) + 4
+
+Network Energy Saving:
+  D_NES(n) = 2 P(n) + 4 log2(h)
+             + 2 log2(n + 1) + 2 log2(n - 1) + 4
+
+QoS resource allocation (N_UE = R_DRB = n):
+  D_QoS(n) = P(n) + 4 log2(h) + 10h + 2 log2(nh - 1) + 6
+
+t_quantum(n) = 12.5 ns x D(n)
+t_Hungarian(n) = 0.364 ns x n^3
+```
+
+Under those assumptions, the smooth-log first crossings are `n = 14` for
+Traffic Steering and `n = 16` for both Network Energy Saving and QoS resource
+allocation. The accounting assigns one T-depth layer and four T gates to each
+relative-phase Toffoli and omits Clifford gates from T-depth. The `12.5 ns`
+factor is an effective analytical gate-layer latency, not a measured physical
+or fault-tolerant logical-gate duration. Likewise, `0.364 ns x n^3` is the
+analytical `n x 2n` rectangular-Hungarian normalization obtained from the
+external `0.182 ns` square coefficient, not a measurement of this repository's
+Hungarian implementation. At `50 ns` per layer the respective crossings shift
+to approximately `24`, `27`, and `27`.
+
+These smooth-log curves model a separate spatial-workspace circuit architecture;
+that reduced architecture is not implemented by the current `HEAD` solver
+circuits. They describe a time-space tradeoff with sufficient logical qubits,
+not present-day hardware advantage.
 
 ### Fig. 5: final limited-projection release
 
