@@ -182,162 +182,64 @@ reproduction instructions are indexed in [`fig5/README.md`](fig5/README.md).
 
 ---
 
-## 4. Quantum Assignment Engine
+## 4. Current Quantum Circuits
 
-The **assignment subproblem** of each use case (not the whole controller —
-this is a hybrid pipeline, see below) is computed by a Grover-style quantum
-solver with constraint oracles and utility-weighted amplification:
+Q-xApp documents two current weighted-amplitude-amplification circuits: the
+controller-default assignment circuit and its weighted-resource extension.
 
-| Use case | Solver | Problem | Current `main` | Final Fig. 4 frozen batch |
-|----------|--------|---------|----------------|---------------------------|
-| TS | [`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py) | 4 UE × 3 cells | 17-qubit canonical v5 weighted-AA; 15-qubit preserved v4.1 via `--legacy-two-stage` | 17-qubit weighted-AA |
-| NES | [`flexric/xApp/dqna_42.py`](flexric/xApp/dqna_42.py) | 4 UE × 2 awake cells | 10-qubit preserved two-stage path | 5-qubit weighted-AA |
-| QoS-RA | [`flexric/xApp/dqna_qos.py`](flexric/xApp/dqna_qos.py) | 2 UE × 4 DRBs per O-RU | 8 qubits | 8 qubits |
+| Circuit | Purpose | Status |
+|---|---|---|
+| **Assignment** | Assign 4 UEs to 3 O-RUs under a maximum-UE-per-O-RU constraint | Current TS controller default |
+| **Assignment + Knapsack constraints** | Add heterogeneous UE PRB demands and an independent PRB budget for each O-RU | Explicit weighted-PRB validation path |
 
-The final-batch column is tied to the executed file hashes in the provenance
-record. In particular, the 5-qubit NES result belongs to the frozen weighted-AA
-solver blob and must not be inferred from the current 10-qubit `dqna_42.py`.
+### Latest assignment circuit
 
-### TS circuit evolution: legacy and weighted-AA
+The default TS solver is a **17-qubit full-state weighted-AA circuit** for the
+4-UE x 3-O-RU assignment problem. Its register layout is 8 assignment qubits,
+7 reusable constraint/utility qubits, one phase target, and one clean MCX
+synthesis ancilla.
 
-Three different artifacts must not be conflated: the early 18-qubit picture is
-a conceptual schematic, the preserved v4.1 runtime is a 15-qubit two-stage
-circuit, and the current default is the 17-qubit v5 adaptive weighted-AA path.
+`V3^x4` prepares only the three valid O-RU labels for each UE. The state
+preparation unitary `A` then computes the per-O-RU UE-cap constraint and
+encodes the sum-rate preference with utility rotations. Adaptive amplitude
+amplification samples feasible candidates; every candidate is checked again
+classically, and the returned assignment is the candidate with the highest raw
+sum rate.
 
-| Circuit artifact/path | Status | TS qubits | Meaning |
-|---|---|---:|---|
-| Early BS-UE conceptual diagram | Historical illustration only | 18 in the figure label | Hand-drawn state-preparation / constraint / objective / diffusion concept; not invoked by Q-xApp |
-| v4.1 `legacy-two-stage` | Preserved opt-in runtime | 15 | Feasibility and utility amplification run sequentially in one circuit, with no intermediate measurement |
-| v5 adaptive full-state weighted-AA | **Current canonical default** | 17 logical | State preparation `A`, full-domain reflections, adaptive rounds, finite-shot candidates, and classical raw-objective re-scoring |
+- Implementation: [`dqna_ts.py`](flexric/xApp/dqna_ts.py)
+- Resource profile: [`v5_resource_table.csv`](reports/v5_resource_table.csv)
+- Current method: `quantum-fullA-17q-valid3-caponly-weightedAA-v5`
 
-```mermaid
-flowchart TB
-  subgraph LEGACY["Preserved legacy v4.1 - 15 qubits"]
-    L0["Assignment superposition"] --> L1["Feasibility oracle and assignment diffuser"]
-    L1 --> L2["Stage boundary: no measurement"]
-    L2 --> L3["Utility oracle and assignment diffuser"]
-    L3 --> L4["Exact statevector marginalization"]
-    L4 --> L5["Top-20 classical feasibility and raw-objective re-score"]
-  end
+### Latest assignment circuit with Knapsack constraints
 
-  subgraph CURRENT["Current canonical v5 weighted-AA - 17 logical qubits"]
-    C0["V3 x 4 valid-assignment preparation"] --> C1["Feasibility compute into bad register"]
-    C1 --> C2["Row-shift utility rotations into cost register"]
-    C2 --> C3["Prepared state A|0>"]
-    C3 --> C4["Adaptive Q rounds: S_G -> A† -> S_0 -> A"]
-    C4 --> C5["Finite-shot candidate sampling"]
-    C5 --> C6["Classical feasibility check and raw-objective re-score"]
-  end
+The weighted-resource extension turns the same UE-to-O-RU assignment into a
+generalized-assignment / multiple-knapsack problem. For every O-RU `c`, the
+reversible hard constraint is
+
+```text
+sum_u demand[u,c] * [UE u is assigned to O-RU c] <= budget[c].
 ```
 
-The canonical v5 implementation and resource table are
-[`dqna_ts.py`](flexric/xApp/dqna_ts.py) and
-[`reports/v5_resource_table.csv`](reports/v5_resource_table.csv). The related
-explicit `--solver-mode weighted-aa` / weighted-PRB validation implementation
-is in [`dqna_modes.py`](flexric/xApp/dqna_modes.py) and
-[`dqna_constraints.py`](flexric/xApp/dqna_constraints.py), with its comparison
-resources in
-[`reports/combined_circuit_resources.csv`](reports/combined_circuit_resources.csv).
+The representative 4-UE x 3-O-RU circuit uses **18 qubits**: 8 assignment
+qubits, a 5-qubit shared arithmetic/utility workspace, 3 violation qubits, one
+phase target, and one clean synthesis ancilla. The weighted-PRB oracle rejects
+assignments that exceed any O-RU budget, while the full-state weighted-AA path
+amplifies feasible high-utility assignments and returns a classically verified
+candidate.
 
-![Legacy and formal weighted-AA validation](reports/solver_validation_figure.png)
+- Implementation: [`dqna_modes.py`](flexric/xApp/dqna_modes.py) and
+  [`dqna_constraints.py`](flexric/xApp/dqna_constraints.py)
+- Mode: `--solver-mode weighted-aa --constraint-mode weighted-prb`
+- Representative resources: 18 qubits, depth 10,726, and 9,355 CX gates at
+  three amplification rounds in
+  [`combined_circuit_resources.csv`](reports/combined_circuit_resources.csv)
 
-*This comparison figure validates the separate formal weighted-AA construction;
-it is not the canonical adaptive-v5 runtime circuit diagram. The measurements
-are from ideal simulation, not a QPU.*
-
-<details>
-<summary>Historical 18-qubit conceptual circuit</summary>
-
-![Historical conceptual BS-UE matching circuit](docs/assets/quantum-circuit-legacy-concept.png)
-
-This archived one-iteration schematic predates the production `dqna_*`
-solvers. It must not be used as the resource count or topology of the current
-xApp. The retained standalone [`bs_ue_matching.py`](bs_ue_matching.py)
-prototype later evolved to a different 26-qubit layout and is not called by
-the unified controller.
-
-</details>
-
-Constraints (per-cell UE caps, distinct DRBs) are enforced by a feasibility
-oracle that gates the utility kickback; utilities use an exponential encoding
-(sum-monotone for TS/NES, per-UE-normalized for QoS-RA with classical
-re-scoring on the raw objective).
-
-**Validation (every number below is regenerated by a tracked harness; the
-machine-readable claim → command → report map is
-[`docs/validation_matrix.json`](docs/validation_matrix.json)):**
-
-- **TS** — the canonical solver is the v5 full-state weighted amplitude
-  amplification (the bare no-flag default; frozen quality-first settings
-  λ=3.0, 20 candidates). On the one-shot 1,060-case unseen final holdout it
-  produced **0/1,060 no-candidate**, feasible output on 1,060/1,060,
-  **exact-optimum on 89.15%** [87.1, 90.9] with mean score ratio 0.99956
-  (min 0.941) — an exact-optimum guarantee is NOT claimed. The preserved
-  legacy v4.1 two-stage path (`--legacy-two-stage`) matches its recorded
-  goldens byte-for-byte. Harness: `scripts/validate_dqna_ts.py`
-  (S0 acceptance `--v5-stage all`, holdout `--v5-stage holdout`).
-- **NES** — brute-force-optimal score on **306/306** cases of the
-  deterministic seed-20260721 suite (`scripts/validate_nes_suite.py`).
-- **QoS-RA** — brute-force-optimal score on the full exhaustive
-  {0,1,10}^8 input grid, **6,561/6,561** (477 flat-row classical
-  reductions + 6,084 quantum-path cases,
-  `scripts/validate_qos_exhaustive.py`).
-
-The latest 100-run Fig.4 cycle runs end-to-end with all three quantum assignment
-subproblems (TS, NES, QoS-RA) active in one cycle and zero solver fallbacks
-on those three paths — "all-three quantum E2E" means exactly that (the three
-solver subpaths were active in one cycle with zero subpath fallbacks), not
-that the whole controller is quantum — see
-[`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md). This is a
-**hybrid pipeline**: the TS/NES/QoS assignment subproblems use the quantum
-solvers, while the controller also uses classical logic for sleep-candidate
-selection, lone-UE exact DRB handling, top-K re-scoring on the raw
-objective, and **post-wake recovery** — post-wake re-steering is a
-deterministic classical policy by design (recompute on fresh measurements,
-one-shot RC handover for mismatched UEs, fresh confirmation; not a solver
-fallback). The classical greedy/DRB matchers also serve as automatic
-fallbacks if a quantum solver fails on a given decision, counted separately.
-
-> **TS integration repaired (2026-07-21).** The controller previously invoked
-> the TS solver with the legacy `--feas-iter/--qual-iter` arguments that the
-> v5 default solver rejects, and enforced a 10 s deadline below the recorded
-> v5 statevector runtime — so in a correctly provisioned Qiskit environment the
-> TS path would have fallen back to greedy. `qxapp_unified.c` now uses the
-> explicit v5 adaptive arguments, requires the exact v5 method string
-> `quantum-fullA-17q-valid3-caponly-weightedAA-v5` and the machine-readable
-> capability fields (fail-closed), and uses a backend-aware,
-> env-configurable deadline (`QXAPP_TS_TIMEOUT_S`, default 30 s). When the
-> quantum TS path is enabled and the configured deadline is below the reference
-> p95, startup is REJECTED fail-closed (override only via an exact
-> `QXAPP_TS_ALLOW_TIGHT_DEADLINE=1`); a quantum-disabled deployment is not
-> blocked. Each fallback is classified by a specific reason
-> (`invalid-cli / timeout / nonzero-exit / no-candidate / parse-failure /
-> method-mismatch / capability-unsupported / feasibility-reject`). The earlier
-> single-run all-three E2E record in the validation history predates this
-> repair. The final 100-run paper artifact above is a later, separately pinned
-> batch with zero recorded fallbacks; its exact controller and solver hashes
-> are recorded in `fig4_ppt/PROVENANCE_100RUN.md`. It is evidence for that
-> frozen paper batch, not a fresh validation run of the current `main` strict
-> capability gate. Offline C↔Python contract tests that do not need FlexRIC:
-> `scripts/validate_ts_c_contract.py`. See the "Next-revision engineering"
-> section of
-> [`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md).
-
-**Statevector backend** — the canonical execution engine is
-`qiskit.quantum_info.Statevector.from_instruction` (the *reference*
-backend); all canonical results above use it. An **opt-in experimental**
-Qiskit-Aer engine (`--sv-backend aer`) is equivalent within 1e-12 in state
-fidelity and probabilities but is **not a bit-identical drop-in
-replacement** (on exact ties, top-K order/set and equal-score tie-break
-picks can differ), so canonical results stay on reference. Aer speeds up a
-*single* 15-qubit circuit evaluation by ~40× but the full adaptive-v5
-end-to-end solve by only ~5% (its runtime is dominated by classical
-sampling over cached statevectors) — kernel speedups are not solver
-speedups. These are offline simulator numbers: no QPU execution, no
-near-RT-latency or quantum-advantage claim. Requires Python with `qiskit`
-(validated with qiskit 1.2.4; lock in
-[`install/solver_requirements.txt`](install/solver_requirements.txt)); the
-solver interpreter path is set via `QXAPP_PY`.
+The first circuit is the current GUI/controller TS path. The Knapsack-constrained
+circuit is a separately selected validation path and is not the default Fig. 4
+runtime. Both results use ideal Qiskit Statevector simulation; they are not QPU
+executions and do not establish quantum computational advantage. The tracked
+claim-to-command mapping is in
+[`docs/validation_matrix.json`](docs/validation_matrix.json).
 
 ---
 
@@ -683,6 +585,9 @@ Q-xApp/
 ├── flexric/xApp/
 │   ├── qxapp_common.h              # Shared: RC SM messages, CSV parsing, SINR/rate
 │   ├── qxapp_unified.c             # Unified xApp: TS + NES + QoS-RA (Fig. 2 pipeline)
+│   ├── dqna_ts.py                   # current 17-qubit assignment weighted-AA
+│   ├── dqna_modes.py                # formal weighted-AA solver modes
+│   ├── dqna_constraints.py          # UE-cap and weighted-PRB/Knapsack oracles
 │   ├── qxapp_greedy_handover.c     # Standalone TS xApp
 │   └── qxapp_energy_saving.c       # Standalone NES xApp
 ├── ns3/
@@ -727,11 +632,10 @@ Q-xApp/
 ├── docs/
 │   ├── assets/fig4-final-100run.png      # final manuscript Fig. 4 crop
 │   ├── assets/qxapp-simulator-dark.png   # current GitHub README GUI image
-│   ├── assets/quantum-circuit-legacy-concept.png  # archived early circuit concept
 │   ├── PAPER_ARTIFACTS.md                # current vs legacy Fig.4/Fig.5 map
 │   ├── QUANTUM_VALIDATION.md
 │   └── validation_matrix.json            # claim -> command -> report
-├── reports/                        # machine-readable validation reports (referenced by the matrix)
+├── reports/                        # current circuit resources + machine-readable validation
 ├── verify.sh                       # root verification entrypoint (quick / solver / full / gui tiers).
 │                                   # Solver tiers need a python with qiskit ($VIRTUAL_ENV or the locked
 │                                   # /root/qxapp-venv), then ENFORCE the exact locked pins from
@@ -741,10 +645,6 @@ Q-xApp/
 │                                   # QXAPP_ALLOW_ENV_MISMATCH=1. Non-root: PY=<venv>/bin/python bash
 │                                   # verify.sh quick. Unknown tiers are rejected (exit 2) first.
 ├── .github/workflows/ci.yml        # CI: syntax + quick solver suites + GUI unit tests
-├── bs_ue_matching.py               # standalone EARLY PROTOTYPE (26-qubit BS–UE matching circuit);
-│                                   # not used by the xApp — superseded by the dqna_* solvers,
-│                                   # kept for reference (collaborator HAIQ work lives on the
-│                                   # origin/quantum-ts-integration branch)
 └── README.md
 ```
 
