@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "source_archive": "QxApp_Fig5_final_limited_projection_20260812.zip",
+  "source_archive_sha256": "e45ec283cae5e634f95b323ed54c983ef4f20931465d180da5bf2da41162ff70",
+  "source_archive_bytes": 741784,
+  "payload_files": 38,
+  "payload_bytes": 1560375,
+  "runner": "fig5_final_hungarian_limited_projection_20260812/run_fig5_final.py",
+  "runner_sha256": "0b0767822cabb7cf32df90be05870179f282446321ac3b448ab4c451801bd535",
+  "frozen_workload": "audit_fig5_final_20260811/fig5_reproduction_final.py",
+  "frozen_workload_sha256": "85bb69756cb3b39d5fd1e95e1213eedea8f30668cf5f7b14f6de4fecc499db11",
+  "canonical_result": "fig5_final_hungarian_limited_projection_20260812/results/fig5_final_hungarian.pdf",
+  "recorded_environment": {
+    "python": "3.12.13",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8"
+  }
+}

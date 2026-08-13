@@ -1,61 +1,262 @@
-# Q-xApp: Quantum-Inspired xApp Framework for O-RAN Near-RT Control
+# Q-xApp: Realizing Quantum-Enabled Near-Real-Time RAN Control
 
-A quantum-inspired xApp framework for near-real-time control in O-RAN networks. Supports three use cases through a unified assignment optimization engine. Runs on **ns-O-RAN + FlexRIC** with a real-time Docker-based GUI.
+Q-xApp is a reproducible hybrid quantum-classical framework that runs Traffic
+Steering (TS), Network Energy Saving (NES), and QoS-based Resource Allocation
+(QoS-RA) through one O-RAN xApp control pipeline. The implementation integrates
+**ns-O-RAN**, **FlexRIC**, Qiskit statevector solvers, and a live Docker-backed
+dashboard.
+
+![Final Fig. 4: Q-xApp implementation and 100-run network responses](docs/assets/fig4-final-100run.png)
+
+*Final manuscript Fig. 4 - Q-xApp implementation, near-RT control sequence, and
+average network responses. The dark GUI at lower left is one representative
+live 3-O-RU / 4-UE run; the response graph at lower right is the phase-aligned
+mean of 100 independent weighted-AA runs. The GUI itself is not a 100-run
+display.*
+
+## Current release at a glance
+
+| Area | Current canonical version |
+|---|---|
+| Simulator GUI | Final dark native Windows shell over the active FastAPI/Chart.js dashboard; one live 3-O-RU / 4-UE, 7 s Auto cycle |
+| Fig. 4 | Final 100-run weighted-AA batch (`RngRun=1..100`); 100/100 `SMOKE=PASS`, no failed seeds, `fb_any=0` in every run |
+| Fig. 5 | Final 2026-08-12 limited-projection release; seeds 0-99, 10 domains, 3 O-RUs per domain |
+| Quantum execution | Ideal statevector / finite-shot amplified-probability simulation; no QPU or quantum-advantage claim |
+| Reproducibility | Pinned upstream commits, install manifests, validation matrix, checksums, and frozen result releases |
+
+**Start here:** [install](#7-installation) · [run](#8-running-the-simulation) ·
+[GUI controls](#9-using-the-gui) ·
+[validation evidence](docs/QUANTUM_VALIDATION.md) ·
+[paper artifact map](docs/PAPER_ARTIFACTS.md) ·
+[final Fig. 5 release](fig5/README.md)
 
 ---
 
 ## 1. What is Q-xApp?
 
-Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common **inter-entity assignment** structure. A single xApp handles multiple use cases by switching the assignment algorithm while keeping the same E2 interface pipeline.
+Q-xApp demonstrates that diverse O-RAN near-RT RIC use cases share a common
+**inter-entity assignment** structure. A single xApp changes the assignment
+policy while retaining the same E2 measurement and control pipeline.
 
-**Three use cases, one xApp:**
+| Use case | Assignment | Control objective |
+|---|---|---|
+| **Traffic Steering (TS)** | UE <-> Cell | Assign UEs to high-rate cells under the A1 UE-per-cell cap |
+| **Network Energy Saving (NES)** | UE <-> Cell | Consolidate UEs, then sleep an idle O-RU |
+| **QoS-based Resource Allocation (QoS-RA)** | UE <-> DRB | Assign distinct DRBs using each UE's 5QI requirement |
 
-| Use Case | Assignment Type | What it does |
-|----------|----------------|-------------|
-| **Traffic Steering (TS)** | UE ↔ Cell | Assigns UEs to best-SINR cells |
-| **Network Energy Saving (NES)** | UE ↔ Cell | Packs UEs into fewer cells, sleeps idle O-RUs |
-| **QoS-based Resource Allocation (QoS-RA)** | UE ↔ DRB | Assigns DRBs by per-UE 5QI requirement |
-
-Switch between them in real-time from the GUI — no restart needed.
-
----
-
-## 2. Fig.4 Results
-
-For this figure the xApp runs in **auto mode**, cycling through **TS → TS+QoS-RA → NES → TS** so all use cases appear in one figure; in the GUI an operator can also select each use case manually in real time. The GUI (left) shows one live run; the averaged plot (right) is the mean of **50 independent runs** (RngRun seeds 1–50) of `scenario-fig4-qxapp.cc`.
-
-### GUI (one live run)
-
-![Q-xApp GUI: Simulation Grid, UE Throughput, O-RU Power Consumption](fig4_ppt/fig4_gui_capture.png)
-
-The GUI carries the axes and legends the averaged plot shares: **UE Throughput** (per-UE, Mbps) and **O-RU Power Consumption** (per-O-RU, W) over **simulation time (s)**, plus the Simulation Grid (O-RU triangles, UE circles colored by serving cell; a sleeping O-RU turns gray).
-
-### 50-run average
-
-![Fig.4: 50-run average of UE throughput (top) and O-RU power (bottom)](fig4_ppt/fig4_50run_combined.png)
-
-**Control modes (left → right):**
-
-- **TS** — UEs steered to best-SINR cells. The equidistant pair UE1 / UE4 gets comparable throughput (**254.5 / 261.0 Mbps**).
-- **TS+QoS-RA** — DRB weights enforce 5QI priority: high-priority UE1 vs low-priority UE4 ≈ **8:1** (467.1 / 57.9 Mbps).
-- **NES** — O-RU 2 is put to sleep (power → **0 W**). UE2 is displaced and its throughput drops **~72%** (503.0 → 140.3 Mbps).
-- **TS** (resumed after NES) — O-RU 2 wakes (power back to ~3.3 kW) and UE2 returns to **~103.7%** of its first-TS level (521.6 Mbps).
-
-Per-run phase means are in [`fig4_ppt/runs_summary_50run.csv`](fig4_ppt/runs_summary_50run.csv) and [`fig4_ppt/phase_stats_raw_50run.txt`](fig4_ppt/phase_stats_raw_50run.txt); the plotting script is [`fig4_ppt/qxapp_fig4_plot_ppt_v5.py`](fig4_ppt/qxapp_fig4_plot_ppt_v5.py).
+The operator can switch policies in real time without restarting the xApp, or
+use Auto mode to run the complete TS -> TS+QoS-RA -> NES -> TS sequence.
 
 ---
 
-## 3. Quantum Assignment Engine
+## 2. Current Simulator GUI
+
+The current GUI is the dark interface in the lower-left panel of the final
+manuscript Fig. 4. The full-resolution live-run capture is shown below. It is a
+**single simulator run**, while the 100-run aggregate is a separate headless
+batch result shown in the next section.
+
+![Current Q-xApp dark simulator GUI](docs/assets/qxapp-simulator-dark.png)
+
+*One live Auto cycle: Simulation Grid, per-UE throughput, measured-profile
+O-RU power, and real-time A1 policy control over the 0-7 s timeline.*
+
+| Role | Canonical path |
+|---|---|
+| Native Windows shell | [`gui/desktop/qxapp_simulator.py`](gui/desktop/qxapp_simulator.py) |
+| Windows launcher | [`gui/desktop/launch_qxapp_simulator.ps1`](gui/desktop/launch_qxapp_simulator.ps1) |
+| Active dashboard template | [`gui/src/templates/chart.html`](gui/src/templates/chart.html) |
+| Active API/data controller | [`gui/src/http/data_controller.py`](gui/src/http/data_controller.py) |
+| Interactive ns-3 scenario | [`ns3/scenario/scenario-zero-with_parallel_loging.cc`](ns3/scenario/scenario-zero-with_parallel_loging.cc) |
+| README screenshot | [`docs/assets/qxapp-simulator-dark.png`](docs/assets/qxapp-simulator-dark.png) |
+
+### Launch the native Windows GUI
+
+After completing the repository installation below, prepare the desktop shell
+once from PowerShell:
+
+```powershell
+py -3 -m venv "$env:LOCALAPPDATA\QxAppDesktop\venv"
+& "$env:LOCALAPPDATA\QxAppDesktop\venv\Scripts\python.exe" -m pip install -r .\gui\desktop\requirements.txt
+```
+
+Then launch it from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\gui\desktop\launch_qxapp_simulator.ps1
+```
+
+The launcher starts only the local WSL/Docker **dashboard backend**, waits for
+`http://127.0.0.1:8000`, and opens it in the native shell. The nearRT-RIC,
+ns-3 simulation, and Q-xApp controller still run as the three processes shown
+in [Running the Simulation](#8-running-the-simulation). Its default WSL
+distribution is `Ubuntu`; set `QXAPP_WSL_DISTRO` when another distribution name
+is used. Pass `-Url http://127.0.0.1:8000/` for the full operator layout; the
+default `?capture` URL uses the compact paper layout. The control endpoints are
+intentionally bound to loopback and should not be exposed directly to an
+external network. Desktop backend logs are written to
+`%LOCALAPPDATA%\QxAppDesktop\backend.log`.
+
+---
+
+## 3. Paper Results
+
+### Fig. 4 - End-to-end near-RT control
+
+The Fig. 4 experiment runs the xApp in **Auto mode**, cycling through
+**TS -> TS+QoS-RA -> NES -> TS** in the 3-O-RU / 4-UE, seven-second
+`scenario-fig4-qxapp.cc`. The final batch contains **100 independent
+weighted-AA runs** (`RngRun=1..100`). All 100 summaries report
+`SMOKE=PASS`, the batch has no failed seeds, and every run records `fb_any=0`.
+The frozen batch executed TS 17-qubit weighted-AA, NES 5-qubit weighted-AA,
+and QoS-RA 8-qubit assignment circuits on Qiskit Statevector; this was not QPU
+execution. These are the executed Fig. 4 circuit sizes, not a claim that every
+solver file currently on `main` is byte-identical to the frozen batch source.
+
+![Fig. 4: phase-aligned mean of 100 weighted-AA runs](fig4_ppt/fig4_weighted_100run_combined.png)
+
+Each run is aligned to common display-phase boundaries before the plotted
+throughput and power traces are averaged; this is a **phase-aligned mean**, not
+a pointwise average of unaligned wall-clock events. The phase table below is
+computed on each run's original, unwarped phase windows and reports population
+mean +/- standard deviation in Mbps (`n=100`).
+
+| Phase | UE1 | UE2 | UE3 | UE4 |
+|---|---:|---:|---:|---:|
+| TS | 258.78 +/- 22.30 | 508.61 +/- 33.98 | 380.27 +/- 52.50 | 261.79 +/- 22.95 |
+| TS+QoS-RA | 440.57 +/- 58.71 | 516.67 +/- 56.92 | 396.40 +/- 79.66 | 71.47 +/- 19.22 |
+| NES | 257.83 +/- 37.82 | 144.33 +/- 37.11 | 302.49 +/- 90.38 | 255.04 +/- 38.32 |
+| Post-wake TS | 264.18 +/- 17.97 | 518.44 +/- 28.04 | 390.55 +/- 48.30 | 267.10 +/- 22.30 |
+
+In the manuscript summary, QoS-RA changes UE1/UE4 from approximately
+259/262 Mbps to 441/71 Mbps. During NES, UE2 moves from O-RU2 to O-RU3 and
+falls to 144 Mbps; O-RU2 drops from approximately 69 W to the frozen 14.3 W
+sleep value. The active calibration curve is 57.4/62.5/66.1/71.7 W at
+0/30/50/100% load.
+
+Canonical evidence: [per-seed phase means](fig4_ppt/runs_summary_100run.csv),
+[aggregate statistics](fig4_ppt/phase_stats_raw_100run.txt),
+[phase-alignment plotter](fig4_ppt/qxapp_fig4_plot_100run.py),
+[frozen power model](fig4_ppt/oru_power_model_100run.json),
+[execution provenance](fig4_ppt/PROVENANCE_100RUN.md), and
+[checksums](fig4_ppt/SHA256SUMS_100run.txt).
+
+```bash
+# Protocol-level WSL rerun; edit the pinned REPO/NS paths for another host.
+bash scripts/run_weighted_fig4_batch.sh 1 100 <batch-dir>
+python fig4_ppt/qxapp_fig4_plot_100run.py <batch-dir> fig4_ppt
+# Verify the stored public artifact from an LF-normalized checkout.
+sha256sum -c fig4_ppt/SHA256SUMS_100run.txt
+```
+
+For execution identity, use the source hashes in
+[`PROVENANCE_100RUN.md`](fig4_ppt/PROVENANCE_100RUN.md). The three solver blobs
+with those exact hashes are retained at Git commit `2afabfe`; rerunning the
+current `main` without restoring the frozen solver blobs is a new experiment,
+not a bit-for-bit reproduction of the final-paper batch.
+
+The earlier white GUI and 50-run plots remain only as historical evidence; the
+[paper artifact map](docs/PAPER_ARTIFACTS.md) keeps them separate from the
+current GUI and final 100-run result.
+
+### Fig. 5 - Multi-Q-xApp coordination
+
+The final Fig. 5 limited-projection release evaluates multi-Q-xApp coordination
+over 100 matched network realizations (seeds 0-99). Ten Q-xApp domains are
+arranged in a 2 x 5 grid, each with three O-RUs; the network contains 60
+internal UEs and 26 boundary UEs. Its 1,024-shot ideal amplified-probability
+candidate model is not a gate-level QPU execution.
+
+![Fig. 5: utility recovery over near-RT coordination rounds](fig5/releases/2026-08-12-limited-projection/fig5_final_hungarian_limited_projection_20260812/results/fig5_final_hungarian.png)
+
+At `L = 1`, the hybrid and Hungarian-based ConMit baselines reach 71.085% and
+69.933% of the centralized optimum. Stored-output coordination raises the
+hybrid to 96.365% at `1 + delta_c`; fixed-priority ConMit reaches 85.882%.
+Negotiation-based ConMit first exceeds the hybrid's plotted mean at `L = 8`
+(96.645%), after seven additional local executions. Its paired 95% confidence
+interval includes zero, so this is a mean crossing rather than a statistically
+significant superiority claim.
+
+The complete frozen release, runner, audit outputs, source-bundle checksum, and
+reproduction instructions are indexed in [`fig5/README.md`](fig5/README.md).
+
+---
+
+## 4. Quantum Assignment Engine
 
 The **assignment subproblem** of each use case (not the whole controller —
 this is a hybrid pipeline, see below) is computed by a Grover-style quantum
 solver with constraint oracles and utility-weighted amplification:
 
-| Use case | Solver | Problem | Qubits |
-|----------|--------|---------|--------|
-| TS | [`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py) | 4 UE × 3 cells | 17 (canonical v5 full-state weighted-AA); 15 (preserved legacy v4.1 two-stage, `--legacy-two-stage`) |
-| NES | [`flexric/xApp/dqna_42.py`](flexric/xApp/dqna_42.py) | 4 UE × 2 awake cells | 10 |
-| QoS-RA | [`flexric/xApp/dqna_qos.py`](flexric/xApp/dqna_qos.py) | 2 UE × 4 DRBs per O-RU | 8 |
+| Use case | Solver | Problem | Current `main` | Final Fig. 4 frozen batch |
+|----------|--------|---------|----------------|---------------------------|
+| TS | [`flexric/xApp/dqna_ts.py`](flexric/xApp/dqna_ts.py) | 4 UE × 3 cells | 17-qubit canonical v5 weighted-AA; 15-qubit preserved v4.1 via `--legacy-two-stage` | 17-qubit weighted-AA |
+| NES | [`flexric/xApp/dqna_42.py`](flexric/xApp/dqna_42.py) | 4 UE × 2 awake cells | 10-qubit preserved two-stage path | 5-qubit weighted-AA |
+| QoS-RA | [`flexric/xApp/dqna_qos.py`](flexric/xApp/dqna_qos.py) | 2 UE × 4 DRBs per O-RU | 8 qubits | 8 qubits |
+
+The final-batch column is tied to the executed file hashes in the provenance
+record. In particular, the 5-qubit NES result belongs to the frozen weighted-AA
+solver blob and must not be inferred from the current 10-qubit `dqna_42.py`.
+
+### TS circuit evolution: legacy and weighted-AA
+
+Three different artifacts must not be conflated: the early 18-qubit picture is
+a conceptual schematic, the preserved v4.1 runtime is a 15-qubit two-stage
+circuit, and the current default is the 17-qubit v5 adaptive weighted-AA path.
+
+| Circuit artifact/path | Status | TS qubits | Meaning |
+|---|---|---:|---|
+| Early BS-UE conceptual diagram | Historical illustration only | 18 in the figure label | Hand-drawn state-preparation / constraint / objective / diffusion concept; not invoked by Q-xApp |
+| v4.1 `legacy-two-stage` | Preserved opt-in runtime | 15 | Feasibility and utility amplification run sequentially in one circuit, with no intermediate measurement |
+| v5 adaptive full-state weighted-AA | **Current canonical default** | 17 logical | State preparation `A`, full-domain reflections, adaptive rounds, finite-shot candidates, and classical raw-objective re-scoring |
+
+```mermaid
+flowchart TB
+  subgraph LEGACY["Preserved legacy v4.1 - 15 qubits"]
+    L0["Assignment superposition"] --> L1["Feasibility oracle and assignment diffuser"]
+    L1 --> L2["Stage boundary: no measurement"]
+    L2 --> L3["Utility oracle and assignment diffuser"]
+    L3 --> L4["Exact statevector marginalization"]
+    L4 --> L5["Top-20 classical feasibility and raw-objective re-score"]
+  end
+
+  subgraph CURRENT["Current canonical v5 weighted-AA - 17 logical qubits"]
+    C0["V3 x 4 valid-assignment preparation"] --> C1["Feasibility compute into bad register"]
+    C1 --> C2["Row-shift utility rotations into cost register"]
+    C2 --> C3["Prepared state A|0>"]
+    C3 --> C4["Adaptive Q rounds: S_G -> A† -> S_0 -> A"]
+    C4 --> C5["Finite-shot candidate sampling"]
+    C5 --> C6["Classical feasibility check and raw-objective re-score"]
+  end
+```
+
+The canonical v5 implementation and resource table are
+[`dqna_ts.py`](flexric/xApp/dqna_ts.py) and
+[`reports/v5_resource_table.csv`](reports/v5_resource_table.csv). The related
+explicit `--solver-mode weighted-aa` / weighted-PRB validation implementation
+is in [`dqna_modes.py`](flexric/xApp/dqna_modes.py) and
+[`dqna_constraints.py`](flexric/xApp/dqna_constraints.py), with its comparison
+resources in
+[`reports/combined_circuit_resources.csv`](reports/combined_circuit_resources.csv).
+
+![Legacy and formal weighted-AA validation](reports/solver_validation_figure.png)
+
+*This comparison figure validates the separate formal weighted-AA construction;
+it is not the canonical adaptive-v5 runtime circuit diagram. The measurements
+are from ideal simulation, not a QPU.*
+
+<details>
+<summary>Historical 18-qubit conceptual circuit</summary>
+
+![Historical conceptual BS-UE matching circuit](docs/assets/quantum-circuit-legacy-concept.png)
+
+This archived one-iteration schematic predates the production `dqna_*`
+solvers. It must not be used as the resource count or topology of the current
+xApp. The retained standalone [`bs_ue_matching.py`](bs_ue_matching.py)
+prototype later evolved to a different 26-qubit layout and is not called by
+the unified controller.
+
+</details>
 
 Constraints (per-cell UE caps, distinct DRBs) are enforced by a feasibility
 oracle that gates the utility kickback; utilities use an exponential encoding
@@ -82,7 +283,7 @@ machine-readable claim → command → report map is
   reductions + 6,084 quantum-path cases,
   `scripts/validate_qos_exhaustive.py`).
 
-The Fig.4 cycle runs end-to-end with all three quantum assignment
+The latest 100-run Fig.4 cycle runs end-to-end with all three quantum assignment
 subproblems (TS, NES, QoS-RA) active in one cycle and zero solver fallbacks
 on those three paths — "all-three quantum E2E" means exactly that (the three
 solver subpaths were active in one cycle with zero subpath fallbacks), not
@@ -111,12 +312,15 @@ fallbacks if a quantum solver fails on a given decision, counted separately.
 > `QXAPP_TS_ALLOW_TIGHT_DEADLINE=1`); a quantum-disabled deployment is not
 > blocked. Each fallback is classified by a specific reason
 > (`invalid-cli / timeout / nonzero-exit / no-candidate / parse-failure /
-> method-mismatch / capability-unsupported / feasibility-reject`). The
-> **all-three quantum E2E record above predates this repair and must be
-> re-run on a live FlexRIC deployment to be refreshed** — that re-run was not
-> performed in the revision that landed this repair. Offline C↔Python contract
-> tests that do not need FlexRIC: `scripts/validate_ts_c_contract.py`. See the
-> "Next-revision engineering" section of
+> method-mismatch / capability-unsupported / feasibility-reject`). The earlier
+> single-run all-three E2E record in the validation history predates this
+> repair. The final 100-run paper artifact above is a later, separately pinned
+> batch with zero recorded fallbacks; its exact controller and solver hashes
+> are recorded in `fig4_ppt/PROVENANCE_100RUN.md`. It is evidence for that
+> frozen paper batch, not a fresh validation run of the current `main` strict
+> capability gate. Offline C↔Python contract tests that do not need FlexRIC:
+> `scripts/validate_ts_c_contract.py`. See the "Next-revision engineering"
+> section of
 > [`docs/QUANTUM_VALIDATION.md`](docs/QUANTUM_VALIDATION.md).
 
 **Statevector backend** — the canonical execution engine is
@@ -137,11 +341,16 @@ solver interpreter path is set via `QXAPP_PY`.
 
 ---
 
-## 4. Architecture
+## 5. Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    Docker GUI (localhost:8000)                │
+│ Native dark shell (Windows / WebView2, optional)             │
+│                     127.0.0.1:8000                            │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ wraps the same loopback dashboard
+┌──────────────────────────┴──────────────────────────────────┐
+│             Docker GUI (FastAPI + Chart.js + InfluxDB)       │
 │  ┌───────────┐  ┌────────────┐  ┌─────────────────────┐    │
 │  │ Sim Grid  │  │ Throughput │  │ Cell Power          │    │
 │  │ (Map+UE+  │  │  (Mbps)    │  │     (W)             │    │
@@ -182,7 +391,7 @@ solver interpreter path is set via `QXAPP_PY`.
 
 ---
 
-## 5. Prerequisites
+## 6. Prerequisites
 
 | Component | Repository | Branch | Pinned commit |
 |-----------|-----------|--------|---------------|
@@ -203,7 +412,7 @@ gcc 13.3, cmake 3.28.
 
 ---
 
-## 6. Installation
+## 7. Installation
 
 The install is manifest-driven: the exact upstream commits, the full 14-file
 ns-3 overlay (source / destination / preimage / post-install SHA-256), the
@@ -251,24 +460,22 @@ WSL layout, so existing deployments run unchanged.
 
 ### O-RU power shown in the GUI
 
-The GUI's O-RU graph uses a transparent, PRB-driven reference supply-power
-model, not the mmWave fork's fixed PHY-state current accumulator:
+The current GUI and final 100-run Fig. 4 use the same frozen measured-profile
+power model. The trace follows complete 50 ms intervals from the cumulative
+ns-3 `energyfilecell*.csv` series and marks sleep only when ns-3 reports the
+actual `es_state`; a requested target alone never forces the plotted drop.
+The active curve maps 0/30/50/100% load to 57.4/62.5/66.1/71.7 W, and sleep is
+14.3 W. If the interval-energy trace is temporarily unavailable, the GUI falls
+back to per-cell DL PRB utilization.
 
-`P_active = active_base_w + (DL_PRB_utilisation / 100) * dynamic_full_load_w`
+The live chart commits complete 250 ms `DlPdcpStats.txt` bins and complete
+50 ms power intervals on the fixed 0-7 s axis, preserving the wake/recovery
+tail. Browser polling controls when a phase is finalized, not the coordinates
+of the plotted samples. The frozen values are in
+[`fig4_ppt/oru_power_model_100run.json`](fig4_ppt/oru_power_model_100run.json).
 
-The default profile in `gui/src/oru_power_model.json` is 350 W active base,
-100 W at full DL PRB utilisation, and 75 W deep sleep.  It is a reference
-profile chosen to represent a large static O-RU power share and non-zero deep
-sleep, not a measurement of a particular O-RU. Replace those three values with
-low-load, full-load, and sleep measurements for the deployed radio before
-using the graph's absolute W/Wh values in a claim. The GUI reloads this JSON
-on every data refresh, so a calibration edit takes effect without a container
-restart. The affine structure follows the ETSI BTS model; the sleep ratio is
-consistent with recent O-RU advanced-sleep analysis, but neither source fixes
-the W values for a particular vendor radio.
-
-- [ETSI TR 103 117, BTS power model](https://www.etsi.org/deliver/etsi_tr/103100_103199/103117/01.01.01_60/tr_103117v010101p.pdf)
-- [Usman et al. (2025), O-RU power model and advanced sleep modes](https://research.ucc.ie/en/publications/power-modeling-of-the-o-ran-o-ru-amp-application-of-advanced-slee-3/)
+- [Li et al. (2025), measured multi-vendor O-RU power model](https://aetherproject.org/wp-content/uploads/sites/11/2025/11/IEEE_FNWF2025_Energy_Efficiency_Testing_and_Power_Modeling_of_O_RAN_Radio_Units_prepubln.pdf)
+- [Usman et al. (2025), O-RU component model and advanced sleep](https://research.ucc.ie/en/publications/power-modeling-of-the-o-ran-o-ru-amp-application-of-advanced-slee-3/)
 
 ### What Each Modified File Does
 
@@ -288,9 +495,10 @@ summarizes the main ones.
 
 ---
 
-## 7. Running the Simulation
+## 8. Running the Simulation
 
-Open **three terminals** and run in order:
+For an interactive GUI or one single-seed Fig. 4 run, open **three terminals**
+and run in order:
 
 ```bash
 # Terminal 1: Start the nearRT-RIC
@@ -299,26 +507,47 @@ sudo <FlexRIC>/build/examples/ric/nearRT-RIC
 # Terminal 2: Start ns-3 network simulation (wait for E2 Setup to complete)
 #   GUI interactive demo:
 cd <ns-O-RAN> && ./ns3 run "scratch/scenario-zero-with_parallel_loging --N_MmWaveEnbNodes=3 --N_Ues=4"
-#   or the Fig.4 automated scenario:
-#   ./ns3 run "scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=7"
+#   or one automated Fig.4 seed after writing the Auto config shown below:
+#   ./ns3 run "scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=7 --RngRun=1"
 
 # Terminal 3: Start Q-xApp controller (after ns-3 connects to RIC)
 sudo <FlexRIC>/build/examples/xApp/c/ctrl/xapp_qxapp_unified
 ```
 
+The final Fig. 4 configuration is `auto`, max 2 UEs per O-RU, sleep target
+cell 3 (O-RU2), 5QI values 2/4/7/9, and quantum enabled:
+
+```bash
+printf 'auto\n'  > <ns-O-RAN>/xapp_mode.txt
+printf '2\n'     > <ns-O-RAN>/xapp_a1_policy.txt
+printf '3\n'     > <ns-O-RAN>/xapp_sleep_config.txt
+printf '2,4,7,9\n' > <ns-O-RAN>/xapp_qos_config.txt
+printf '1\n'     > <ns-O-RAN>/xapp_quantum.txt
+```
+
+For the complete seeds 1-100 batch, use the batch/plot/checksum commands in
+[Fig. 4 - End-to-end near-RT control](#fig-4---end-to-end-near-rt-control).
+
 Then open **http://localhost:8000** in your browser. The Docker GUI and data pusher start automatically.
 
 Switch use cases from the GUI at any time. The default mode is Traffic Steering.
+On Windows, the native dark shell can be opened with the launcher documented
+in [Current Simulator GUI](#2-current-simulator-gui); it presents the same
+loopback dashboard and does not replace the three runtime processes above.
 
 ---
 
-## 8. Using the GUI
+## 9. Using the GUI
 
 ### Network Settings (top bar)
 Fixed simulation parameters: O-RU count, UE count, bandwidth, center frequency, inter-site distance.
 
 ### A1 Policy Manager (second bar)
 Switch use cases and configure policies in real-time:
+
+- **Auto mode**: initial TS -> QoS-RA on the TS placement -> NES -> wake and
+  post-wake TS recovery. The selector abbreviates this as
+  `Auto (TS -> QoS -> NES)`.
 - **TS mode**: "Max UE/Cell" selector. Manual TS is real control, not a
   preview: the xApp recomputes the assignment under the selected cap,
   sends RC handovers for mismatched UEs and completes only after FRESH
@@ -339,11 +568,30 @@ the topology.
 |-------|--------------|
 | **Simulation Grid** | Campus map with O-RU (triangles, colored) and UE (circles, colored by serving cell). Sleeping O-RUs turn gray. |
 | **Throughput** | Per-UE throughput in Mbps over time |
-| **Cell Power** | Per-cell energy consumption in Watts (sleep cells drop to zero) |
+| **Cell Power** | Per-O-RU power in Watts from actual energy state, the ns-3 interval-energy shape, and a measured O-RU active/sleep calibration |
 
 ---
 
-## 9. Technical Details
+## 10. Technical Details
+
+### Verification
+
+Run the repository's quick checks with the locked solver environment:
+
+```bash
+PY=<solver-venv>/bin/python bash verify.sh quick
+```
+
+Run the GUI contract suite with a Python environment containing the GUI test
+dependencies:
+
+```bash
+GUI_PY=<gui-test-venv>/bin/python bash verify.sh gui
+```
+
+The available verification tiers and their exact claim-to-command mapping are
+documented in [`verify.sh`](verify.sh) and
+[`docs/validation_matrix.json`](docs/validation_matrix.json).
 
 ### Use Case Details
 
@@ -416,15 +664,19 @@ ns-O-RAN (E2 Node)          nearRT-RIC (FlexRIC)          Q-xApp
 | `ue_position.txt` | ns-3 | Data pusher → InfluxDB | UE positions, serving cell |
 | `gnbs.txt` | ns-3 | Data pusher → InfluxDB | Cell positions, energy state |
 | `cu-cp-cell-{2,3,4}.txt` | ns-3 | Data pusher + Q-xApp | Per-UE SINR |
-| `energyfilecell{2,3,4}.csv` | ns-3 | Q-xApp | Cell energy consumption |
+| `DlPdcpStats.txt` | ns-3 | GUI + Fig. 4 plotter | Complete 250 ms per-UE throughput bins |
+| `energyfilecell{2,3,4}.csv` | ns-3 | GUI + Fig. 4 plotter | Complete 50 ms cumulative energy intervals |
+| `scheduler_weights.csv` | ns-3 | Fig. 4 plotter | QoS phase/weight transition marker |
 | `qxapp_result.json` | Q-xApp | GUI | Assignment, DRB, energy, mode |
-| `xapp_mode.txt` | GUI | Q-xApp | Current use case (ts/nes/qos) |
+| `xapp_mode.txt` | GUI | Q-xApp | Current use case (`auto`/`ts`/`nes`/`qos`) |
+| `xapp_a1_policy.txt` | GUI / batch harness | Q-xApp | Maximum UEs per O-RU |
 | `xapp_sleep_config.txt` | GUI | Q-xApp | Which O-RU to sleep |
 | `xapp_qos_config.txt` | GUI | Q-xApp | Per-UE 5QI values (e.g. 2,4,7,9) |
+| `xapp_quantum.txt` | Operator / batch harness | Q-xApp | Quantum assignment on/off (`1`/`0`) |
 
 ---
 
-## 10. Project Structure
+## 11. Project Structure
 
 ```
 Q-xApp/
@@ -439,14 +691,20 @@ Q-xApp/
 │   ├── mmwave-enb-net-device.cc
 │   ├── mmwave-flex-tti-pf-mac-scheduler.cc
 │   └── mmwave-flex-tti-pf-mac-scheduler.h
-├── fig4_ppt/                       # Fig.4 results (50-run average)
-│   ├── fig4_gui_capture.png        # GUI screenshot (one live run, labeled axes)
-│   ├── fig4_50run_combined.png     # the averaged figure (also .pdf for high-res / paper)
-│   ├── qxapp_fig4_plot_ppt_v5.py   # plotting script (x-axis 4.5s, marker from scheduler_weights.csv)
-│   ├── runs_summary_50run.csv      # per-run phase means (seeds 1–50)
-│   ├── phase_stats_raw_50run.txt   # aggregate phase means ± std
-│   └── SHA256SUMS_50run.txt        # checksums of the public Fig.4 files
+├── fig4_ppt/                       # Latest 100-run Fig.4 + legacy 50-run artifacts
+│   ├── fig4_gui_capture.png        # legacy white-background GUI capture
+│   ├── fig4_weighted_100run_combined.png  # final-paper figure (+ PDF)
+│   ├── qxapp_fig4_plot_100run.py   # exact 100-run aggregation/plotting script
+│   ├── runs_summary_100run.csv     # per-run phase means (seeds 1–100)
+│   ├── PROVENANCE_100RUN.md        # solver hashes, batch checks, reproduction
+│   ├── fig4_50run_combined.png     # legacy historical figure (+ PDF)
+│   └── SHA256SUMS_{100run,50run}.txt
+├── fig5/                           # Fig.5 release index + historical v50 artifacts
+│   ├── README.md                     # current/legacy classification and reproduction
+│   └── releases/
+│       └── 2026-08-12-limited-projection/  # frozen code/results/checksums, 100 seeds
 ├── gui/
+│   ├── desktop/                          # dark native Windows shell + launcher
 │   ├── main.py                           # FastAPI entrypoint (ACTIVE import root)
 │   ├── requirements.txt
 │   ├── configuration.env
@@ -466,7 +724,13 @@ Q-xApp/
 │                                   # installer, solver venv setup + locked requirements
 ├── scripts/                        # tracked validation harnesses (solver suites, section-16 CLI,
 │                                   # v5 stages + holdout runner, Aer A/B + benchmarks, runtime checks)
-├── docs/                           # QUANTUM_VALIDATION.md + validation_matrix.json (claim→command→report)
+├── docs/
+│   ├── assets/fig4-final-100run.png      # final manuscript Fig. 4 crop
+│   ├── assets/qxapp-simulator-dark.png   # current GitHub README GUI image
+│   ├── assets/quantum-circuit-legacy-concept.png  # archived early circuit concept
+│   ├── PAPER_ARTIFACTS.md                # current vs legacy Fig.4/Fig.5 map
+│   ├── QUANTUM_VALIDATION.md
+│   └── validation_matrix.json            # claim -> command -> report
 ├── reports/                        # machine-readable validation reports (referenced by the matrix)
 ├── verify.sh                       # root verification entrypoint (quick / solver / full / gui tiers).
 │                                   # Solver tiers need a python with qiskit ($VIRTUAL_ENV or the locked
@@ -477,7 +741,7 @@ Q-xApp/
 │                                   # QXAPP_ALLOW_ENV_MISMATCH=1. Non-root: PY=<venv>/bin/python bash
 │                                   # verify.sh quick. Unknown tiers are rejected (exit 2) first.
 ├── .github/workflows/ci.yml        # CI: syntax + quick solver suites + GUI unit tests
-├── bs_ue_matching.py               # standalone EARLY PROTOTYPE (21-qubit BS–UE matching circuit);
+├── bs_ue_matching.py               # standalone EARLY PROTOTYPE (26-qubit BS–UE matching circuit);
 │                                   # not used by the xApp — superseded by the dqna_* solvers,
 │                                   # kept for reference (collaborator HAIQ work lives on the
 │                                   # origin/quantum-ts-integration branch)
@@ -487,7 +751,7 @@ Q-xApp/
 
 ---
 
-## 11. References
+## 12. References
 
 - O-RAN Alliance, "O-RAN Architecture Description", O-RAN.WG1.O-RAN-Architecture-Description
 - O-RAN WG3, "Use Cases and Requirements", O-RAN.WG3.TS.UCR-R004-v09.00

@@ -1,0 +1,71 @@
+{
+  "interpretation": "The final method preserves top-16 but excludes synthesized actions from utility-gap scoring. Top-8 is reported only as a sensitivity point and was not selected as the final contract.",
+  "variants": [
+    {
+      "variant": "strict_measured_top16",
+      "conflict_free_seeds": 30,
+      "mean_normalized_utility_over_conflict_free_seeds": 99.67290316651241,
+      "ci95_lower": 99.52348729445985,
+      "ci95_upper": 99.82231903856497,
+      "mean_selected_ues_over_conflict_free_seeds": 50.233333333333334,
+      "projection_switches": 0,
+      "projection_gap_owner_evaluations": 0,
+      "first_negotiation_mean_crossing": "not_applicable"
+    },
+    {
+      "variant": "unrestricted_top16_projection_gap",
+      "conflict_free_seeds": 100,
+      "mean_normalized_utility_over_conflict_free_seeds": 98.04653511933664,
+      "ci95_lower": 97.71979186982404,
+      "ci95_upper": 98.37327836884924,
+      "mean_selected_ues_over_conflict_free_seeds": 50.28,
+      "projection_switches": 136,
+      "projection_gap_owner_evaluations": 623,
+      "first_negotiation_mean_crossing": "none"
+    },
+    {
+      "variant": "current_action_projection_gap",
+      "conflict_free_seeds": 100,
+      "mean_normalized_utility_over_conflict_free_seeds": 97.65243364368607,
+      "ci95_lower": 97.2642951993552,
+      "ci95_upper": 98.04057208801693,
+      "mean_selected_ues_over_conflict_free_seeds": 50.12,
+      "projection_switches": 119,
+      "projection_gap_owner_evaluations": 623,
+      "first_negotiation_mean_crossing": "none"
+    },
+    {
+      "variant": "top1_projection_gap",
+      "conflict_free_seeds": 100,
+      "mean_normalized_utility_over_conflict_free_seeds": 97.02618882910316,
+      "ci95_lower": 96.52120806258256,
+      "ci95_upper": 97.53116959562377,
+      "mean_selected_ues_over_conflict_free_seeds": 49.8,
+      "projection_switches": 126,
+      "projection_gap_owner_evaluations": 640,
+      "first_negotiation_mean_crossing": "none"
+    },
+    {
+      "variant": "final_measured_gap_top1_completion",
+      "conflict_free_seeds": 100,
+      "mean_normalized_utility_over_conflict_free_seeds": 96.36513059862214,
+      "ci95_lower": 95.71536635860825,
+      "ci95_upper": 97.01489483863604,
+      "mean_selected_ues_over_conflict_free_seeds": 49.48,
+      "projection_switches": 130,
+      "projection_gap_owner_evaluations": 0,
+      "first_negotiation_mean_crossing": 8
+    },
+    {
+      "variant": "unrestricted_top8_projection_gap",
+      "conflict_free_seeds": 100,
+      "mean_normalized_utility_over_conflict_free_seeds": 96.49526076238357,
+      "ci95_lower": 96.09921143014407,
+      "ci95_upper": 96.89131009462307,
+      "mean_selected_ues_over_conflict_free_seeds": 49.37,
+      "projection_switches": 269,
+      "projection_gap_owner_evaluations": 940,
+      "first_negotiation_mean_crossing": 8
+    }
+  ]
+}

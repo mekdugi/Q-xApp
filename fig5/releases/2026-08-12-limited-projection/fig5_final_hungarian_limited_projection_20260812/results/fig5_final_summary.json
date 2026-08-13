@@ -1,0 +1,253 @@
+{
+  "schema_version": "fig5-final-hungarian-feasibility-completion-20260812-v2",
+  "generated_at_utc": "2026-08-12T09:36:20.991695+00:00",
+  "source": {
+    "runner": "/workspace/scratch/d197aa59d96e/fig5_final_hungarian_limited_projection_20260812/run_fig5_final.py",
+    "runner_sha256": "0b0767822cabb7cf32df90be05870179f282446321ac3b448ab4c451801bd535",
+    "frozen_workload": "/workspace/scratch/d197aa59d96e/audit_fig5_final_20260811/fig5_reproduction_final.py",
+    "frozen_workload_sha256": "85bb69756cb3b39d5fd1e95e1213eedea8f30668cf5f7b14f6de4fecc499db11"
+  },
+  "environment": {
+    "python": "3.12.13",
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "matplotlib": "3.10.8"
+  },
+  "settings": {
+    "domains": 10,
+    "grid": "2x5",
+    "o_rus_per_domain": 3,
+    "o_ru_capacities": [
+      7,
+      7,
+      6
+    ],
+    "unique_ues": 86,
+    "internal_ues": 60,
+    "boundary_ues": 26,
+    "seeds": [
+      0,
+      99
+    ],
+    "shots": 1024,
+    "portfolio_size": 16,
+    "candidate_order": "utility_desc_count_desc_canonical_index_asc",
+    "candidate_source": "ideal finite-shot amplified-probability sampling"
+  },
+  "centralized_crosscheck": {
+    "frontier_dp_vs_configuration_milp": "passed for every seed",
+    "centralized_solution_used_by_methods": false
+  },
+  "gap_coordination": {
+    "strict_resolved_seeds": 30,
+    "completion_resolved_seeds": 100,
+    "measured_switches": 844,
+    "feasibility_completion_switches": 130,
+    "seeds_using_feasibility_completion": 70,
+    "cumulative_masked_assignments": 203,
+    "gap_decisions": 451,
+    "non_yielding_retention_decisions": 393,
+    "priority_completion_decisions": 130,
+    "repaired_state_priority_decisions": 0,
+    "projection_used_in_gap_evaluation": false,
+    "completion_source": "immutable measured top-1 minus cumulative forbidden boundary assignments",
+    "locking_scope": "losing domain and current boundary UE only"
+  },
+  "hungarian": {
+    "mean_local_percent_of_dp": 98.50610967260923,
+    "minimum_local_percent_of_dp": 87.36017505712017,
+    "repair_uses_exact_packing": false,
+    "repair_uses_dp_or_backtracking": false,
+    "triggered_reexecution_histogram": {
+      "3": 1,
+      "4": 7,
+      "5": 34,
+      "6": 23,
+      "7": 26,
+      "8": 8,
+      "9": 1
+    }
+  },
+  "candidate_observation": {
+    "mean_observed_nonempty_candidates_per_domain": 66.005,
+    "minimum_observed_nonempty_candidates_per_domain": 12,
+    "maximum_observed_nonempty_candidates_per_domain": 224
+  },
+  "paired_negotiation_minus_hybrid": [
+    {
+      "stage": 7,
+      "quantity": "negotiation_minus_hybrid_percentage_points",
+      "mean_difference": -0.587825088147276,
+      "paired_ci95_lower": -1.2652778900264758,
+      "paired_ci95_upper": 0.08962771373192402,
+      "negotiation_wins": 39,
+      "ties": 0,
+      "hybrid_wins": 61
+    },
+    {
+      "stage": 8,
+      "quantity": "negotiation_minus_hybrid_percentage_points",
+      "mean_difference": 0.27998512599794695,
+      "paired_ci95_lower": -0.38051904830457545,
+      "paired_ci95_upper": 0.9404893003004693,
+      "negotiation_wins": 51,
+      "ties": 0,
+      "hybrid_wins": 49
+    },
+    {
+      "stage": 9,
+      "quantity": "negotiation_minus_hybrid_percentage_points",
+      "mean_difference": 0.42164017516070873,
+      "paired_ci95_lower": -0.23982995019220843,
+      "paired_ci95_upper": 1.083110300513626,
+      "negotiation_wins": 51,
+      "ties": 0,
+      "hybrid_wins": 49
+    }
+  ],
+  "aggregated_results": [
+    {
+      "method": "Quantum-classical hybrid",
+      "L_position": 1.0,
+      "seeds": 100,
+      "mean_normalized_utility": 71.08502246656587,
+      "ci95_lower": 69.51808374006791,
+      "ci95_upper": 72.65196119306384,
+      "mean_selected_ues": 36.41,
+      "mean_used_local_reexecutions": 0.0,
+      "maximum_total_triggered_local_reexecutions": 0
+    },
+    {
+      "method": "Quantum-classical hybrid",
+      "L_position": 1.5,
+      "seeds": 100,
+      "mean_normalized_utility": 96.36513059862214,
+      "ci95_lower": 95.71536635860825,
+      "ci95_upper": 97.01489483863604,
+      "mean_selected_ues": 49.48,
+      "mean_used_local_reexecutions": 0.0,
+      "maximum_total_triggered_local_reexecutions": 0
+    },
+    {
+      "method": "O-RAN fixed-priority ConMit",
+      "L_position": 1.0,
+      "seeds": 100,
+      "mean_normalized_utility": 69.93297615278833,
+      "ci95_lower": 68.38647204643452,
+      "ci95_upper": 71.47948025914214,
+      "mean_selected_ues": 35.65,
+      "mean_used_local_reexecutions": 0.0,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN fixed-priority ConMit",
+      "L_position": 1.5,
+      "seeds": 100,
+      "mean_normalized_utility": 85.88217310668117,
+      "ci95_lower": 85.16513866732467,
+      "ci95_upper": 86.59920754603766,
+      "mean_selected_ues": 43.29,
+      "mean_used_local_reexecutions": 0.0,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 1.0,
+      "seeds": 100,
+      "mean_normalized_utility": 69.93297615278833,
+      "ci95_lower": 68.38647204643452,
+      "ci95_upper": 71.47948025914214,
+      "mean_selected_ues": 35.65,
+      "mean_used_local_reexecutions": 0.0,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 2.0,
+      "seeds": 100,
+      "mean_normalized_utility": 87.22934437782781,
+      "ci95_lower": 86.5423093468592,
+      "ci95_upper": 87.91637940879643,
+      "mean_selected_ues": 44.17,
+      "mean_used_local_reexecutions": 1.0,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 3.0,
+      "seeds": 100,
+      "mean_normalized_utility": 88.76434955047776,
+      "ci95_lower": 88.08123816153204,
+      "ci95_upper": 89.44746093942348,
+      "mean_selected_ues": 45.14,
+      "mean_used_local_reexecutions": 2.0,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 4.0,
+      "seeds": 100,
+      "mean_normalized_utility": 90.55927515776895,
+      "ci95_lower": 89.88248248549085,
+      "ci95_upper": 91.23606783004705,
+      "mean_selected_ues": 46.25,
+      "mean_used_local_reexecutions": 3.0,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 5.0,
+      "seeds": 100,
+      "mean_normalized_utility": 92.37308752028406,
+      "ci95_lower": 91.70170987051546,
+      "ci95_upper": 93.04446517005266,
+      "mean_selected_ues": 47.4,
+      "mean_used_local_reexecutions": 3.99,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 6.0,
+      "seeds": 100,
+      "mean_normalized_utility": 94.4597204813798,
+      "ci95_lower": 93.85565566653214,
+      "ci95_upper": 95.06378529622746,
+      "mean_selected_ues": 48.63,
+      "mean_used_local_reexecutions": 4.91,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 7.0,
+      "seeds": 100,
+      "mean_normalized_utility": 95.77730551047487,
+      "ci95_lower": 95.31658406093628,
+      "ci95_upper": 96.23802696001347,
+      "mean_selected_ues": 49.39,
+      "mean_used_local_reexecutions": 5.49,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 8.0,
+      "seeds": 100,
+      "mean_normalized_utility": 96.6451157246201,
+      "ci95_lower": 96.35205625001369,
+      "ci95_upper": 96.9381751992265,
+      "mean_selected_ues": 49.93,
+      "mean_used_local_reexecutions": 5.84,
+      "maximum_total_triggered_local_reexecutions": 9
+    },
+    {
+      "method": "O-RAN negotiation-based ConMit",
+      "L_position": 9.0,
+      "seeds": 100,
+      "mean_normalized_utility": 96.78677077378286,
+      "ci95_lower": 96.53116159517663,
+      "ci95_upper": 97.0423799523891,
+      "mean_selected_ues": 50.03,
+      "mean_used_local_reexecutions": 5.93,
+      "maximum_total_triggered_local_reexecutions": 9
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Q-xApp Simulator</title>
     <!-- The icon file recovered from the deployed GUI is a JPEG (1200x624);
          served with its real format/MIME (R5 asset-consistency fix). -->
@@ -13,11 +14,30 @@
     <script src="/static/vendor/chartjs-plugin-datalabels-2.2.0.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+        :root {
+            color-scheme: dark;
+            --bg: #06080c;
+            --surface: #0c1016;
+            --panel: #111720;
+            --panel-raised: #151d28;
+            --input: #090d13;
+            --input-disabled: #1a2029;
+            --border: #293342;
+            --border-strong: #3a4759;
+            --text: #edf2f7;
+            --muted: #9ba8b8;
+            --accent: #b5233a;
+            --accent-hover: #d12d49;
+            --danger: #ff6672;
+            --chart-grid: rgba(184, 199, 218, 0.16);
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body, html {
             width: 100%; height: 100%;
-            background-color: #ffffff;
-            color: #333;
+            background:
+                radial-gradient(circle at 50% -20%, #18202c 0%, transparent 42%),
+                var(--bg);
+            color: var(--text);
             font-family: 'Roboto', sans-serif;
             overflow: auto;
         }
@@ -28,53 +48,68 @@
         }
         #header {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 5px 20px;
-            border-bottom: 2px solid #8B0000;
+            padding: 8px 20px;
+            background: rgba(8, 11, 16, 0.92);
+            border: 1px solid var(--border);
+            border-bottom: 2px solid var(--accent);
+            border-radius: 8px 8px 0 0;
         }
-        #header-left { display: flex; align-items: center; gap: 15px; }
+        #header-left, #header-right {
+            display: flex; align-items: center; gap: 15px;
+            background: #f5f2ed; border-radius: 6px;
+            padding: 4px 9px;
+        }
         #header-left .logo-text {
-            font-size: 14px; font-weight: bold; color: #8B0000;
+            font-size: 14px; font-weight: bold; color: var(--accent);
             line-height: 1.2;
         }
         #header-center { text-align: center; flex: 1; }
-        #header-center h1 { font-size: 24px; font-weight: 700; color: #333; }
+        #header-center h1 {
+            font-size: 24px; font-weight: 700; color: var(--text);
+            letter-spacing: 0.4px;
+        }
         #header-center .header-buttons {
             margin-top: 5px; display: flex; justify-content: center; gap: 10px;
         }
         .header-btn {
-            background: #8B0000; color: white;
+            background: var(--accent); color: white;
             padding: 6px 16px; border: none; border-radius: 4px;
             cursor: pointer; font-size: 15px; font-weight: 600;
         }
-        .header-btn:hover { background: #a00000; }
-        #header-right { display: flex; align-items: center; gap: 15px; }
+        .header-btn:hover { background: var(--accent-hover); }
         #header-right .logo-text {
-            font-size: 15px; font-weight: bold; color: #003366;
+            font-size: 15px; font-weight: bold; color: #dce6f2;
             text-align: right; line-height: 1.2;
         }
         #form-container {
-            display: none; background: #f5f5f5;
-            border: 1px solid #ddd; border-radius: 8px;
+            display: none; background: var(--panel);
+            border: 1px solid var(--border); border-radius: 8px;
             padding: 15px; margin: 5px 0;
         }
         #simulationForm {
             display: grid; grid-template-columns: repeat(4, 1fr);
             gap: 12px; font-size: 13px;
         }
-        #simulationForm label { font-weight: 600; margin-bottom: 3px; color: #333; }
+        #simulationForm label { font-weight: 600; margin-bottom: 3px; color: var(--text); }
         #simulationForm input, #simulationForm select {
-            padding: 6px; border-radius: 4px; border: 1px solid #ccc;
-            background: #fff; color: #333; width: 100%;
+            padding: 6px; border-radius: 4px; border: 1px solid var(--border-strong);
+            background: var(--input); color: var(--text); width: 100%;
         }
         #simulationForm button {
             padding: 8px; border-radius: 4px; border: none;
-            background: #8B0000; color: white; cursor: pointer; font-weight: bold;
+            background: var(--accent); color: white; cursor: pointer; font-weight: bold;
         }
-        #simulationForm button:disabled { background: #ccc; color: #999; cursor: not-allowed; }
+        #simulationForm button:disabled { background: #2b313b; color: #737e8d; cursor: not-allowed; }
         #frameContainer {
-            display: block; background: #f5f5f5;
-            border: 1px solid #ddd; border-radius: 8px;
+            display: block; background: var(--panel);
+            border: 1px solid var(--border); border-radius: 8px;
             padding: 15px; margin: 5px 0;
+        }
+        select, input {
+            background: var(--input);
+            color: var(--text);
+            border: 1px solid var(--border-strong);
+            border-radius: 4px;
         }
         #content-area {
             display: flex; gap: 10px; align-items: flex-start;
@@ -89,16 +124,17 @@
         html.capture #grid-panel h3 { font-size: 15px; }
         #grid-panel {
             width: 530px; display: flex; flex-direction: column;
-            border: 1px solid #ddd; border-radius: 8px;
-            padding: 10px; background: #fff; flex-shrink: 0;
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px; background: var(--panel); flex-shrink: 0;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
         }
-        #grid-panel h3 { text-align: center; font-size: 16px; color: #333; margin-bottom: 5px; }
+        #grid-panel h3 { text-align: center; font-size: 16px; color: var(--text); margin-bottom: 5px; }
         #grid-chart-container { position: relative; width: 100%; margin: 0 auto; }
         #grid-chart-container canvas { }
         .grid-legend {
             display: flex; justify-content: center; gap: 5px;
             padding: 1px 4px; font-size: 18px; font-weight: normal; flex-wrap: wrap; max-width: 280px;
-            border: 1px solid #bbb; border-radius: 4px; background: #fafafa;
+            border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface);
             width: fit-content; margin: 3px auto 0;
         }
         .grid-legend-item { display: flex; align-items: center; gap: 2px; }
@@ -107,20 +143,20 @@
             display: flex; align-items: center; position: relative; margin-bottom: 3px;
             flex: 0 0 auto;
         }
-        .chart-title { font-size: 20px; font-weight: 700; color: #333; position: absolute; left: 50%; transform: translateX(-50%); }
-        .power-model-note { margin: 0 0 3px; color: #5b6470; font-size: 12px; text-align: center; }
+        .chart-title { font-size: 20px; font-weight: 700; color: var(--text); position: absolute; left: 50%; transform: translateX(-50%); }
         .chart-legend { margin-left: auto; }
         .chart-legend ul { display: flex; align-items: center; gap: 10px; margin: 0; padding: 3px 10px; list-style: none;
-            border: 1.5px solid #bbb; border-radius: 5px; background: #fafafa; }
+            border: 1.5px solid var(--border-strong); border-radius: 5px; background: var(--surface); }
         .chart-legend li { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 18px; }
         #kpi-panel {
             flex: 1; display: flex; flex-direction: column; gap: 8px;
         }
         .kpi-row { display: flex; gap: 8px; flex: 1; }
         .kpi-chart-box {
-            flex: 1; border: 1px solid #ddd; border-radius: 8px;
-            padding: 8px; background: #fff;
+            flex: 1; border: 1px solid var(--border); border-radius: 8px;
+            padding: 8px; background: var(--panel);
             height: 300px; display: flex; flex-direction: column; min-height: 0;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
         }
         .chart-canvas-wrap {
             position: relative; flex: 1 1 auto; min-height: 0;
@@ -132,6 +168,21 @@
             display: flex; justify-content: center; align-items: center;
             gap: 10px; font-size: 13px;
         }
+        #desktop-statusbar {
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+            padding: 7px 13px; color: var(--muted); background: #080c12;
+            border: 1px solid var(--border); border-radius: 4px;
+            font-size: 12px; font-weight: 600; letter-spacing: 0.35px;
+        }
+        #desktop-statusbar .status-item {
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        #desktop-statusbar .status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #55d17a; box-shadow: 0 0 8px rgba(85, 209, 122, 0.65);
+        }
+        #desktop-statusbar .status-spacer { flex: 1; }
+        #desktop-statusbar strong { color: var(--text); }
     </style>
 </head>
 <body>
@@ -162,7 +213,7 @@
                     </div>
                     <div style="display: flex; align-items: center;">
                         <label for="e2TermIp" style="margin-right: 8px;">e2TermIp:</label>
-                        <input type="text" id="e2TermIp" name="e2TermIp" value="127.0.0.1" disabled style="background-color: #eee;">
+                        <input type="text" id="e2TermIp" name="e2TermIp" value="127.0.0.1" disabled style="background-color: var(--input-disabled);">
                     </div>
                 </div>
             </div>
@@ -224,19 +275,19 @@
                 <label>Status:</label>
                 <label id="status_label">off</label>
                 <label id="label_between_status_and_simid"></label>
-                <label id="simid_label" style="color: #8B0000;"></label>
+                <label id="simid_label" style="color: var(--accent-hover);"></label>
             </div>
-            <div><label id="warning_label" style="color: red;"></label></div>
+            <div><label id="warning_label" style="color: var(--danger);"></label></div>
         </form>
     </div>
 
     <div id="frameContainer" style="display:none"></div>
 
 
-    <div id="sim-info-bar" style="display:flex; flex-direction:column; padding:8px 20px; font-size:17px; color:#333; border-bottom:2px solid #8B0000; gap:6px;">
+    <div id="sim-info-bar" style="display:flex; flex-direction:column; padding:10px 20px; font-size:17px; color:var(--text); background:var(--surface); border:1px solid var(--border); border-bottom:2px solid var(--accent); gap:8px;">
         <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
-            <span style="font-weight:700; color:#333; font-size:18px;">Network Settings</span>
-            <span style="color:#999;">|</span>
+            <span style="font-weight:700; color:var(--text); font-size:18px;">Network Settings</span>
+            <span style="color:var(--muted);">|</span>
             <span>O-RU: 3 (mmWave)</span>
             <span>UE: 4</span>
             <span>Bandwidth: 100 MHz</span>
@@ -245,7 +296,7 @@
             <span>ISD (Cell): 150 m</span>
         </div>
         <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
-            <span style="font-weight:700; color:white; background:#8B0000; padding:5px 12px; border-radius:4px; font-size:18px;">A1 Policy Manager</span>
+            <span style="font-weight:700; color:white; background:var(--accent); padding:5px 12px; border-radius:4px; font-size:18px;">A1 Policy Manager</span>
             <label style="font-weight:600;">Use Case:
                 <select id="scenario-mode-bar" onchange="switchScenario(this.value)" style="font-size:17px; padding:3px 6px; margin-left:4px;">
                     <option value="ts">Traffic Steering</option>
@@ -305,8 +356,7 @@
             </div>
             <div class="kpi-row">
                 <div class="kpi-chart-box">
-                    <div class="chart-header"><span class="chart-title">Modelled O-RU Power</span><div id="energy-legend" class="chart-legend"></div></div>
-                    <p id="energy-model-note" class="power-model-note">Loading PRB-based O-RU power model…</p>
+                    <div class="chart-header"><span class="chart-title">O-RU Power Consumption</span><div id="energy-legend" class="chart-legend"></div></div>
                     <div class="chart-canvas-wrap"><canvas id="energy-chart"></canvas></div>
                 </div>
             </div>
@@ -315,6 +365,13 @@
 
     </div>
 
+    <div id="desktop-statusbar" aria-label="Simulator status">
+        <span class="status-item"><span class="status-dot"></span><strong>LOCAL DASHBOARD</strong></span>
+        <span class="status-item">TOPOLOGY&nbsp; <strong>3 O-RU × 4 UE</strong></span>
+        <span class="status-item">ALLOCATION&nbsp; <strong>weighted-AA</strong></span>
+        <span class="status-spacer"></span>
+        <span class="status-item">USE CASE&nbsp; <strong id="runtime-mode">Traffic Steering</strong></span>
+    </div>
 
 </div>
 
@@ -322,8 +379,10 @@
     const host_ns3 = "{{ host_ns3 }}";
     const DEFAULT_SCENARIO = 'scratch/scenario-zero-with_parallel_loging.cc';
     const DEFAULT_SIMULATION_PARAMS = { flexric: 'true', flags: 'true', scenario: DEFAULT_SCENARIO };
-    const cellColors = { 1: '#3366cc', 2: '#33aa33', 3: '#9933cc', 4: '#cc3333' };
-    const ueColors = ['#33aa33', '#9933cc', '#cc3333', '#3366cc'];
+    const cellColors = { 1: '#5c8dff', 2: '#55d17a', 3: '#b276ff', 4: '#ff6672' };
+    const ueColors = ['#55d17a', '#b276ff', '#ff6672', '#5c8dff'];
+    const chartText = '#dce5ef';
+    const chartGrid = 'rgba(184,199,218,0.16)';
     /* Fixed O-RU positions: triangular around center=(250,250), ISD=150 */
     const fixedCellPos = { 2: {x:400,y:250}, 3: {x:175,y:380}, 4: {x:175,y:120} };
 
@@ -353,6 +412,16 @@
         if (a1Panel) a1Panel.style.display = 'none';
         var qosPanel = document.getElementById('qos-config-panel');
         if (qosPanel) qosPanel.style.display = 'none';
+        var runtimeMode = document.getElementById('runtime-mode');
+        if (runtimeMode) {
+            var runtimeLabels = {
+                ts: 'Traffic Steering',
+                nes: 'Network Energy Saving',
+                qos: 'QoS Resource Allocation',
+                auto: 'Auto Cycle'
+            };
+            runtimeMode.textContent = runtimeLabels[mode] || mode;
+        }
         fetch("/switch_usecase", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -415,11 +484,14 @@
     document.getElementById('flexric').addEventListener('change', function() {
         var e2f = document.getElementById('e2TermIp');
         if (this.checked) { e2f.disabled = false; e2f.style.backgroundColor = ''; }
-        else { e2f.disabled = true; e2f.value = '127.0.0.1'; e2f.style.backgroundColor = '#eee'; }
+        else { e2f.disabled = true; e2f.value = '127.0.0.1'; e2f.style.backgroundColor = 'var(--input-disabled)'; }
     });
 
     // Background map plugin
     var mapImg = new Image();
+    mapImg.onload = function() {
+        if (typeof myChart !== 'undefined') myChart.update('none');
+    };
     mapImg.src = '/static/univmap.png?v=' + Date.now();
     var bgMapPlugin = {
         id: 'bgMap',
@@ -429,7 +501,9 @@
             var ca = chart.chartArea;
             if (!ca) return;
             chart.ctx.save();
-            chart.ctx.globalAlpha = 1.0;
+            chart.ctx.fillStyle = '#0a0f16';
+            chart.ctx.fillRect(ca.left, ca.top, ca.right - ca.left, ca.bottom - ca.top);
+            chart.ctx.globalAlpha = 0.72;
             chart.ctx.drawImage(mapImg, ca.left, ca.top, ca.right - ca.left, ca.bottom - ca.top);
             chart.ctx.restore();
         }
@@ -445,7 +519,7 @@
                     label: 'UEs', data: [], backgroundColor: [],
                     borderWidth: 2, pointRadius: 8, pointStyle: 'circle',
                     datalabels: {
-                        align: 'top', color: '#333', font: { size: 14 },
+                        align: 'top', color: '#111111', font: { size: 14, weight: 'bold' },
                         formatter: function(value) {
                             var label = 'UE ' + (value.ue_id || '');
                             if (currentScenario === 'qos' && qxappData && qxappData.drb_assignment) {
@@ -461,7 +535,7 @@
                     label: 'Cells', data: [], backgroundColor: [],
                     borderWidth: 2, pointRadius: 22, pointStyle: 'triangle',
                     datalabels: {
-                        align: 'top', color: '#333', font: { size: 14 },
+                        align: 'top', color: '#111111', font: { size: 14, weight: 'bold' },
                         formatter: function(value) {
                             return value.bs_label || 'O-RU';
                         }, offset: 12
@@ -474,15 +548,15 @@
             animation: false,
             scales: {
                 x: { type: 'linear', position: 'bottom', min: 0, max: 500,
-                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333', font: { size: 13 } }
+                    grid: { color: chartGrid }, ticks: { color: chartText, font: { size: 13 } }
                 },
                 y: { min: 0, max: 500,
-                    grid: { color: 'rgba(0,0,0,0.1)' }, ticks: { color: '#333', font: { size: 13 } }
+                    grid: { color: chartGrid }, ticks: { color: chartText, font: { size: 13 } }
                 }
             },
             plugins: {
                 legend: { display: false },
-                title: { display: true, text: 'Simulation Grid', color: '#333', font: { size: 20, weight: 'bold' } },
+                title: { display: true, text: 'Simulation Grid', color: chartText, font: { size: 20, weight: 'bold' } },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -536,26 +610,39 @@
         }
     };
 
+    var MAX_HISTORY = 100;
+    var SIMULATION_TIME_MAX = 7.0;
+
     function createLineChart(canvasId, title, yLabel, datasets, legendContainerId) {
         var c = document.getElementById(canvasId).getContext('2d');
         return new Chart(c, {
             type: 'line',
-            data: { labels: Array.from({length: 100}, function(_, i) { return i + 1; }), datasets: datasets || [] },
+            data: {
+                labels: Array.from({length: MAX_HISTORY}, function(_, index) {
+                    return SIMULATION_TIME_MAX * index / (MAX_HISTORY - 1);
+                }),
+                datasets: datasets || []
+            },
             options: {
                 responsive: true, maintainAspectRatio: false, animation: false, spanGaps: false,
                 scales: {
                     x: {
-                        title: { display: true, text: 'Time', color: '#444', font: { size: 16, weight: 'bold' } },
-                        grid: { color: 'rgba(0,0,0,0.08)' },
-                        ticks: { color: '#444', font: { size: 14 },
-                            callback: function(value, index) { var v = index + 1; return (v % 10 === 0) ? v : ''; },
+                        title: { display: true, text: 'Simulation time (s)', color: chartText, font: { size: 16, weight: 'bold' } },
+                        grid: { color: chartGrid },
+                        ticks: { color: chartText, font: { size: 14 },
+                            callback: function(value) {
+                                var seconds = Number(this.getLabelForValue(value));
+                                var rounded = Math.round(seconds);
+                                return Math.abs(seconds - rounded) < 0.04 ?
+                                    rounded : '';
+                            },
                             autoSkip: false, maxRotation: 0
                         }
                     },
                     y: {
-                        title: { display: true, text: yLabel, color: '#444', font: { size: 16, weight: 'bold' } },
+                        title: { display: true, text: yLabel, color: chartText, font: { size: 16, weight: 'bold' } },
                         min: 0, beginAtZero: true,
-                        grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#444', font: { size: 14 } }
+                        grid: { color: chartGrid }, ticks: { color: chartText, font: { size: 14 } }
                     }
                 },
                 plugins: {
@@ -586,69 +673,436 @@
         { label: 'O-RU 2', data: [], borderColor: cellColors[3], borderWidth: 3, fill: false, pointRadius: 0, pointStyle: 'triangle' },
         { label: 'O-RU 3', data: [], borderColor: cellColors[4], borderWidth: 3, fill: false, pointRadius: 0, pointStyle: 'triangle' }
     ], 'energy-legend');
-    // History
-    var sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
-    var energyHistory = { 2: [], 3: [], 4: [] };
-    var MAX_HISTORY = 100;
+    energyChart.options.scales.y.max = 100;
+    energyChart.update();
+    // Manual-mode history plus phase-finalized auto-cycle history.
+    var sinrHistory = {
+        1: Array(MAX_HISTORY).fill(null), 2: Array(MAX_HISTORY).fill(null),
+        3: Array(MAX_HISTORY).fill(null), 4: Array(MAX_HISTORY).fill(null)
+    };
+    var energyHistory = {
+        2: Array(MAX_HISTORY).fill(null), 3: Array(MAX_HISTORY).fill(null),
+        4: Array(MAX_HISTORY).fill(null)
+    };
+    /* Round membership decides when a phase is final. Sample placement uses
+       the actual ns-3/PDCP timestamps rather than normalized phase slots. */
+    var AUTO_PHASE_LAYOUT = [
+        { key: 'ts1', firstRound: 1,  lastRound: 5 },
+        { key: 'qos', firstRound: 6,  lastRound: 10 },
+        { key: 'nes', firstRound: 11, lastRound: 15 },
+        { key: 'ts2', firstRound: 16, lastRound: null }
+    ];
+    var AUTO_FINAL_PDCP_TIME = 7.0;
+    var autoPhaseBuffers = [[], [], [], []];
+    var committedSinr = {
+        1: Array(MAX_HISTORY).fill(null),
+        2: Array(MAX_HISTORY).fill(null),
+        3: Array(MAX_HISTORY).fill(null),
+        4: Array(MAX_HISTORY).fill(null)
+    };
+    var committedEnergy = {
+        2: Array(MAX_HISTORY).fill(null),
+        3: Array(MAX_HISTORY).fill(null),
+        4: Array(MAX_HISTORY).fill(null)
+    };
+    var committedPhases = [false, false, false, false];
+    var autoPhaseEndTimes = [null, null, null, null];
+    var latestPowerIntervals = {};
+    var latestPdcpSeries = {};
+    var activePhaseIndex = null;
+    var phaseStartSampleTime = null;
     var _prevRound = -1;
     var _cycleFrozen = false;
+    var _recoveryActiveSamples = 0;
+    var _recoveryComplete = false;
 
     if (window.location.search.indexOf('capture') !== -1) {
         document.documentElement.classList.add('capture');
     }
 
-    function pushHistory(histObj, id, value) {
-        if (!histObj[id]) histObj[id] = [];
-        /* fill one window (~= one auto cycle) then freeze, so the time axis
-           spans exactly one cycle; cycle-restart reset still clears arrays */
-        if (histObj[id].length >= MAX_HISTORY) return;
-        histObj[id].push(value);
+    function writeTimedPoint(histObj, id, sampleTime, value) {
+        var time = Number(sampleTime);
+        var numericValue = Number(value);
+        if (!Number.isFinite(time) || !Number.isFinite(numericValue) ||
+                time < 0 || time > SIMULATION_TIME_MAX) return;
+        if (!histObj[id] || histObj[id].length !== MAX_HISTORY)
+            histObj[id] = Array(MAX_HISTORY).fill(null);
+        var index = Math.max(0, Math.min(MAX_HISTORY - 1, Math.round(
+            time / SIMULATION_TIME_MAX * (MAX_HISTORY - 1))));
+        histObj[id][index] = numericValue;
     }
 
-    function pushDeltaHistory(histObj, id, value) {
-        if (!histObj[id]) histObj[id] = [];
-        var prev = histObj[id].length ? histObj[id][histObj[id].length - 1].__raw : null;
-        var delta = prev === null ? 0 : Math.max(0, value - prev);
-        if (histObj[id].length >= MAX_HISTORY) return; /* freeze with window */
-        histObj[id].push({ value: delta, __raw: value });
+    function resetKpiHistory() {
+        sinrHistory = {
+            1: Array(MAX_HISTORY).fill(null),
+            2: Array(MAX_HISTORY).fill(null),
+            3: Array(MAX_HISTORY).fill(null),
+            4: Array(MAX_HISTORY).fill(null)
+        };
+        energyHistory = {
+            2: Array(MAX_HISTORY).fill(null),
+            3: Array(MAX_HISTORY).fill(null),
+            4: Array(MAX_HISTORY).fill(null)
+        };
+        autoPhaseBuffers = [[], [], [], []];
+        committedSinr = {
+            1: Array(MAX_HISTORY).fill(null),
+            2: Array(MAX_HISTORY).fill(null),
+            3: Array(MAX_HISTORY).fill(null),
+            4: Array(MAX_HISTORY).fill(null)
+        };
+        committedEnergy = {
+            2: Array(MAX_HISTORY).fill(null),
+            3: Array(MAX_HISTORY).fill(null),
+            4: Array(MAX_HISTORY).fill(null)
+        };
+        committedPhases = [false, false, false, false];
+        autoPhaseEndTimes = [null, null, null, null];
+        latestPowerIntervals = {};
+        latestPdcpSeries = {};
+        activePhaseIndex = null;
+        phaseStartSampleTime = null;
+        _prevRound = -1;
+        _cycleFrozen = false;
+        _recoveryActiveSamples = 0;
+        _recoveryComplete = false;
+        [1, 2, 3, 4].forEach(function(uid, index) {
+            sinrChart.data.datasets[index].data = Array(MAX_HISTORY).fill(null);
+        });
+        [2, 3, 4].forEach(function(cid, index) {
+            energyChart.data.datasets[index].data = Array(MAX_HISTORY).fill(null);
+        });
+        sinrChart.update();
+        energyChart.update();
     }
 
     var qxappData = null; /* Q-xApp allocation result */
 
-    function getOruPowerModel(data) {
-        var model = data && data.oru_power_model;
-        if (!model) return null;
-        var fields = ['active_base_w', 'dynamic_full_load_w', 'deep_sleep_w'];
-        for (var i = 0; i < fields.length; i++) {
-            if (!Number.isFinite(Number(model[fields[i]])) || Number(model[fields[i]]) < 0) return null;
-        }
-        return model;
+    function mappedValue(obj, key) {
+        if (!obj) return null;
+        if (key in obj) return obj[key];
+        var stringKey = String(key);
+        return (stringKey in obj) ? obj[stringKey] : null;
     }
 
-    function updatePowerModelNote(model) {
-        var note = document.getElementById('energy-model-note');
-        if (!note) return;
-        if (!model) {
-            note.textContent = 'PRB power-model configuration unavailable';
+    function measuredSleepCells(data) {
+        var sleepCells = [];
+        [2, 3, 4].forEach(function(cid) {
+            var state = mappedValue(data && data.es_state, cid);
+            if (state === true || Number(state) === 1) sleepCells.push(cid);
+        });
+        return sleepCells;
+    }
+
+    function allOrusMeasuredActive(data) {
+        return [2, 3, 4].every(function(cid) {
+            var state = mappedValue(data && data.es_state, cid);
+            var power = mappedValue(data && data.oru_power, cid);
+            return Number(state) === 0 && Number.isFinite(Number(power));
+        });
+    }
+
+    function phaseIndexForRound(round) {
+        for (var index = 0; index < AUTO_PHASE_LAYOUT.length; index++) {
+            var phase = AUTO_PHASE_LAYOUT[index];
+            if (round >= phase.firstRound &&
+                    (phase.lastRound === null || round <= phase.lastRound)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    function captureAutoSnapshot(data) {
+        var sampleTimes = [2, 3, 4].map(function(cid) {
+            return Number(mappedValue(data.oru_simulator_sample_time, cid));
+        }).filter(Number.isFinite);
+        var snapshot = {
+            sinr: { 1: null, 2: null, 3: null, 4: null },
+            energy: { 2: null, 3: null, 4: null },
+            state: { 2: null, 3: null, 4: null },
+            sampleTime: sampleTimes.length ? Math.max.apply(null, sampleTimes) : null,
+            pdcpSampleTime: Number(data.ue_pdcp_sample_time),
+            round: Number(qxappData && qxappData.round)
+        };
+        if (data.ues) {
+            data.ues.forEach(function(ue, index) {
+                var uid = ue.ue_id || (index + 1);
+                var pdcpThroughput =
+                    Number(mappedValue(data.ue_pdcp_throughput_mbps, uid));
+                snapshot.sinr[uid] = Number.isFinite(pdcpThroughput) ?
+                    pdcpThroughput :
+                    Number(ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0;
+            });
+        }
+        [2, 3, 4].forEach(function(cid) {
+            var power = Number(mappedValue(data.oru_power, cid));
+            var state = Number(mappedValue(data.es_state, cid));
+            snapshot.energy[cid] = Number.isFinite(power) ? power : null;
+            snapshot.state[cid] = Number.isFinite(state) ? state : null;
+        });
+        return snapshot;
+    }
+
+    function snapshotValuesEqual(left, right) {
+        return JSON.stringify([left.sinr, left.energy, left.state]) ===
+            JSON.stringify([right.sinr, right.energy, right.state]);
+    }
+
+    function appendAccuratePhaseSnapshot(phaseIndex, snapshot) {
+        if (phaseIndex < 0) return false;
+        var buffer = autoPhaseBuffers[phaseIndex];
+        var last = buffer.length ? buffer[buffer.length - 1] : null;
+        if (last && Number.isFinite(snapshot.sampleTime) &&
+                Number.isFinite(last.sampleTime)) {
+            if (snapshot.sampleTime < last.sampleTime) return false;
+            if (snapshot.sampleTime === last.sampleTime) {
+                /* Same ns-3 sample: keep only its latest, internally consistent
+                   view. It is still provisional and has never been plotted. */
+                buffer[buffer.length - 1] = snapshot;
+                return false;
+            }
+        } else if (last && snapshotValuesEqual(last, snapshot)) {
+            return false;
+        }
+        buffer.push(snapshot);
+        return true;
+    }
+
+    function cellSleptInNes(cid) {
+        return autoPhaseBuffers[2].some(function(snapshot) {
+            return Number(snapshot.state[cid]) === 1;
+        });
+    }
+
+    function phaseSnapshotsForMetric(phaseIndex, metric, id) {
+        var snapshots = autoPhaseBuffers[phaseIndex];
+        if (metric !== 'energy') return snapshots;
+        if (phaseIndex === 2 && cellSleptInNes(id)) {
+            snapshots = snapshots.filter(function(snapshot) {
+                return Number(snapshot.state[id]) === 1;
+            });
+        }
+        if (phaseIndex === 3 && cellSleptInNes(id)) {
+            snapshots = snapshots.filter(function(snapshot) {
+                return Number(snapshot.state[id]) === 0;
+            });
+        }
+        return snapshots;
+    }
+
+    function timedPhasePoints(phaseIndex, metric, id) {
+        var pointsByTime = {};
+        phaseSnapshotsForMetric(phaseIndex, metric, id).forEach(
+            function(snapshot) {
+                var x = metric === 'energy' ?
+                    Number(snapshot.sampleTime) :
+                    Number(snapshot.pdcpSampleTime);
+                var y = Number(snapshot[metric][id]);
+                if (Number.isFinite(x) && Number.isFinite(y) &&
+                        x >= 0 && x <= SIMULATION_TIME_MAX) {
+                    pointsByTime[x] = { x: x, y: y };
+                }
+            });
+        return Object.keys(pointsByTime).map(function(key) {
+            return pointsByTime[key];
+        }).sort(function(left, right) {
+            return left.x - right.x;
+        });
+    }
+
+    function writeTimedSeries(target, points) {
+        if (!points.length) return;
+        if (points.length === 1) {
+            var onlyIndex = Math.round(
+                points[0].x / SIMULATION_TIME_MAX * (MAX_HISTORY - 1));
+            if (target[onlyIndex] === null)
+                target[onlyIndex] = points[0].y;
             return;
         }
-        note.textContent = 'Reference model: ' + Number(model.active_base_w).toFixed(0) +
-            ' W base + ' + Number(model.dynamic_full_load_w).toFixed(0) +
-            ' W at 100% DL PRB; deep sleep ' + Number(model.deep_sleep_w).toFixed(0) + ' W';
-        note.title = model.calibration_note || 'Reference model; calibrate with device measurements.';
+        var firstIndex = Math.max(0, Math.ceil(
+            points[0].x / SIMULATION_TIME_MAX * (MAX_HISTORY - 1)));
+        var lastIndex = Math.min(MAX_HISTORY - 1, Math.floor(
+            points[points.length - 1].x / SIMULATION_TIME_MAX *
+            (MAX_HISTORY - 1)));
+        var right = 1;
+        for (var index = firstIndex; index <= lastIndex; index++) {
+            var x = SIMULATION_TIME_MAX * index / (MAX_HISTORY - 1);
+            while (right < points.length - 1 && points[right].x < x)
+                right += 1;
+            var left = Math.max(0, right - 1);
+            var x0 = points[left].x;
+            var x1 = points[right].x;
+            var fraction = x1 === x0 ? 0 : (x - x0) / (x1 - x0);
+            if (target[index] === null) {
+                target[index] = points[left].y +
+                    fraction * (points[right].y - points[left].y);
+            }
+        }
     }
 
-    function modelOruPower(data, cid) {
-        var model = getOruPowerModel(data);
-        if (!model) return null;
-        var sleepList = (qxappData && qxappData.sleep_cells) ? qxappData.sleep_cells : [];
-        if (sleepList.indexOf(cid) >= 0) return Number(model.deep_sleep_w);
-        if (!data || !data.prb || (!(cid in data.prb) && !(String(cid) in data.prb))) return null;
-        var rawPrb = (cid in data.prb) ? data.prb[cid] : data.prb[String(cid)];
-        var prb = Number(rawPrb);
-        if (!Number.isFinite(prb)) return null;
-        var rho = Math.max(0, Math.min(100, prb)) / 100.0;
-        return Number(model.active_base_w) + rho * Number(model.dynamic_full_load_w);
+    function backendTracePoints(series, id, endTime) {
+        var values = mappedValue(series, id);
+        if (!Array.isArray(values)) return [];
+        return values.map(function(point) {
+            return { x: Number(point.time), y: Number(point.value) };
+        }).filter(function(point) {
+            return Number.isFinite(point.x) && Number.isFinite(point.y) &&
+                point.x >= 0 && point.x <= endTime;
+        });
+    }
+
+    function writeTimedIntervals(target, intervals, endTime) {
+        if (!Array.isArray(intervals) || !intervals.length) return;
+        var lastIndex = Math.min(MAX_HISTORY - 1, Math.floor(
+            endTime / SIMULATION_TIME_MAX * (MAX_HISTORY - 1)));
+        var cursor = 0;
+        for (var index = 0; index <= lastIndex; index++) {
+            if (target[index] !== null) continue;
+            var x = SIMULATION_TIME_MAX * index / (MAX_HISTORY - 1);
+            while (cursor < intervals.length - 1 &&
+                    x >= Number(intervals[cursor].end)) cursor += 1;
+            var interval = intervals[cursor];
+            var start = Number(interval.start);
+            var end = Number(interval.end);
+            var value = Number(interval.value);
+            if (Number.isFinite(start) && Number.isFinite(end) &&
+                    Number.isFinite(value) && x >= start - 1e-6 &&
+                    x <= end + 1e-6) {
+                target[index] = value;
+            }
+        }
+    }
+
+    function historicalTracesComplete() {
+        var powerComplete = [2, 3, 4].every(function(cid) {
+            var intervals = mappedValue(latestPowerIntervals, cid);
+            if (!Array.isArray(intervals) || !intervals.length) return false;
+            return Number(intervals[intervals.length - 1].end) >=
+                SIMULATION_TIME_MAX - 1e-6;
+        });
+        var pdcpComplete = [1, 2, 3, 4].every(function(uid) {
+            var points = mappedValue(latestPdcpSeries, uid);
+            if (!Array.isArray(points) || !points.length) return false;
+            return Number(points[points.length - 1].time) >=
+                AUTO_FINAL_PDCP_TIME - 1e-6;
+        });
+        return powerComplete && pdcpComplete;
+    }
+
+    function commitAutoPhase(phaseIndex) {
+        if (committedPhases[phaseIndex]) return false;
+        var endTime = Number(autoPhaseEndTimes[phaseIndex]);
+        if (!Number.isFinite(endTime)) return false;
+        [1, 2, 3, 4].forEach(function(uid) {
+            writeTimedSeries(
+                committedSinr[uid],
+                backendTracePoints(latestPdcpSeries, uid, endTime));
+        });
+        [2, 3, 4].forEach(function(cid) {
+            writeTimedIntervals(
+                committedEnergy[cid],
+                mappedValue(latestPowerIntervals, cid), endTime);
+        });
+        committedPhases[phaseIndex] = true;
+        return true;
+    }
+
+    function renderCommittedAutoKpis() {
+        [1, 2, 3, 4].forEach(function(uid, index) {
+            sinrChart.data.datasets[index].data =
+                committedSinr[uid].slice();
+        });
+        [2, 3, 4].forEach(function(cid, index) {
+            energyChart.data.datasets[index].data =
+                committedEnergy[cid].slice();
+        });
+        sinrChart.update();
+        energyChart.update();
+    }
+
+    function commitThroughPhase(lastPhase) {
+        var changed = false;
+        for (var index = 0; index <= lastPhase; index++) {
+            changed = commitAutoPhase(index) || changed;
+        }
+        if (changed) renderCommittedAutoKpis();
+    }
+
+    function preSleepPowerReference(cid) {
+        var values = autoPhaseBuffers[0].concat(autoPhaseBuffers[1])
+            .map(function(snapshot) { return Number(snapshot.energy[cid]); })
+            .filter(Number.isFinite);
+        return values.length ? values[values.length - 1] : null;
+    }
+
+    function sleptOrusHaveRecoveredPower(data) {
+        if (!allOrusMeasuredActive(data)) return false;
+        return [2, 3, 4].filter(cellSleptInNes).every(function(cid) {
+            var reference = preSleepPowerReference(cid);
+            var recovered = Number(mappedValue(data.oru_power, cid));
+            return reference === null ||
+                (Number.isFinite(recovered) && recovered >= reference - 1.0);
+        });
+    }
+
+    function handleAutoSnapshot(data) {
+        var round = Number(qxappData && qxappData.round);
+        if (!Number.isInteger(round) || round < 1) return;
+        var phaseIndex = phaseIndexForRound(round);
+        var snapshot = captureAutoSnapshot(data);
+        latestPowerIntervals = data.oru_power_intervals || {};
+        latestPdcpSeries = data.ue_pdcp_throughput_series || {};
+        if (qxappData.cycle_finished === true &&
+                historicalTracesComplete()) {
+            autoPhaseEndTimes = [
+                SIMULATION_TIME_MAX, SIMULATION_TIME_MAX,
+                SIMULATION_TIME_MAX, SIMULATION_TIME_MAX
+            ];
+            commitThroughPhase(3);
+            _recoveryComplete = true;
+            _cycleFrozen = true;
+            return;
+        }
+        if (activePhaseIndex === null) {
+            activePhaseIndex = phaseIndex;
+            phaseStartSampleTime = snapshot.sampleTime;
+        } else if (phaseIndex !== activePhaseIndex) {
+            if (phaseIndex > activePhaseIndex) {
+                autoPhaseEndTimes[activePhaseIndex] = snapshot.sampleTime;
+                commitThroughPhase(phaseIndex - 1);
+            }
+            activePhaseIndex = phaseIndex;
+            phaseStartSampleTime = snapshot.sampleTime;
+        }
+
+        /* Do not attribute the transition poll to the new phase. Wait for the
+           next actual ns-3 sample, then retain every fresh sample off-chart. */
+        var isFreshForPhase = !Number.isFinite(phaseStartSampleTime) ||
+            !Number.isFinite(snapshot.sampleTime) ||
+            snapshot.sampleTime > phaseStartSampleTime;
+        var appended = isFreshForPhase ?
+            appendAccuratePhaseSnapshot(phaseIndex, snapshot) : false;
+
+        if (qxappData.cycle_finished === true &&
+                sleptOrusHaveRecoveredPower(data) && appended) {
+            _recoveryActiveSamples += 1;
+        } else if (!sleptOrusHaveRecoveredPower(data)) {
+            _recoveryActiveSamples = 0;
+        }
+        /* The final phase is not final merely because wake power recovered.
+           Keep collecting authoritative PDCP bins through the fixed 7 s
+           artifact, then commit once. This preserves the complete UE-return
+           trajectory and the post-wake O-RU power variation. */
+        var pdcpTraceComplete =
+            Number(data.ue_pdcp_sample_time) >= AUTO_FINAL_PDCP_TIME;
+        _recoveryComplete =
+            _recoveryActiveSamples >= 2 && pdcpTraceComplete;
+        if (_recoveryComplete) {
+            autoPhaseEndTimes[3] = SIMULATION_TIME_MAX;
+            commitThroughPhase(3);
+            _cycleFrozen = true;
+        }
     }
 
     function fetchData() {
@@ -664,19 +1118,12 @@
             if (qxappData && qxappData.round !== undefined) {
                 /* Reset history on cycle restart (round drops) */
                 if (_prevRound > 0 && qxappData.round < _prevRound) {
-                    sinrHistory = { 1: [], 2: [], 3: [], 4: [] };
-                    energyHistory = { 2: [], 3: [], 4: [] };
-                    _cycleFrozen = false;
+                    resetKpiHistory();
                 }
                 _prevRound = qxappData.round;
             }
             updateGrid(data);
-            /* Freeze only after xApp signals the final recovery snapshot
-               (cycle_finished): draw that final point once, then stop appending. */
-            if (!_cycleFrozen) {
-                updateKPIs(data);
-                if (qxappData && qxappData.cycle_finished === true) _cycleFrozen = true;
-            }
+            if (!_cycleFrozen) updateKPIs(data);
         }).catch(function(e) { console.log('Fetch error:', e); });
     }
 
@@ -716,8 +1163,9 @@
                 ueBg.push(isUnassigned ? '#ccc' : (cellColors[connCell] || '#999'));
             });
         }
-        /* Always show O-RUs at fixed positions — gray if sleeping */
-        var sleepList = (qxappData && qxappData.sleep_cells) ? qxappData.sleep_cells : [];
+        /* Always show O-RUs at fixed positions; use the measured ns-3 energy
+           state rather than the controller's requested sleep target. */
+        var sleepList = measuredSleepCells(data);
         [2, 3, 4].forEach(function(cid) {
             var fp = fixedCellPos[cid];
             var isSleep = (sleepList.indexOf(cid) >= 0);
@@ -733,34 +1181,44 @@
     }
 
     function updateKPIs(data) {
+        var isAutoCycle = currentScenario === 'auto' &&
+            qxappData && Number(qxappData.round) >= 1;
+        if (isAutoCycle) {
+            handleAutoSnapshot(data);
+            return;
+        }
+
         if (data.ues) {
             data.ues.forEach(function(ue, i) {
                 var uid = ue.ue_id || (i + 1);
-                var tput = (ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0;
-                pushHistory(sinrHistory, uid, tput);
+                var pdcpThroughput =
+                    Number(mappedValue(data.ue_pdcp_throughput_mbps, uid));
+                var tput = Number.isFinite(pdcpThroughput) ?
+                    pdcpThroughput :
+                    (ue.TP_Combined_PDCP_ENDC_kbps || 0) / 1000.0;
+                writeTimedPoint(
+                    sinrHistory, uid, data.ue_pdcp_sample_time, tput);
             });
         }
-        /* Affine O-RU supply-power model driven by the ns-3 DU's actual DL PRB
-           utilisation. The legacy state-current delta from qxappData is not
-           used here: it cannot distinguish equally busy active cells. */
-        updatePowerModelNote(getOruPowerModel(data));
+        /* Server-side power retains the ns-3 interval-energy shape while
+           calibrating its absolute active/sleep levels to the O-RU profile. */
         [2, 3, 4].forEach(function(cid) {
-            pushHistory(energyHistory, cid, modelOruPower(data, cid));
+            writeTimedPoint(
+                energyHistory, cid,
+                mappedValue(data.oru_simulator_sample_time, cid),
+                mappedValue(data.oru_power, cid));
         });
 
-        // Update SINR chart (per UE) — left-fill, null pad right
+        // Manual-mode throughput chart
         [1,2,3,4].forEach(function(uid, idx) {
-            var d = sinrHistory[uid] || [];
-            var pad = MAX_HISTORY - d.length;
-            sinrChart.data.datasets[idx].data = pad > 0 ? d.concat(Array(pad).fill(null)) : d;
+            sinrChart.data.datasets[idx].data =
+                (sinrHistory[uid] || Array(MAX_HISTORY).fill(null)).slice();
         });
-        // Update energy chart (per Cell)
+        // Manual-mode O-RU power chart
         [2,3,4].forEach(function(cid, idx) {
-            var d = energyHistory[cid] || [];
-            var pad = MAX_HISTORY - d.length;
-            energyChart.data.datasets[idx].data = pad > 0 ? d.concat(Array(pad).fill(null)) : d;
+            energyChart.data.datasets[idx].data =
+                (energyHistory[cid] || Array(MAX_HISTORY).fill(null)).slice();
         });
-        // Labels fixed at 30, no update needed
         sinrChart.update();
         energyChart.update();
     }
@@ -815,9 +1273,7 @@
             document.getElementById('status_label').textContent = 'off';
             document.getElementById('start_button').disabled = false;
             document.getElementById('stop_button').disabled = true;
-            [sinrHistory, energyHistory].forEach(function(h) {
-                Object.keys(h).forEach(function(k) { h[k] = []; });
-            });
+            resetKpiHistory();
         } catch (e) { console.log('Reset error:', e); }
     }
 

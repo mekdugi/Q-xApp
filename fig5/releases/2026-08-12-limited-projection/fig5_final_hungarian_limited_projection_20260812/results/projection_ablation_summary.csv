@@ -1,0 +1,7 @@
+variant,conflict_free_seeds,mean_normalized_utility_over_conflict_free_seeds,ci95_lower,ci95_upper,mean_selected_ues_over_conflict_free_seeds,projection_switches,projection_gap_owner_evaluations,first_negotiation_mean_crossing
+strict_measured_top16,30,99.67290316651241,99.52348729445985,99.82231903856497,50.233333333333334,0,0,not_applicable
+unrestricted_top16_projection_gap,100,98.04653511933664,97.71979186982404,98.37327836884924,50.28,136,623,none
+current_action_projection_gap,100,97.65243364368607,97.2642951993552,98.04057208801693,50.12,119,623,none
+top1_projection_gap,100,97.02618882910316,96.52120806258256,97.53116959562377,49.8,126,640,none
+final_measured_gap_top1_completion,100,96.36513059862214,95.71536635860825,97.01489483863604,49.48,130,0,8
+unrestricted_top8_projection_gap,100,96.49526076238357,96.09921143014407,96.89131009462307,49.37,269,940,8
