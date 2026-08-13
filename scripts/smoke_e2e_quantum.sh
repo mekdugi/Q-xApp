@@ -1,22 +1,63 @@
 #!/bin/bash
 # E2E run for quantum TS integration (Codex 12차/14+15차 checklist).
-# Orchestration mirrors /root/qxapp_batch_v5.sh run_once() (proven timings).
-# Usage (as root): bash smoke_e2e.sh on|off [RngRun] [outbase]
+# Orchestration follows the validated seven-second Fig. 4 run sequence.
+# Usage (as root): bash smoke_e2e_quantum.sh on|off [RngRun] [outbase]
 set -u
 MODE=${1:-}
-case "$MODE" in on|off) ;; *) echo "usage: smoke_e2e.sh on|off [RngRun] [outbase]"; exit 2 ;; esac
+case "$MODE" in on|off) ;; *) echo "usage: smoke_e2e_quantum.sh on|off [RngRun] [outbase]"; exit 2 ;; esac
 RNGRUN=${2:-1}
-OUTBASE=${3:-/home/wookjin/qxapp_runs/quantum_smoke}
+OUTBASE=${3:-${QXAPP_RUN_ROOT:-$PWD/qxapp_runs/quantum_smoke}}
 SIMTIME=${QXAPP_SMOKE_SIMTIME:-7}
-NS=/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+NS=${QXAPP_NS_ROOT:?set QXAPP_NS_ROOT to the mmwave-LENA-oran directory}
+FLEXRIC=${QXAPP_FLEXRIC_ROOT:?set QXAPP_FLEXRIC_ROOT to the FlexRIC checkout}
+SOLVER_DIR=${QXAPP_SOLVER_DIR:-$FLEXRIC/examples/xApp/c/ctrl}
+RIC_BIN=${QXAPP_RIC_BIN:-$FLEXRIC/build/examples/ric/nearRT-RIC}
+XAPP_BIN=${QXAPP_XAPP_BIN:-$FLEXRIC/build/examples/xApp/c/ctrl/xapp_qxapp_unified}
+SOLVER_PY=${QXAPP_PY:?set QXAPP_PY to the solver virtualenv python}
+NS3_RUN_USER=${QXAPP_NS3_RUN_USER:-${SUDO_USER:-$(id -un)}}
 OUT=$OUTBASE/${MODE}_rng${RNGRUN}
 mkdir -p "$OUT"
+QUANTUM_STATE="$NS/xapp_quantum.txt"
+QUANTUM_BACKUP="$OUT/.xapp_quantum.before.$$"
+QUANTUM_EXISTED=0
+if [ -f "$QUANTUM_STATE" ]; then
+  cp -p -- "$QUANTUM_STATE" "$QUANTUM_BACKUP"
+  QUANTUM_EXISTED=1
+fi
 
-cleanup() {
+stop_processes() {
   pkill -f nearRT-RIC 2>/dev/null; pkill -f 'fig4-qxapp-defaul[t]' 2>/dev/null
   pkill -f 'ns3 run' 2>/dev/null; pkill -f xapp_qxapp_unified 2>/dev/null; sleep 6
 }
-cleanup
+CLEANED=1
+cleanup() {
+  if [ "$CLEANED" -eq 0 ]; then
+    stop_processes
+    CLEANED=1
+  fi
+}
+restore_quantum_state() {
+  if [ "$QUANTUM_EXISTED" -eq 1 ]; then
+    cp -p -- "$QUANTUM_BACKUP" "$QUANTUM_STATE"
+    rm -f -- "$QUANTUM_BACKUP"
+  else
+    rm -f -- "$QUANTUM_STATE"
+  fi
+}
+on_exit() {
+  rc=$?
+  trap - EXIT
+  cleanup
+  restore_quantum_state
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+stop_processes
 
 # pin xApp inputs (batch v5 fix_inputs) + quantum toggle
 echo auto       > "$NS/xapp_mode.txt"
@@ -35,23 +76,27 @@ rm -f "$NS/drb_control_log.csv" "$NS/scheduler_weights.csv" "$NS/ue_position.txt
 {
   echo "rngrun=$RNGRUN quantum=$MODE simtime=$SIMTIME date=$(date -Iseconds)"
   echo "build_cmd: cmake --build . --target xapp_qxapp_unified -j4"
-  ls -la /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified
-  sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_ts.py
-  sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_42.py
-  sha256sum /root/flexric/examples/xApp/c/ctrl/dqna_qos.py
-  sha256sum /mnt/c/Users/Wookjin/Desktop/Q-xApp/scripts/validate_dqna_ts.py 2>/dev/null
-  /root/qxapp-venv/bin/python -c 'import qiskit,numpy; print("qiskit",qiskit.__version__,"numpy",numpy.__version__)'
+  ls -la "$XAPP_BIN"
+  sha256sum "$SOLVER_DIR/dqna_ts.py"
+  sha256sum "$SOLVER_DIR/dqna_42.py"
+  sha256sum "$SOLVER_DIR/dqna_qos.py"
+  sha256sum "$REPO/scripts/smoke_e2e_quantum.sh"
+  "$SOLVER_PY" -c 'import qiskit,numpy; print("qiskit",qiskit.__version__,"numpy",numpy.__version__)'
 } > "$OUT/manifest.txt" 2>&1
 cp "$NS/xapp_mode.txt" "$NS/xapp_a1_policy.txt" "$NS/xapp_sleep_config.txt" "$NS/xapp_qos_config.txt" "$OUT/" 2>/dev/null
 if [ -f "$NS/xapp_quantum.txt" ]; then cp "$NS/xapp_quantum.txt" "$OUT/"; else echo absent > "$OUT/xapp_quantum_state.txt"; fi
 
-/root/flexric/build/examples/ric/nearRT-RIC > "$OUT/ric.txt" 2>&1 &
+CLEANED=0
+"$RIC_BIN" > "$OUT/ric.txt" 2>&1 &
 sleep 6
-sudo -u wookjin bash -c "cd $NS && ./ns3 run 'scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=$SIMTIME --RngRun=$RNGRUN'" > "$OUT/ns3.txt" 2>&1 &
+sudo -u "$NS3_RUN_USER" bash -c "cd '$NS' && ./ns3 run 'scratch/scenario-fig4-qxapp --N_MmWaveEnbNodes=3 --N_Ues=4 --simTime=$SIMTIME --RngRun=$RNGRUN'" > "$OUT/ns3.txt" 2>&1 &
 NS3_WRAP=$!
 sleep 12
-QXAPP_PY=/root/qxapp-venv/bin/python stdbuf -oL \
-  /root/flexric/build/examples/xApp/c/ctrl/xapp_qxapp_unified > "$OUT/xapp.txt" 2>&1 &
+QXAPP_PY="$SOLVER_PY" QXAPP_DATA_DIR="$NS" \
+QXAPP_TS_SCRIPT="$SOLVER_DIR/dqna_ts.py" \
+QXAPP_42_SCRIPT="$SOLVER_DIR/dqna_42.py" \
+QXAPP_QOS_SCRIPT="$SOLVER_DIR/dqna_qos.py" stdbuf -oL \
+  "$XAPP_BIN" > "$OUT/xapp.txt" 2>&1 &
 sleep 15
 if ! kill -0 "$NS3_WRAP" 2>/dev/null; then
   wait "$NS3_WRAP"; echo "SMOKE=FAIL early_ns3_death rc=$?" | tee "$OUT/smoke_summary.txt"; cleanup; exit 1
@@ -118,9 +163,6 @@ else
     [ "$(val $m)" = "0" ] || fail="$fail $m=$(val $m)"
   done
 fi
-# restore the default engine (quantum ON) so a later manual run isn't
-# silently pinned to greedy by a leftover 0 (run state is in manifest)
-echo 1 > "$NS/xapp_quantum.txt"
 if [ -n "$fail" ]; then echo "SMOKE=FAIL$fail" | tee -a "$S"; exit 1; fi
 echo "SMOKE=PASS" | tee -a "$S"
 cat "$S"

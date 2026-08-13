@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Average exactly 100 current weighted-AA Fig.4 runs.
 
-The plotted phase widths follow the approved 50-run Fig.4 proportions, scaled
+The plotted phase widths follow the approved manuscript phase proportions, scaled
 from its 4.5 s display window to the current 7 s display window. Only the phase
 time mapping is reused; all throughput, power, and statistics come from the
 current 100 weighted-AA runs. Power keeps the ns-3 50 ms temporal shape but is
@@ -35,14 +35,14 @@ for font_path in ("/mnt/c/Windows/Fonts/arial.ttf",
 
 SIM_T = 7.0
 DISPLAY_T = SIM_T
-# Mean phase markers used by fig4_50run_combined.pdf on its 0--4.5 s axis.
+# Approved manuscript phase markers on the earlier 0--4.5 s axis.
 # Scaling these markers by 7/4.5 preserves the approved TS / TS-QoS / NES / TS
 # display proportions without reusing any historical throughput or power value.
-REFERENCE_50RUN_T = 4.5
-REFERENCE_50RUN_PHASE = {"qos": 1.25528, "ho1": 2.07020, "wake": 3.28500}
+REFERENCE_PAPER_T = 4.5
+REFERENCE_PAPER_PHASE = {"qos": 1.25528, "ho1": 2.07020, "wake": 3.28500}
 DISPLAY_PHASE = {
-    key: value * DISPLAY_T / REFERENCE_50RUN_T
-    for key, value in REFERENCE_50RUN_PHASE.items()
+    key: value * DISPLAY_T / REFERENCE_PAPER_T
+    for key, value in REFERENCE_PAPER_PHASE.items()
 }
 PDCP_BIN = 0.25
 POWER_BIN = 0.05
@@ -271,7 +271,7 @@ def save_statistics(rows, invalid, outdir):
 
 
 def warp_to_reference_phase(run, series, source_times, display_times):
-    """Map one run onto the approved 50-run phase proportions on 0--7 s."""
+    """Map one run onto the approved manuscript phase proportions on 0--7 s."""
     marker = run["markers"]
     source_knots = np.array([
         0.0, marker["qos"], marker["ho1"], marker["wake"], SIM_T])

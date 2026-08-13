@@ -26,11 +26,9 @@
 #define NUM_CELL  3
 #define MAX_UE_PER_CELL  2
 #define KPM_RAN_FUNCTION  2
-/* Data directory holding the ns-3 CSV metrics, the xapp_*.txt config files
- * and qxapp_result.json. Override with env QXAPP_DATA_DIR; unset keeps the
- * historical WSL deployment path (R3.5 path injection, same getenv pattern
- * as QXAPP_PY / QXAPP_TS_SCRIPT). */
-#define QXAPP_DATA_DIR_DEFAULT "/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran"
+/* Data directory holding the ns-3 CSV metrics, the xapp_*.txt config files,
+ * and qxapp_result.json. It is deployment-specific and must be injected via
+ * QXAPP_DATA_DIR, like QXAPP_PY and the QXAPP_*_SCRIPT variables. */
 #define RESULT_JSON_NAME "qxapp_result.json"
 
 /* An explicitly injected QXAPP_DATA_DIR is validated fail-fast on first use
@@ -45,20 +43,21 @@ static const char *qx_data_dir(void)
   if (!checked) {
     checked = 1;
     const char *p = getenv("QXAPP_DATA_DIR");
-    dir = p ? p : QXAPP_DATA_DIR_DEFAULT;
-    if (p) {
-      struct stat st;
-      const char *err = NULL;
-      if (stat(p, &st) != 0) err = strerror(errno);
-      else if (!S_ISDIR(st.st_mode)) err = "not a directory";
-      else if (access(p, R_OK | W_OK | X_OK) != 0) err = strerror(errno);
-      if (err) {
-        fprintf(stderr, "[Q-xApp] FATAL: QXAPP_DATA_DIR '%s': %s\n", p, err);
-        exit(1);
-      }
+    if (!p || !*p) {
+      fprintf(stderr, "[Q-xApp] FATAL: QXAPP_DATA_DIR is required\n");
+      exit(1);
     }
-    printf("[Q-xApp] data dir: %s (%s)\n", dir,
-           p ? "QXAPP_DATA_DIR" : "default");
+    dir = p;
+    struct stat st;
+    const char *err = NULL;
+    if (stat(p, &st) != 0) err = strerror(errno);
+    else if (!S_ISDIR(st.st_mode)) err = "not a directory";
+    else if (access(p, R_OK | W_OK | X_OK) != 0) err = strerror(errno);
+    if (err) {
+      fprintf(stderr, "[Q-xApp] FATAL: QXAPP_DATA_DIR '%s': %s\n", p, err);
+      exit(1);
+    }
+    printf("[Q-xApp] data dir: %s (QXAPP_DATA_DIR)\n", dir);
   }
   return dir;
 }

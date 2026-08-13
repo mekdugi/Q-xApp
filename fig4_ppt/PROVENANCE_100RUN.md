@@ -57,27 +57,28 @@ from the repository root after checkout.
 
 The three executed solver blobs identified above are retained at Git commit
 `2afabfe` and match the recorded hashes exactly. The current `main` solver
-files have since changed; notably, its `dqna_42.py` is a 10-qubit preserved
-two-stage path rather than the five-qubit weighted-AA blob used by this batch.
-Therefore, running the current checkout is a new protocol-level experiment,
-not a bit-for-bit reproduction. Restore the frozen solver blobs and verify all
-recorded execution hashes before claiming a frozen-code reproduction.
+files have since changed. Therefore, running the current checkout is a new
+protocol-level experiment, not a bit-for-bit reproduction. Restore the frozen
+solver blobs and verify all recorded execution hashes before claiming a
+frozen-code reproduction.
+
+The public batch and smoke scripts were subsequently made path-configurable so
+they can be used outside the original workstation layout. Their current hashes
+are recorded in `SHA256SUMS_100run.txt`; the execution-identity hashes above
+remain the authoritative record of what ran in the frozen batch.
 
 To run the same protocol on a retained or newly configured workspace and then
 regenerate its aggregate artifacts:
 
 ```bash
+export QXAPP_NS_ROOT=/path/to/ns-O-RAN-flexric/mmwave-LENA-oran
+export QXAPP_FLEXRIC_ROOT=/path/to/flexric
+export QXAPP_SOLVER_DIR="$QXAPP_FLEXRIC_ROOT/examples/xApp/c/ctrl"
+export QXAPP_XAPP_BIN="$QXAPP_FLEXRIC_ROOT/build/examples/xApp/c/ctrl/xapp_qxapp_unified"
+export QXAPP_PY=/path/to/qxapp-venv/bin/python
+export QXAPP_NS3_RUN_USER="$(id -un)"
+
 bash scripts/run_weighted_fig4_batch.sh 1 100 <batch-dir>
 python fig4_ppt/qxapp_fig4_plot_100run.py <batch-dir> fig4_ppt
 sha256sum -c fig4_ppt/SHA256SUMS_100run.txt
 ```
-
-## Legacy comparison
-
-The retained 50-run figure was produced on 2026-06-15 from xApp commit
-`608b23324495e2da9e911d11286ab4daf161fa16`. Its controller logs show the
-classical TS/QoS/NES paths; the historical `Stage 2: Quantum Assignment
-Algorithm` text was a pipeline label rather than evidence of circuit
-execution. The legacy result remains useful for qualitative shape comparison,
-but its multi-kW simulator power scale is not directly comparable to the
-measured-profile watt scale used by the final 100-run figure.

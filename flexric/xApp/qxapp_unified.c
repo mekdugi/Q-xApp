@@ -13,8 +13,8 @@
 
 static int a1_max_ue_per_cell = 2;
 
-/* Config files live in qx_data_dir() (env QXAPP_DATA_DIR, default = historical
- * WSL path; see qxapp_common.h). Only the file names are fixed here. */
+/* Config files live in qx_data_dir() (required env QXAPP_DATA_DIR; see
+ * qxapp_common.h). Only the file names are fixed here. */
 #define MODE_FILE_NAME "xapp_mode.txt"
 #define SLEEP_CONFIG_FILE_NAME "xapp_sleep_config.txt"
 #define A1_POLICY_FILE_NAME "xapp_a1_policy.txt"
@@ -24,11 +24,8 @@ static int a1_max_ue_per_cell = 2;
  * Quantum is the default assignment engine (Q-xApp). The quantum config file
  * first line "0"/"off" forces the legacy greedy placeholder (debug / historic
  * Fig.4 reproduction); missing file = quantum ON. Paths can be overridden via
- * env QXAPP_PY / QXAPP_TS_SCRIPT. TS uses the 4x3 circuit now; QoS/NES switch
- * to a 4x2 circuit when it lands, after which greedy is removed. */
+ * QXAPP_PY and QXAPP_TS_SCRIPT. */
 #define QUANTUM_CONFIG_FILE_NAME "xapp_quantum.txt"
-#define QXAPP_PY_DEFAULT        "/root/qxapp-venv/bin/python"
-#define QXAPP_TS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_ts.py"
 /* Legacy solver timeout cap, still used by the NES/QoS fast gated solvers. */
 #define QXAPP_TS_TIMEOUT_S 10
 /* Backend-aware TS deadline (assessment Gap 3 / Priority 0.4): the canonical
@@ -42,8 +39,8 @@ static int a1_max_ue_per_cell = 2;
  * QXAPP_TS_ALLOW_TIGHT_DEADLINE=1. */
 #define QXAPP_TS_TIMEOUT_DEFAULT_S 30
 /* Conservative CEIL of the recorded reference-statevector p95 wall time
- * (22.06 s nearest-rank over the 1,060-case holdout,
- * reports/v5_holdout_seed20260702_report.json). Using 23 (= ceil 22.06) means
+ * (22.06 s nearest-rank over the archived 1,060-case holdout). Using 23
+ * (= ceil 22.06) means
  * a 22 s deadline -- which is BELOW the true p95 -- is correctly rejected, not
  * accepted at the integer boundary. */
 #define QXAPP_TS_REF_P95_S 23
@@ -241,13 +238,64 @@ static long ts_fallback_by_reason[TS_FB_MAX] = {0};
 static const char *qx_py(void)
 {
   const char *p = getenv("QXAPP_PY");
-  return p ? p : QXAPP_PY_DEFAULT;
+  return (p && *p) ? p : NULL;
 }
 
 static const char *qx_ts_script(void)
 {
   const char *p = getenv("QXAPP_TS_SCRIPT");
-  return p ? p : QXAPP_TS_SCRIPT_DEFAULT;
+  return (p && *p) ? p : NULL;
+}
+
+static int qx_solver_env_ok(void)
+{
+  static int checked = 0;
+  static int valid = 0;
+  if (checked) return valid;
+  checked = 1;
+
+  const char *names[] = {"QXAPP_PY", "QXAPP_TS_SCRIPT",
+                         "QXAPP_42_SCRIPT", "QXAPP_QOS_SCRIPT"};
+  for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+    const char *value = getenv(names[i]);
+    if (!value || !*value) {
+      fprintf(stderr, "[Q-xApp] PREFLIGHT FAIL: %s is required\n", names[i]);
+      return 0;
+    }
+    struct stat st;
+    if (stat(value, &st) != 0 || !S_ISREG(st.st_mode) ||
+        access(value, i == 0 ? X_OK : R_OK) != 0) {
+      fprintf(stderr, "[Q-xApp] PREFLIGHT FAIL: %s '%s' is not an "
+                      "%s file\n", names[i], value,
+                      i == 0 ? "executable" : "readable regular");
+      return 0;
+    }
+  }
+
+  pid_t pid = fork();
+  if (pid < 0) {
+    fprintf(stderr, "[Q-xApp] PREFLIGHT FAIL: cannot fork Python probe\n");
+    return 0;
+  }
+  if (pid == 0) {
+    const char *python = getenv("QXAPP_PY");
+    execl(python, python, "-c", "import qiskit, numpy", (char *)NULL);
+    _exit(127);
+  }
+  int status = 0;
+  while (waitpid(pid, &status, 0) < 0) {
+    if (errno != EINTR) {
+      fprintf(stderr, "[Q-xApp] PREFLIGHT FAIL: Python probe wait failed\n");
+      return 0;
+    }
+  }
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    fprintf(stderr, "[Q-xApp] PREFLIGHT FAIL: QXAPP_PY cannot import "
+                    "qiskit and numpy\n");
+    return 0;
+  }
+  valid = 1;
+  return valid;
 }
 
 /* Backend-aware TS solver deadline (seconds). Env QXAPP_TS_TIMEOUT_S overrides
@@ -336,6 +384,12 @@ static void read_quantum_config(void)
    * than run a quantum path that would systematically miss the deadline. The
    * INITIAL startup-enabled+incompatible case is instead a hard process abort
    * in main() (startup REJECTED) before any RIC I/O. */
+  if (enabled && !qx_solver_env_ok()) {
+    if (quantum_ts_enabled || !quantum_env_logged)
+      fprintf(stderr, "[Q-xApp TS] quantum requested but solver environment "
+                      "is incomplete; keeping the classical greedy path.\n");
+    enabled = 0;
+  }
   if (enabled && !ts_preflight_deadline_ok()) {
     if (quantum_ts_enabled || !quantum_env_logged)
       fprintf(stderr, "[Q-xApp TS] quantum requested but the configured "
@@ -503,8 +557,6 @@ cleanup:
 /* Run dqna_42.py (4 UE x 2 active cells, NES) on sinr_matrix columns cA/cB.
  * On success fills a42[u] in {0,1} (0 -> cA, 1 -> cB) and returns 0; -1 on
  * any failure (caller falls back to the classical packing). */
-#define QXAPP_42_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_42.py"
-
 static int quantum_42_match(int a42[NUM_UE], int cA, int cB, double *q_score)
 {
   char fin[]  = "/tmp/qxapp_42_in_XXXXXX";
@@ -526,7 +578,6 @@ static int quantum_42_match(int a42[NUM_UE], int cA, int cB, double *q_score)
   }
   {
     const char *script = getenv("QXAPP_42_SCRIPT");
-    if (!script) script = QXAPP_42_SCRIPT_DEFAULT;
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
              "timeout %d '%s' '%s' --qual-lambda=4.0 --max-per-cell=%d "
@@ -576,8 +627,6 @@ cleanup:
 
 /* Run dqna_qos.py on one cell's 2-UE x 4-DRB utility rows. Fills d1/d2
  * (distinct DRB indices) and returns 0; -1 on failure (classical fallback). */
-#define QXAPP_QOS_SCRIPT_DEFAULT "/root/flexric/examples/xApp/c/ctrl/dqna_qos.py"
-
 static int quantum_qos_pair(int u1, int u2, double util[NUM_UE][NUM_DRB],
                             int *d1, int *d2)
 {
@@ -602,7 +651,6 @@ static int quantum_qos_pair(int u1, int u2, double util[NUM_UE][NUM_DRB],
   }
   {
     const char *script = getenv("QXAPP_QOS_SCRIPT");
-    if (!script) script = QXAPP_QOS_SCRIPT_DEFAULT;
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
              "timeout %d '%s' '%s' --qual-lambda=4.0 < '%s' > '%s' 2> '%s'",
@@ -1863,7 +1911,6 @@ int main(int argc, char *argv[])
   /* Validate an injected QXAPP_DATA_DIR before connecting to the RIC or
    * sending any control: a bad path must fail the process immediately. */
   qx_data_dir();
-
   /* Two explicit deadline-preflight semantics (assessment Gap 3 / Priority 0.4):
    *  (1) INITIAL STARTUP: if quantum is REQUESTED on and the deadline is
    *      incompatible, the process is REJECTED here (return error) BEFORE any
@@ -1871,12 +1918,13 @@ int main(int argc, char *argv[])
    *  (2) A deliberately quantum-disabled deployment is NOT blocked (no abort),
    *      and a later disabled->enabled transition with an incompatible deadline
    *      is refused at runtime inside read_quantum_config() (kept greedy). */
-  if (ts_quantum_requested() && !ts_preflight_deadline_ok()) {
+  if (ts_quantum_requested() &&
+      (!qx_solver_env_ok() || !ts_preflight_deadline_ok())) {
     fprintf(stderr, "[Q-xApp TS] STARTUP REJECTED: quantum is enabled but the "
-                    "configured deadline is below the reference p95 threshold. "
-                    "Aborting before RIC connection. Raise QXAPP_TS_TIMEOUT_S, "
-                    "select a faster backend, or set "
-                    "QXAPP_TS_ALLOW_TIGHT_DEADLINE=1.\n");
+                    "solver environment or deadline policy is invalid. "
+                    "Aborting before RIC connection. Configure QXAPP_PY, "
+                    "QXAPP_TS_SCRIPT, QXAPP_42_SCRIPT, QXAPP_QOS_SCRIPT, and "
+                    "a compatible QXAPP_TS_TIMEOUT_S.\n");
     return 1;
   }
   read_quantum_config();

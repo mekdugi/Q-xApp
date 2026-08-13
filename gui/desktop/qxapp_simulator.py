@@ -34,6 +34,11 @@ def parse_args() -> argparse.Namespace:
         help="WSL distribution hosting the Q-xApp GUI",
     )
     parser.add_argument(
+        "--host-data",
+        default=os.environ.get("QXAPP_HOST_DATA", ""),
+        help="WSL path containing ns-3/Q-xApp runtime data",
+    )
+    parser.add_argument(
         "--no-start-backend",
         action="store_true",
         help="Do not start or keep alive the local WSL/Docker GUI backend",
@@ -52,9 +57,14 @@ def windows_path_to_wsl(path: Path) -> str:
 
 
 def start_backend_and_keepalive(
-    distro: str,
+    distro: str, host_data: str = "",
 ) -> tuple[subprocess.Popen[bytes], object]:
     """Start the GUI stack and keep WSL alive while the native window is open."""
+    if not host_data:
+        raise RuntimeError(
+            "QXAPP_HOST_DATA is required. Pass --host-data with the WSL path "
+            "to the ns-3 run directory."
+        )
     gui_dir = windows_path_to_wsl(Path(__file__).parents[1])
     backend_log_path = (
         Path(os.environ.get("LOCALAPPDATA", Path.home()))
@@ -63,12 +73,16 @@ def start_backend_and_keepalive(
     )
     backend_log_path.parent.mkdir(parents=True, exist_ok=True)
     backend_log = backend_log_path.open("ab", buffering=0)
+    compose = (
+        f"QXAPP_HOST_DATA={shlex.quote(host_data)} "
+        "docker compose up -d"
+    )
     command = " ".join(
         (
             "/usr/sbin/shutdown -c >/dev/null 2>&1 || true;",
             "systemctl start docker;",
             f"cd {shlex.quote(gui_dir)};",
-            "docker compose up -d;",
+            f"{compose};",
             "exec bash -c 'while :; do sleep 3600; done'",
         )
     )
@@ -232,7 +246,7 @@ def main() -> int:
     try:
         if sys.platform == "win32" and not args.no_start_backend:
             backend_process, backend_log = start_backend_and_keepalive(
-                args.wsl_distro
+                args.wsl_distro, args.host_data
             )
         wait_for_dashboard(args.url, backend_process)
     except RuntimeError as error:

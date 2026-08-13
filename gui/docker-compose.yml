@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   gui:
@@ -22,11 +20,10 @@ services:
       - INFLUXDB_USERNAME=admin
       - NS3_HOST=172.17.0.1
     volumes:
-      # Host data dir = ns-3 run dir holding CSV metrics, xapp_*.txt configs
-      # and qxapp_result.json. Override with QXAPP_HOST_DATA (R3.5); the
-      # default keeps the historical WSL deployment path.
-      - ${QXAPP_HOST_DATA:-/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran}:/host_data
-      - ${QXAPP_HOST_DATA:-/home/wookjin/ns-O-RAN-flexric/mmwave-LENA-oran}/GUI/src:/app/src
+      # QXAPP_HOST_DATA is the ns-3 run directory holding CSV metrics,
+      # xapp_*.txt configs, and qxapp_result.json. GUI source is baked into
+      # the image; only experiment data is mounted from the host.
+      - ${QXAPP_HOST_DATA:?Set QXAPP_HOST_DATA to the ns-3 run directory}:/host_data
 
   influxdb:
     restart: unless-stopped

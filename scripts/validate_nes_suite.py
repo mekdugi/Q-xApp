@@ -32,7 +32,8 @@ the raw objective from the returned assignment, requiring it to equal
 the solver-reported score.
 
 The report records per-category counts, any mismatches, and the exact
-solver/harness SHA-256. Writes reports/nes_suite_report.json.
+solver/harness SHA-256. Writes `nes_suite_report.json` under
+`QXAPP_REPORT_DIR` (default: `reports/`).
 Runtime: well under a minute (16-state enumeration, 10-qubit statevector).
 """
 
@@ -199,7 +200,10 @@ def main():
         "solver_sha256": sha256_file(os.path.join(XAPP, "dqna_42.py")),
         "harness_sha256": sha256_file(os.path.abspath(__file__)),
     }
-    out = os.path.join(ROOT, "reports", "nes_suite_report.json")
+    report_dir = os.environ.get("QXAPP_REPORT_DIR",
+                                os.path.join(ROOT, "reports"))
+    os.makedirs(report_dir, exist_ok=True)
+    out = os.path.join(report_dir, "nes_suite_report.json")
     with open(out, "w") as f:
         json.dump(report, f, indent=1)
     print("report: %s" % os.path.relpath(out, ROOT))

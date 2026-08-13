@@ -308,7 +308,10 @@ def main():
 
 
 def _emit(report):
-    out = os.path.join(_ROOT, "reports", "ts_c_contract_report.json")
+    report_dir = os.environ.get("QXAPP_REPORT_DIR",
+                                os.path.join(_ROOT, "reports"))
+    os.makedirs(report_dir, exist_ok=True)
+    out = os.path.join(report_dir, "ts_c_contract_report.json")
     try:
         with open(out, "w") as f:
             json.dump(report, f, indent=2)

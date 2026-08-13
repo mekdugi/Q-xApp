@@ -3,14 +3,13 @@ V3 (one UE),2,2,0,4,1,,1,9,4,6,1,recursion+1clean,,,,,
 V3^x4,8,8,0,16,4,,4,36,16,6,1,recursion+1clean,,,,,
 feasibility block (cap=2),15,15,0,184,0,,2348,3382,2837,4135,1951,recursion+1clean,,,,,
 cost rotations (Round7),15,15,0,52,16,8,96,175,123,47,24,recursion+1clean,,,,,
-A,15,15,0,252,20,,2448,3586,2973,4181,1975,recursion+1clean,,,,,
+A,15,15,0,252,20,,2448,3586,2973,4180,1975,recursion+1clean,,,,,
 A_dagger,15,15,0,252,20,,2434,3615,2976,4255,1986,recursion+1clean,,,,,
 S_G (17q recursion),17,16,1,15,0,,104,192,141,228,95,recursion+1clean,,,,,
 S_0 (17q recursion),17,16,1,31,0,,232,440,309,594,226,recursion+1clean,,,,,
 S_G + S_0 pair (17q recursion),17,16,1,46,0,,336,608,441,804,318,recursion+1clean,,,,,
-"S_G + S_0 pair (16q no-ancilla, comparison only)",16,16,0,46,0,,1720,2857,2190,3774,1495,noancilla,,,,,
-"Q standalone (S_G,Adg,S_0,A)",17,16,1,48,0,,5218,7794,6391,9234,4280,recursion+1clean,,,,,
-full circuit k=0,17,16,1,3,0,,2448,3589,2975,4181,1975,recursion+1clean,1,0,0,0,True
-full circuit k=1,17,16,1,51,0,,7666,11351,9350,13388,6247,recursion+1clean,2,1,1,1,True
-full circuit k=2,17,16,1,99,0,,12884,19112,15725,22595,10519,recursion+1clean,3,2,2,2,True
-full circuit k=3,17,16,1,147,0,,18102,26873,22100,31802,14791,recursion+1clean,4,3,3,3,True
+"Q standalone (S_G,Adg,S_0,A)",17,16,1,48,0,,5218,7794,6391,9233,4280,recursion+1clean,,,,,
+full circuit k=0,17,16,1,3,0,,2448,3589,2975,4180,1975,recursion+1clean,1,0,0,0,True
+full circuit k=1,17,16,1,51,0,,7666,11351,9350,13386,6247,recursion+1clean,2,1,1,1,True
+full circuit k=2,17,16,1,99,0,,12884,19112,15725,22592,10519,recursion+1clean,3,2,2,2,True
+full circuit k=3,17,16,1,147,0,,18102,26873,22100,31798,14791,recursion+1clean,4,3,3,3,True

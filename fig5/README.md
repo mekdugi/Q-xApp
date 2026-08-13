@@ -1,44 +1,29 @@
-# Fig. 5 artifact index
+# Fig. 5 final artifact
 
-This directory separates the current paper result from earlier Fig. 5 work.
-Existing files have not been moved, so historical links and local workflows
-remain intact.
-
-## Current final release
-
-The canonical release is
+The canonical Fig. 5 release is
 [`releases/2026-08-12-limited-projection/`](releases/2026-08-12-limited-projection/).
-It contains the byte-preserved source bundle for the final 100-seed,
-three-O-RU-per-domain Hungarian comparison with feasibility-only projection.
+It preserves the uploaded final code and results byte-for-byte.
 
 Primary files:
 
-- `fig5_final_hungarian.{eps,pdf,svg,png}`: final paper figure and previews
-- `fig5_final_aggregated.csv`: plotted values
-- `fig5_final_raw.csv`: method-stage results for all 100 seeds
-- `fig5_final_summary.json`: settings, provenance, and diagnostics
-- `run_fig5_final.py`: canonical runner
-- `audit_projection_ablation.py` and `audit_boundary_order.py`: final-method audits
-- `audit_fig5_final_20260811/fig5_reproduction_final.py`: frozen workload
+- final runner: `fig5_final_hungarian_limited_projection_20260812/run_fig5_final.py`
+- frozen workload: `audit_fig5_final_20260811/fig5_reproduction_final.py`
+- final figure and data: `fig5_final_hungarian_limited_projection_20260812/results/`
+- projection audits: `audit_projection_ablation.py` and `audit_boundary_order.py`
+- integrity: `SHA256SUMS_SOURCE_BUNDLE.txt` and `SOURCE_BUNDLE.json`
 
-The `unrestricted_projection_reference/` directory is an ablation reference,
-not the final method. Files named `*_eps_check.pdf` are QA conversions, not
-canonical paper figures.
+Install the recorded environment and write reproductions to a new directory:
 
-## Historical v50 files
+```bash
+python -m pip install -r fig5/releases/2026-08-12-limited-projection/requirements.txt
+python fig5/releases/2026-08-12-limited-projection/fig5_final_hungarian_limited_projection_20260812/run_fig5_final.py \
+  --output fig5/reproductions/2026-08-12-limited-projection
+```
 
-The `fig5_real_quantum_v50.*` files and `make_fig5_v50.py` are the earlier
-2026-07-27 single-O-RU-per-domain result. They remain in place as legacy
-evidence and must not be mixed with the final three-O-RU workload.
+Do not omit `--output`: the runner's default destination is the frozen
+`results/` directory. The unrestricted-projection directory remains in the
+release because it is the comparison used by the included audits; the
+limited-projection `results/` directory is the final method.
 
-## Paper artifact separation
-
-Fig. 4 and Fig. 5 serve different roles:
-
-- `gui/` is the runnable dark simulator shown at the lower left of Fig. 4.
-- `fig4_ppt/` contains the lower-right 100-run response plot, its summaries,
-  plotter, and provenance.
-- `fig5/releases/` contains frozen, independently reproducible Fig. 5 releases.
-
-See [`docs/PAPER_ARTIFACTS.md`](../docs/PAPER_ARTIFACTS.md) for the complete
+See [`docs/PAPER_ARTIFACTS.md`](../docs/PAPER_ARTIFACTS.md) for the Fig. 4/Fig. 5
 mapping.

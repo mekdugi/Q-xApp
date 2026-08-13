@@ -2,8 +2,7 @@
 # Reproducible Q-xApp quantum solver venv (remediation R3.4).
 #
 # Usage: setup_solver_venv.sh [VENV_DIR] [SOLVER_SRC_DIR] [--recreate]
-#   VENV_DIR        venv location, default /root/qxapp-venv (historical
-#                   deployment path; any writable path works)
+#   VENV_DIR        venv location, default <repo>/.venv
 #   SOLVER_SRC_DIR  directory holding dqna_*.py, default <repo>/flexric/xApp
 #
 # Creates the venv from the exact validated lock (solver_requirements.txt),
@@ -14,7 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VENV_DIR="/root/qxapp-venv"
+VENV_DIR="$SCRIPT_DIR/../.venv"
 SRC_DIR="$SCRIPT_DIR/../flexric/xApp"
 RECREATE=0
 POS=0

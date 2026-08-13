@@ -55,38 +55,6 @@ target_link_libraries(orange_xapp_energy_saving_with_LB
 
 
 
-add_executable(xapp_qxapp_greedy_handover
-    qxapp_greedy_handover.c
-    ../../../../src/util/alg_ds/alg/defer.c
-)
-
-# Link necessary libraries
-target_link_libraries(xapp_qxapp_greedy_handover
-    PUBLIC
-    e42_xapp
-    pthread
-    sctp
-    dl
-    m
-)
-
-
-add_executable(xapp_qxapp_energy_saving
-    qxapp_energy_saving.c
-    ../../../../src/util/alg_ds/alg/defer.c
-)
-
-# Link necessary libraries
-target_link_libraries(xapp_qxapp_energy_saving
-    PUBLIC
-    e42_xapp
-    pthread
-    sctp
-    dl
-    m
-)
-
-
 add_executable(xapp_qxapp_unified
     qxapp_unified.c
     ../../../../src/util/alg_ds/alg/defer.c

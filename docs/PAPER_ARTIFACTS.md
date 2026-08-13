@@ -1,51 +1,42 @@
-# Paper artifact map
+# Current paper artifacts
 
-The paper figures combine runnable software, one-run visual evidence, and
-aggregated experimental results. They should be classified by role rather
-than placed in one large "final" folder.
+This index maps the final paper figures to their current public code and
+compact evidence. Intermediate and superseded material is intentionally not
+part of the public branch.
 
 ## Fig. 4
 
-| Paper component | Canonical repository source | Classification |
-| --- | --- | --- |
-| Complete final manuscript Fig. 4 | `docs/assets/fig4-final-100run.png` | README overview exported directly from the final manuscript PDF |
-| Lower-left dark simulator GUI capture | `docs/assets/qxapp-simulator-dark.png` | Current README/manuscript screenshot; one live run |
-| Lower-left dark simulator GUI implementation | `gui/desktop/launch_qxapp_simulator.ps1`, `gui/desktop/qxapp_simulator.py`, `gui/src/templates/chart.html`, `gui/src/http/data_controller.py`, `gui/src/static/` | Runnable application |
-| Interactive simulator scenario | `ns3/scenario/scenario-zero-with_parallel_loging.cc` | GUI runtime scenario |
-| Lower-right 100-run response graph | `fig4_ppt/fig4_weighted_100run_combined.{png,pdf}` | Final paper result |
-| 100-run scenario and execution | `ns3/scenario-fig4-qxapp.cc`, `scripts/run_weighted_fig4_batch.sh`, `scripts/smoke_e2e_quantum.sh` | Batch runtime |
-| 100-run data and provenance | `fig4_ppt/runs_summary_100run.csv`, `phase_stats_raw_100run.txt`, `PROVENANCE_100RUN.md`, `SHA256SUMS_100run.txt` | Frozen evidence |
-| White GUI capture | `fig4_ppt/fig4_gui_capture.png` | Historical capture, not the final dark GUI panel |
-| 50-run files | `fig4_ppt/*50run*` | Intentional legacy comparison |
+| Paper component | Canonical repository path |
+| --- | --- |
+| Final manuscript composite | `docs/assets/fig4-final-100run.png` |
+| Current dark GUI capture | `docs/assets/qxapp-simulator-dark.png` |
+| Runnable dark GUI | `gui/desktop/`, `gui/src/`, `gui/main.py` |
+| Interactive simulator scenario | `ns3/scenario/scenario-zero-with_parallel_loging.cc` |
+| Automated 100-run scenario | `ns3/scenario-fig4-qxapp.cc` |
+| Batch runner | `scripts/run_weighted_fig4_batch.sh` |
+| Final 100-run graph | `fig4_ppt/fig4_weighted_100run_combined.{png,pdf}` |
+| Summary and aggregate data | `fig4_ppt/runs_summary_100run.csv`, `fig4_ppt/phase_stats_raw_100run.txt` |
+| Plotter and power model | `fig4_ppt/qxapp_fig4_plot_100run.py`, `fig4_ppt/oru_power_model_100run.json` |
+| Integrity and execution identity | `fig4_ppt/SHA256SUMS_100run.txt`, `fig4_ppt/PROVENANCE_100RUN.md` |
 
-The complete composite is the paper/README overview. Its dark GUI and 100-run
-plot also remain available as separate full-resolution artifacts: the former
-is a runnable application snapshot, while the latter is a statistical output
-generated from a headless batch.
-
-The final 100-run result is tied to the source and binary hashes recorded in
-`fig4_ppt/PROVENANCE_100RUN.md`. The three exact executed solver blobs are
-retained at Git commit `2afabfe`; the current `main` solver files are not all
-byte-identical, so a HEAD rerun is a new experiment rather than a bit-for-bit
-reproduction of the frozen paper batch.
+The public files are the compact result, not the 1.7 GiB raw run directory.
+The provenance file records the executed binary/source hashes and explains
+why a run from current `HEAD` is a new protocol-level experiment rather than a
+bit-for-bit reproduction of the frozen batch.
 
 ## Fig. 5
 
-The current final release is
-`fig5/releases/2026-08-12-limited-projection/`. Within it:
+The final release is
+`fig5/releases/2026-08-12-limited-projection/`.
 
-- `results/` is the canonical final method and output.
-- `unrestricted_projection_reference/` is a retained ablation reference.
-- `*_eps_check.pdf` files are render-QA outputs.
-- The sibling `audit_fig5_final_20260811/` directory is required by the runner
-  and must remain beside the final runner directory.
+| Component | Path relative to the final release directory |
+| --- | --- |
+| Runner | `fig5_final_hungarian_limited_projection_20260812/run_fig5_final.py` |
+| Frozen workload | `audit_fig5_final_20260811/fig5_reproduction_final.py` |
+| Final outputs | `fig5_final_hungarian_limited_projection_20260812/results/` |
+| Projection audits | `audit_boundary_order.py`, `audit_projection_ablation.py` |
+| Byte-exact source manifest | `SHA256SUMS_SOURCE_BUNDLE.txt`, `SOURCE_BUNDLE.json` |
 
-The older root-level `fig5_real_quantum_v50.*` files are a different,
-single-O-RU workload and remain legacy artifacts.
-
-## Future cleanup rule
-
-Do not move active source files merely to make a paper folder self-contained.
-Use index documents and manifests to connect source, runtime, and results.
-Only generated intermediates and byte-identical obsolete copies should later
-be considered for quarantine.
+The unrestricted-projection directory is retained inside the frozen release
+as the comparison required by its audits and checksum manifest. It is not the
+final plotted method.

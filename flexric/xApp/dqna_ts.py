@@ -63,9 +63,8 @@ v2 changes vs the original 13-qubit design (blob 8ab5a345):
      + sf + mcx_work (clean recursion-MCX ancilla). No phase kickback or
      diffuser inside A; A_dagger comes from .inverse(); no assignment-only
      diffuser and no clean-uncompute assumption anywhere in this path.
-     Stage V5-A ships the builders + S0-1..S0-5 validation only (see
-     scripts/validate_v5_stage_a.py); execution modes / finite-shot
-     candidate generation / CLI wiring follow in the next stage. The
+     Stage V5-A introduced the builders and S0-1..S0-5 validation; execution
+     modes / finite-shot candidate generation / CLI wiring followed. The
      runtime paths (no-flag legacy v4.1 and section-16 dispatch) are
      unchanged in this stage.
  11. (V5-B/C/D, 2026-07-19/20) Execution modes wired: the bare no-flag
@@ -129,7 +128,7 @@ QUAL_LAMBDA = 4.0          # exponential quality-encoding contrast (CLI-settable
 # canonical paper results use this backend. "aer" (opt-in EXPERIMENTAL,
 # --sv-backend aer only) runs qiskit_aer.AerSimulator(
 # method="statevector"): state fidelity and probability distributions
-# are equivalent within 1e-12, but Aer is NOT a bit-identical drop-in
+# were validated within 1e-12, but Aer is NOT a bit-identical drop-in
 # replacement — on exact-tie boundaries floating-point last-bit
 # differences can change top-K order/set and equal-score tie-break
 # picks. Circuit construction, oracle/diffusion structure, top-K
@@ -138,7 +137,7 @@ QUAL_LAMBDA = 4.0          # exponential quality-encoding contrast (CLI-settable
 SV_BACKEND = "reference"
 AER_OPT_LEVEL = 0  # transpile optimization_level for the Aer path
                    # (benchmark-selected; levels 0/1/3 A/B-validated by
-                   # scripts/validate_aer_ab.py)
+                   # the archived backend A/B suite)
 
 
 def sv_from_circuit(qc, backend=None):
@@ -708,8 +707,8 @@ def v5_analytic_reference(rate, cap=2, qual_lambda=3.0):
 V5_GAMMA = 6.0 / 5.0
 # USER-FROZEN v5 defaults (2026-07-20, quality-first choice): lambda=3.0 /
 # candidate_count=20 buys tuning optimum-hit 85.4% -> 92.4% over
-# lambda=2.0/cc=20 at ~2x mean circuit runs (seed-20260718 tuning suite,
-# reports/v5_tuning_report.json). These defaults apply ONLY to the v5 path
+# lambda=2.0/cc=20 at ~2x mean circuit runs (archived seed-20260718 tuning
+# suite). These defaults apply ONLY to the v5 path
 # and the v5 direct API; the legacy v4.1 and section-16 contracts keep
 # their own lambda=4.0 defaults, and the Stage-A Round7 fixed reference
 # stays at lambda=4.

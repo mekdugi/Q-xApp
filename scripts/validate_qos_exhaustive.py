@@ -26,7 +26,8 @@ to equal the solver-reported score.
 
 The report separates the classical-reduction cases (a flat row,
 including all-zero) from the quantum-path cases and records the exact
-solver/harness SHA-256. Writes reports/qos_exhaustive_report.json.
+solver/harness SHA-256. Writes `qos_exhaustive_report.json` under
+`QXAPP_REPORT_DIR` (default: `reports/`).
 """
 
 import hashlib
@@ -164,7 +165,10 @@ def main():
         "solver_sha256": sha256_file(os.path.join(XAPP, "dqna_qos.py")),
         "harness_sha256": sha256_file(os.path.abspath(__file__)),
     }
-    out = os.path.join(ROOT, "reports", "qos_exhaustive_report.json")
+    report_dir = os.environ.get("QXAPP_REPORT_DIR",
+                                os.path.join(ROOT, "reports"))
+    os.makedirs(report_dir, exist_ok=True)
+    out = os.path.join(report_dir, "qos_exhaustive_report.json")
     with open(out, "w") as f:
         json.dump(report, f, indent=1)
     print("report: %s" % os.path.relpath(out, ROOT))
