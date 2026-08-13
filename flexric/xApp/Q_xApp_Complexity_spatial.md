@@ -1,6 +1,18 @@
 # 10. Complexity
 
-This section summarizes the analytical runtime model of the Q-xApp circuits for traffic steering (TS), network energy saving (NES), and QoS-based resource allocation (QoS-RA). The three use cases are expressed with a common spatial-workspace organization: independent resource-local workspaces execute in parallel, and their outputs are combined through balanced reversible reductions. The quantized and classical curves are retained as comparison baselines.
+This section derives a spatial-workspace reduction from the Q-xApp circuits for traffic steering (TS), network energy saving (NES), and QoS-based resource allocation (QoS-RA). It is a companion to the [source-derived baseline analysis](./Q_xApp_Complexity.md). The current Python circuits provide the assignment encoding, feasibility predicates, utility controls, global marking, and uncomputation order. This document then replaces shared sequential workspaces with independent resource-local workspaces and balanced reversible reductions.
+
+The distinction is important: the logical predicates listed below come from the current repository code, whereas the spatial lane allocation, reversible fanout, population trees, and additional clean ancillas are an analytical circuit architecture. They are not implemented by the current Python builders and are not measured QPU runtimes.
+
+### Source-to-model correspondence
+
+| Use case | Current repository code | Source behavior retained | Spatial replacement modeled here |
+|---|---|---|---|
+| TS | [`dqna_ts.py`](./dqna_ts.py), [`dqna_modes.py`](./dqna_modes.py), [`dqna_constraints.py`](./dqna_constraints.py) | `append_gated_oracle()` executes constraint compute, forward utility, one joint mark, inverse utility, and constraint uncompute; `gated_diffuser()` reflects the assignment register | Give each O-RU independent membership, population, capacity, and utility lanes; reduce resource flags with balanced trees |
+| NES | [`dqna_42.py`](./dqna_42.py) | `quality_oracle()` calls `_flag_feasible()` before and after the utility mark; each call invokes `compute_count()` and `uncompute_count()` | Replace each sequential population-counter pass with a balanced population tree while preserving both feasibility calls |
+| QoS-RA | [`dqna_qos.py`](./dqna_qos.py) | `_flag_distinct()`/`_unflag_distinct()` enforce the implemented two-UE predicate; `quality_oracle()` applies forward and inverse per-UE utility rows before cleanup | Generalize to $N=R=n$, distribute UE addresses to DRB-local lanes, enforce capacity one with per-DRB population trees, and reduce the flags globally |
+
+Consequently, statements such as “the code uses a feasibility predicate” are source-derived. Statements such as “all O-RU population trees execute in parallel” describe the reduced architecture analyzed in this file. The resulting curves should not be read as the complexity of the unmodified shared-workspace implementation.
 
 ## 10.1 Circuit-derived runtime curves
 
@@ -10,7 +22,7 @@ Let $n$ denote the problem scale and
 h=\log_2 n.
 ```
 
-For the spatial-workspace circuits, a balanced reversible population tree is represented by
+For the analytical spatial-workspace circuits, a balanced reversible population tree is represented by
 
 ```math
 P(n)=2h(h+1).
@@ -200,11 +212,31 @@ The balanced population tree used by the three spatial-workspace circuits has th
 P(n)=2\log_2n\left(\log_2n+1\right).
 ```
 
-This common primitive is the main source of the $O(\log^2 n)$ scaling.
+With fresh sum registers at every tree level, its per-resource workspace is
 
-## 10.3 Traffic-steering circuit
+```math
+A_{\mathrm{pop}}(N)
+=
+\sum_{j=1}^{\lceil\log_2N\rceil}
+\left\lceil\frac{N}{2^j}\right\rceil(j+1)
+=O(N).
+```
 
-The TS circuit assigns $N$ UEs to $M$ candidate O-RUs. The spatial organization provides independent O-RU-local workspaces, allowing membership tests, population aggregation, capacity checks, and utility operations for different O-RUs to proceed in parallel.
+The common population primitive is the main source of the $O(\log^2 n)$ depth. Its fresh registers are also the main source of the reduced circuits' qubit cost.
+
+## 10.3 Traffic-steering circuit (`dqna_ts.py`, `dqna_modes.py`)
+
+The analyzed current-code path is `append_gated_oracle()` plus `gated_diffuser()` in [`dqna_modes.py`](./dqna_modes.py), dispatched by [`dqna_ts.py`](./dqna_ts.py). This binding refers specifically to that selectable gated combined-oracle path; it does not assert that every `dqna_ts.py` execution mode has the same circuit. `append_gated_oracle()` has the dependency order
+
+1. `agg.compute()`;
+2. forward address-controlled utility rotations;
+3. one joint zero-state mark over the violation and utility registers;
+4. inverse utility rotations;
+5. `agg.uncompute()`.
+
+For unit demand, `make_aggregator()` selects the constraint implementation in [`dqna_constraints.py`](./dqna_constraints.py). `UnitCountCapacityConstraint.compute()` builds and clears one O-RU count at a time, while `ConstraintAggregator` reuses a shared work register and shared violation counter. These are source-derived facts. The current code therefore does **not** provide the O-RU-level spatial parallelism used by the reduced curve.
+
+The architecture modeled here preserves the same assignment labels, capacity predicate, utility controls, joint mark, cleanup, and diffuser. It changes their workspace schedule: every O-RU receives independent membership, population, capacity, and utility lanes. Reversible CNOT fanout distributes the UE address controls, the O-RU population trees execute in parallel, and balanced reductions combine their flags before the original global marking and uncomputation pattern.
 
 Under the scaling regime
 
@@ -212,31 +244,51 @@ Under the scaling regime
 M\simeq \frac{N}{10},
 ```
 
-the resource-local population trees dominate the depth. The remaining equality, capacity, utility, reduction, and assignment-reflection terms contribute only logarithmic factors. This gives the runtime expression in Section 10.1 and
+the resource-local population trees dominate the reduced depth. The remaining equality, capacity, utility, reduction, and assignment-reflection terms contribute only logarithmic factors. This gives the runtime expression in Section 10.1 and
 
 ```math
 D_{\mathrm{TS}}=O(\log^2 N).
 ```
 
-The lower depth is obtained by exchanging additional workspace qubits for spatial parallelism.
+The lower depth is obtained by exchanging additional workspace qubits for spatial parallelism; it is an architectural projection from the current code's Boolean semantics, not a resource count of the current builder.
 
-## 10.4 Network-energy-saving circuit
+The reduced TS workspace contains the distributed $NMk$ address controls, $O(NM)$ local membership/utility flags, and $M$ population trees. Therefore
 
-The NES circuit assigns $N$ UEs between two awake O-RUs. Instead of updating one shared population counter sequentially, a balanced reversible population tree aggregates the UE assignment bits.
+```math
+Q_{\mathrm{TS,spatial}}
+=O\!\left(NMk+M A_{\mathrm{pop}}(N)+NM\right)
+=O(n^2\log n)
+```
 
-The feasibility result gates the utility operation and is subsequently cleared. Using the same population-tree primitive gives
+under $M\simeq N/10$. The current shared-workspace qubit count remains the one derived in the baseline document.
+
+## 10.4 Network-energy-saving circuit (`dqna_42.py`)
+
+The current implementation in [`dqna_42.py`](./dqna_42.py) assigns one bit per UE between two awake O-RUs. `quality_oracle()` first calls `_flag_feasible()`, applies the forward per-UE utility rotations, performs the feasibility-gated utility mark, applies the inverse rotations, and calls `_flag_feasible()` again to clear the flag. Each `_flag_feasible()` call invokes both `compute_count()` and `uncompute_count()` on the same shared ripple counter.
+
+The reduced architecture changes only the population mechanism. A balanced reversible population tree replaces each sequential `compute_count()`/`uncompute_count()` pass. Because the source calls `_flag_feasible()` twice around the utility mark, the reduced expression retains two full population-tree contributions, giving the factor $2P(n)$. The feasibility-gated mark, utility cleanup, and assignment `diffuser()` semantics remain those of the current source.
+
+Using this replacement gives
 
 ```math
 D_{\mathrm{NES}}=O(\log^2 N).
 ```
 
-The resulting analytical crossover with the bounded Hungarian reference occurs at $N=16$.
+The resulting analytical crossover with the bounded Hungarian reference occurs at $N=16$. This is the crossover of the tree-reduced architecture, not of the unchanged sequential counter in `dqna_42.py`.
 
-## 10.5 QoS-based resource-allocation circuit
+NES needs only one population tree rather than one tree per destination. Its spatial register order is
 
-The QoS-RA scaling model considers $N=R=n$, where $N$ UEs select among $R$ candidate DRBs. Independent DRB-local workspaces replace the fixed two-UE distinctness circuit used in the small implementation example.
+```math
+Q_{\mathrm{NES,spatial}}
+=2N+A_{\mathrm{pop}}(N)+O(1)
+=O(N).
+```
 
-For each DRB, UE membership is aggregated through a balanced population tree, the unit-capacity condition is checked, and resource-local utility operations are performed in parallel. The DRB-local results are then combined through balanced reversible reductions.
+## 10.5 QoS-based resource-allocation circuit (`dqna_qos.py`)
+
+The implemented circuit in [`dqna_qos.py`](./dqna_qos.py) is a fixed two-UE, four-DRB example. `_flag_distinct()` computes the XOR of the two DRB addresses in place and sets a distinctness flag; `_unflag_distinct()` reverses it. Between those calls, `quality_oracle()` applies one address-controlled rotation for every DRB in each UE row, performs one feasibility-and-utility mark, and applies the inverse rotations. The UE rows use disjoint address and cost targets, which is the source dependency that permits row-wise utility scheduling in parallel.
+
+The $N=R=n$ model in this document is therefore a direct architectural generalization, not a claim that the fixed builder already supports arbitrary $N$ and $R$. The two-UE distinctness predicate is extended to the equivalent all-different condition by giving every DRB a local occupancy workspace. UE addresses are distributed to DRB-local controls; for each DRB, UE membership is aggregated through a balanced population tree and capacity one is checked. Independent utility lanes and capacity flags are then combined through balanced reversible reductions, globally marked, and uncomputed.
 
 This gives
 
@@ -244,7 +296,17 @@ This gives
 D_{\mathrm{QoS}}=O(\log^2 n),
 ```
 
-with the analytical crossover at $n=16$.
+with the analytical crossover at $n=16$. This crossover belongs to the DRB-local generalized architecture; the repository's fixed $2\times4$ circuit remains only the implementation sanity point.
+
+The generalized workspace contains $NRq$ distributed address controls, $O(NR)$ membership/utility flags, and $R$ population trees. Hence
+
+```math
+Q_{\mathrm{QoS,spatial}}
+=O\!\left(NRq+R A_{\mathrm{pop}}(N)+NR\right)
+=O(n^2\log n)
+```
+
+for $N=R=n$. This quadratic-logarithmic qubit scaling is the cost of the logarithmic-squared depth curve.
 
 ## 10.6 Quantized and classical comparisons
 
@@ -298,7 +360,7 @@ The crossover is not tied to a single exact value of $\tau$. A four-times slower
 
 ## 10.8 Interpretation
 
-The three Q-xApp curves now use one common circuit-design principle: serial reuse of a shared workspace is replaced by spatially separated resource-local workspaces, followed by balanced reversible reduction.
+The three reduced Q-xApp curves use one common circuit-design principle: serial reuse of a shared workspace is replaced by spatially separated resource-local workspaces, followed by balanced reversible reduction.
 
 This organization gives the three use cases the same $O(\log^2n)$ depth order while preserving their different assignment structures:
 
