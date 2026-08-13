@@ -62,8 +62,6 @@ For browser-only use, run
 
 ### Fig. 4: 100-run near-RT control
 
-![Final manuscript Fig. 4](docs/assets/fig4-final-100run.png)
-
 ![Fig. 4 weighted-AA 100-run result](fig4_ppt/fig4_weighted_100run_combined.png)
 
 The final graph aggregates independent `RngRun=1..100` executions of the
