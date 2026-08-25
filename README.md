@@ -206,6 +206,25 @@ O-RUs, and QoS-RA uses two DRB-address rows. With
 `M = max(2, N/10)`, `k = ceil(log2 M)`, `w = ceil(log2(N + 1))`, and
 `q = ceil(log2 R)`, the smooth scheduled depths are
 
+Each UE–resource utility parameter $\theta_{uc}$ is encoded through controlled
+rotations on cost ancillas, while feasibility information is stored in
+constraint ancillas. A joint reflection combines these components, so amplitude
+amplification increases the measurement probability of feasible assignments
+with higher encoded aggregate utility.
+
+For a Boolean feasible-set oracle over candidate space $\mathcal C$ and feasible
+set $\mathcal F$, the conventional iteration estimate is
+
+$$
+r_{\mathrm{AA}}=\left\lfloor
+\frac{\pi}{4}\sqrt{\frac{|\mathcal C|}{|\mathcal F|}}
+\right\rfloor.
+$$
+
+In the weighted formulation, the corresponding amplification count is
+determined by the effective good-subspace mass $a$, rather than by feasible-set
+cardinality alone.
+
 ```text
 TS:
   D_TS(N) = 2N log2(N) + 2 log2(N) + 2 log2(N/10)
@@ -229,10 +248,9 @@ The displayed TS closed form applies for `N >= 20`; the plotted curve retains
 smooth envelope, while the `N = 27` runtime includes the odd-`N` value `A = 2`.
 The runtime figure uses the effective analytical layer latency
 `tau = 12.5 ns`; `50 ns` is retained as a baseline. The measured classical
-assignment fit is `0.364 ns x x^3`. The fixed one-to-two-iteration schedule is
-a constant factor and does not change the asymptotic orders. Qubit totals count
-explicit circuit registers; compiler-selected synthesis ancillas are excluded
-unless instantiated as work qubits.
+assignment fit is `0.364 ns x x^3`. Qubit totals count explicit circuit
+registers; compiler-selected synthesis ancillas are excluded unless instantiated
+as work qubits.
 
 | Logical latency | TS | QoS-RA | NES |
 | ---: | ---: | ---: | ---: |

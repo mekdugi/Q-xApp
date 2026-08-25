@@ -42,8 +42,6 @@ $$
 
 while the crossover table also reports the baseline case $\tau=50\ \mathrm{ns}$.
 
-The implemented amplification schedule is fixed at one or two iterations, so it contributes only a constant factor and does not change the asymptotic orders below.
-
 ## 10.2 Clifford+T accounting primitives
 
 The depth equations are built from relative-phase Toffoli networks. For an $r$-controlled logical operation, a balanced clean-ancilla construction gives the approximations
@@ -523,6 +521,20 @@ $$
 $$
 
 The QoS-RA order differs from both TS and NES because its dominant repeated operation is an address-controlled utility rotation over $R$ DRB alternatives, not a population-counter update over $N$ UEs.
+
+Each UE--resource utility parameter $\theta_{uc}$ is encoded through controlled rotations on cost ancillas, while feasibility information is stored in constraint ancillas. A joint reflection combines these components, so amplitude amplification increases the measurement probability of feasible assignments with higher encoded aggregate utility.
+
+For a Boolean feasible-set oracle over candidate space $\mathcal C$ and feasible set $\mathcal F$, the conventional iteration estimate is
+
+$$
+r_{\mathrm{AA}}
+=\left\lfloor
+\frac{\pi}{4}
+\sqrt{\frac{|\mathcal C|}{|\mathcal F|}}
+\right\rfloor.
+$$
+
+In the weighted formulation, the corresponding amplification count is determined by the effective good-subspace mass $a$, rather than by feasible-set cardinality alone \cite{Q-commag}.
 
 ## 10.6 Circuit runtime models
 
