@@ -522,9 +522,9 @@ $$
 
 The QoS-RA order differs from both TS and NES because its dominant repeated operation is an address-controlled utility rotation over $R$ DRB alternatives, not a population-counter update over $N$ UEs.
 
-Each UE--resource utility parameter $\theta_{uc}$ is encoded through controlled rotations on cost ancillas, while feasibility information is stored in constraint ancillas. A joint reflection combines these components, so amplitude amplification increases the measurement probability of feasible assignments with higher encoded aggregate utility.
+Each UE--resource utility parameter $\theta_{uc}$ is encoded through controlled rotations on cost ancillas, while feasibility information is stored in constraint ancillas. The joint reflection marks states for which the constraint ancillas indicate feasibility and the utility ancillas are in the all-zero state. Amplitude amplification therefore favors feasible assignments with higher encoded utility.
 
-For a Boolean feasible-set oracle over candidate space $\mathcal C$ and feasible set $\mathcal F$, the conventional iteration estimate is
+For a Boolean feasible-set oracle over candidate space $\mathcal C$ and feasible set $\mathcal F$, the conventional iteration estimate is \cite{Q-commag}
 
 $$
 r_{\mathrm{AA}}
@@ -533,8 +533,6 @@ r_{\mathrm{AA}}
 \sqrt{\frac{|\mathcal C|}{|\mathcal F|}}
 \right\rfloor.
 $$
-
-In the weighted formulation, the corresponding amplification count is determined by the effective good-subspace mass $a$, rather than by feasible-set cardinality alone \cite{Q-commag}.
 
 ## 10.6 Circuit runtime models
 

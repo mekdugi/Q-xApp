@@ -208,9 +208,10 @@ O-RUs, and QoS-RA uses two DRB-address rows. With
 
 Each UE–resource utility parameter $\theta_{uc}$ is encoded through controlled
 rotations on cost ancillas, while feasibility information is stored in
-constraint ancillas. A joint reflection combines these components, so amplitude
-amplification increases the measurement probability of feasible assignments
-with higher encoded aggregate utility.
+constraint ancillas. The joint reflection marks states for which the constraint
+ancillas indicate feasibility and the utility ancillas are in the all-zero
+state. Amplitude amplification therefore favors feasible assignments with
+higher encoded utility.
 
 For a Boolean feasible-set oracle over candidate space $\mathcal C$ and feasible
 set $\mathcal F$, the conventional iteration estimate is
@@ -220,10 +221,6 @@ r_{\mathrm{AA}}=\left\lfloor
 \frac{\pi}{4}\sqrt{\frac{|\mathcal C|}{|\mathcal F|}}
 \right\rfloor.
 $$
-
-In the weighted formulation, the corresponding amplification count is
-determined by the effective good-subspace mass $a$, rather than by feasible-set
-cardinality alone.
 
 ```text
 TS:
