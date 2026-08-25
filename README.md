@@ -118,8 +118,8 @@ candidate-generation workload used by the coordination analysis. It is not the
 measured `~24.5 s` wall-clock time of the SDK-based CPU Statevector
 implementation, a single circuit-shot duration, or a measurement from a live
 IBM job. It is also distinct from the `1.888020 ms` single-`AQ`, `44.910600 ms`
-top-1-optimum, `1.045400832 s` adaptive-batch, and analytical
-`O(log^2 N)` crossover figures. The projected workload uses six spatial copies
+top-1-optimum, `1.045400832 s` adaptive-batch, and the application-specific
+analytical crossover figures below. The projected workload uses six spatial copies
 of the selected full circuit.
 
 #### Candidate criterion
@@ -194,54 +194,64 @@ numerical CPU Statevector evolution with scheduled native-gate execution, not
 an empirical end-to-end acceleration result.
 
 This hardware-aware projection is separate from the analytical scalability
-model that compares projected `O(log^2 N)` quantum depth with the `O(N^3)`
-Hungarian reference and places the paper's projected crossover at `N = 14-16`.
-Frozen Fez gate durations are not used to derive that analytical crossover, and
-neither result describes the current `HEAD` default solver as a measured
-hardware advantage.
+model below, whose first strict integer crossovers occur at 19--27 entities.
+Frozen Fez gate durations are not used in that model, and neither result is a
+measurement of hardware advantage.
 
 ### Analytical scalability model
 
-The paper's `N = 14-16` statement is an analytical, qubit-rich spatial-workspace
-projection, not a benchmark on `ibm_fez`. Independent resource-local workspaces
-are evaluated in parallel and combined with balanced reversible reductions. For
-problem size `n`, the model uses
+The revised model follows the application-specific oracle structures. TS uses
+O-RU-local population counters, NES uses one population counter for two awake
+O-RUs, and QoS-RA uses two DRB-address rows. With
+`M = max(2, N/10)`, `k = ceil(log2 M)`, `w = ceil(log2(N + 1))`, and
+`q = ceil(log2 R)`, the smooth scheduled depths are
 
 ```text
-h = log2(n)
-P(n) = 2 h (h + 1)
+TS:
+  D_TS(N) = 2N log2(N) + 2 log2(N) + 2 log2(N/10)
+            + N/5 + log2(N log2(N/10)) + 3
+  D_TS(N) = O(N log N)
 
-Traffic Steering:
-  m = max(2, n / 10), k = log2(m)
-  D_TS(n) = P(n) + 4 log2(k) + 2h + 2k
-            + 2 log2(m + n) + 2 log2(nm) + 2 log2(nk - 1) + 4
+NES:
+  D_NES(N) = 4N log2(N) + 4 log2(N) + 7
+  D_NES(N) = O(N log N)
 
-Network Energy Saving:
-  D_NES(n) = 2 P(n) + 4 log2(h)
-             + 2 log2(n + 1) + 2 log2(n - 1) + 4
+QoS-RA:
+  D_QoS(R) = 4R(1 + log2(log2 R)) + 3 log2(log2 R) + 4
+  D_QoS(R) = O(R log log R)
 
-QoS resource allocation (N_UE = R_DRB = n):
-  D_QoS(n) = P(n) + 4 log2(h) + 10h + 2 log2(nh - 1) + 6
-
-t_quantum(n) = 12.5 ns x D(n)
-t_Hungarian(n) = 0.364 ns x n^3
+t_quantum(x) = tau D(x)
+t_classical(x) = 0.364 ns * x^3
 ```
 
-Under those assumptions, the smooth-log first crossings are `n = 14` for
-Traffic Steering and `n = 16` for both Network Energy Saving and QoS resource
-allocation. The accounting assigns one T-depth layer and four T gates to each
-relative-phase Toffoli and omits Clifford gates from T-depth. The `12.5 ns`
-factor is an effective analytical gate-layer latency, not a measured physical
-or fault-tolerant logical-gate duration. Likewise, `0.364 ns x n^3` is the
-analytical `n x 2n` rectangular-Hungarian normalization obtained from the
-external `0.182 ns` square coefficient, not a measurement of this repository's
-Hungarian implementation. At `50 ns` per layer the respective crossings shift
-to approximately `24`, `27`, and `27`.
+The displayed TS closed form applies for `N >= 20`; the plotted curve retains
+`M = max(2, N/10)` below that point. The NES curve uses the balanced `A = 1`
+smooth envelope, while the `N = 27` runtime includes the odd-`N` value `A = 2`.
+The runtime figure uses the effective analytical layer latency
+`tau = 12.5 ns`; `50 ns` is retained as a baseline. The measured classical
+assignment fit is `0.364 ns x x^3`. The fixed one-to-two-iteration schedule is
+a constant factor and does not change the asymptotic orders. Qubit totals count
+explicit circuit registers; compiler-selected synthesis ancillas are excluded
+unless instantiated as work qubits.
 
-These smooth-log curves model a separate spatial-workspace circuit architecture;
-that reduced architecture is not implemented by the current `HEAD` solver
-circuits. They describe a time-space tradeoff with sufficient logical qubits,
-not present-day hardware advantage.
+| Logical latency | TS | QoS-RA | NES |
+| ---: | ---: | ---: | ---: |
+| 50 ns | N ≈ 39.60 | R ≈ 43.93 | N ≈ 57.29 |
+| 12.5 ns | N ≈ 18.11 | R ≈ 21.17 | N ≈ 26.08 |
+
+At `12.5 ns`, the first strict integer advantages are:
+
+| Application | First integer advantage | Q-xApp runtime | Classical runtime |
+| --- | ---: | ---: | ---: |
+| TS | N = 19 | 2.290 μs | 2.497 μs |
+| QoS-RA | R = 22 | 3.603 μs | 3.876 μs |
+| NES | N = 27 | 6.857 μs | 7.165 μs |
+
+![Q-xApp application-specific runtime comparison](flexric/xApp/tests/qxapp_complexity_cla_trendlines_rev2.png)
+
+The complete Clifford+T derivation, qubit accounting, and implementation
+correspondence are in
+[`Q_xApp_Complexity_tree_gyh_rev2.md`](flexric/xApp/tests/Q_xApp_Complexity_tree_gyh_rev2.md).
 
 ### Fig. 5: final limited-projection release
 
