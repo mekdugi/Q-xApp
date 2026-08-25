@@ -222,6 +222,9 @@ r_{\mathrm{AA}}=\left\lfloor
 \right\rfloor.
 $$
 
+In the experiments reported here, the iteration count is typically a small
+integer; the $3\times4$ assignment uses one or two amplification iterations.
+
 ```text
 TS:
   D_TS(N) = 2N log2(N) + 2 log2(N) + 2 log2(N/10)

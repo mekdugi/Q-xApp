@@ -534,6 +534,8 @@ r_{\mathrm{AA}}
 \right\rfloor.
 $$
 
+In the experiments reported here, the iteration count is typically a small integer; the $3\times4$ assignment uses one or two amplification iterations.
+
 ## 10.6 Circuit runtime models
 
 The logical runtime of each circuit is obtained by multiplying its scheduled depth by $\tau$:
