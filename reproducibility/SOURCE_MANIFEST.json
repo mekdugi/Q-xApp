@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "source_main": "e9e1db4328f0de7785f9c8ca25d41ab8ef659803",
+  "policy": "Archived bytes are preserved. Paths below describe provenance, not required checkout paths. New reproduction code is separate from the historical archive.",
+  "files": [
+    {
+      "path": "reproducibility/archived/aq2_latency_reduction_check.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/aq2_latency_reduction_check.md",
+      "sha256": "fec0e27ed8533e9907ef0e78aa9b373729e942aed1324c7ea8bd95b677748794",
+      "bytes": 6331
+    },
+    {
+      "path": "reproducibility/archived/aq2_spatial_parallelism_check.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/aq2_spatial_parallelism_check.md",
+      "sha256": "825608b4254f6fda764292a0f10560d09e626011fbfcb50bd8109e204c9fc6b4",
+      "bytes": 5898
+    },
+    {
+      "path": "reproducibility/archived/aq_round_comparison.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/aq_round_comparison.md",
+      "sha256": "43e116d21442090c5f4f57dfcbb1ba3ff679f990d737823c5e3461ce7c846142",
+      "bytes": 5082
+    },
+    {
+      "path": "reproducibility/archived/a_only_aq_only_check.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/a_only_aq_only_check.md",
+      "sha256": "7967e5df02b474f749e6552b92615d07420e8b68d07c8eb384a59f5e3f7a35dc",
+      "bytes": 4943
+    },
+    {
+      "path": "reproducibility/archived/complexity_spatial_audit.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/complexity_spatial_audit.md",
+      "sha256": "436268fa630047982788ac259ccf27539fc3156b6d9d528ecb8c2bb1c3a9e16d",
+      "bytes": 23878
+    },
+    {
+      "path": "reproducibility/archived/legacy_ts_finite_shot_check.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/legacy_ts_finite_shot_check.md",
+      "sha256": "94f7108095f3c3b421983699f6527b3e2080b73ea76a8ecf141325742bf61062",
+      "bytes": 5381
+    },
+    {
+      "path": "reproducibility/archived/legacy_ts_qpu_projection.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/legacy_ts_qpu_projection.md",
+      "sha256": "a2a4bfe8cb61291b97606c52a97acd977507990763e4e5a344cff916c9352b92",
+      "bytes": 7344
+    },
+    {
+      "path": "reproducibility/archived/quantum_versions_latency_comparison.csv",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/quantum_versions_latency_comparison.csv",
+      "sha256": "e85a167ce308de685c8d10fbea465a230aee8e2ac2496b623449837746d9bdd9",
+      "bytes": 828
+    },
+    {
+      "path": "reproducibility/archived/quantum_versions_latency_comparison.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/quantum_versions_latency_comparison.md",
+      "sha256": "a64f83aaba330e51a6da4570eae6ff96d5c452f15fb5bb2ee44898f8f6563583",
+      "bytes": 7168
+    },
+    {
+      "path": "reproducibility/archived/single_qxapp_latency_report.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/single_qxapp_latency_report.md",
+      "sha256": "b9c6d2fa1dc773cb7806d365b28678e3f770801defd5aca04468bdd2c0ad6cc5",
+      "bytes": 4609
+    },
+    {
+      "path": "reproducibility/archived/single_qxapp_latency_summary.csv",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/single_qxapp_latency_summary.csv",
+      "sha256": "b9c3901a4fbb28a766c6a78e6487e6d652655366eaec980ae6d695515b5806a0",
+      "bytes": 387
+    },
+    {
+      "path": "reproducibility/archived/single_qxapp_qpu_projection.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/single_qxapp_qpu_projection.md",
+      "sha256": "d12fa38dd2de412a1a6ebe9bbc85e05156bc41409fa54869f494e0ee1f594d9c",
+      "bytes": 4108
+    },
+    {
+      "path": "reproducibility/archived/single_qxapp_solver_profile.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/analysis_reports_20260813/single_qxapp_solver_profile.md",
+      "sha256": "f252320e07376a223d6c6daaf85d899b0c0e9619c97260ecc92bbab48540b380",
+      "bytes": 11767
+    },
+    {
+      "path": "reproducibility/archived/scripts/v5_tuning_run.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/v5_tuning_run.py",
+      "sha256": "c7bef15c8e05eb184a8ed42886952c4f60b8217b85922708574a4f91d334fb60",
+      "bytes": 12181
+    },
+    {
+      "path": "reproducibility/archived/scripts/v5_holdout_run.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/v5_holdout_run.py",
+      "sha256": "849ebe449c700f3538e308b19dd3069b72e59ffc27e908c22220d306ee544ce9",
+      "bytes": 17706
+    },
+    {
+      "path": "reproducibility/archived/scripts/validate_dqna_ts.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/validate_dqna_ts.py",
+      "sha256": "cfa27f21589102f9f6d3ed5876a7d76b3909c96b96b0aa28e1296877008e15db",
+      "bytes": 20893
+    },
+    {
+      "path": "reproducibility/archived/scripts/measure_ts_timing.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/measure_ts_timing.py",
+      "sha256": "4d9de3235e0e6f044039cb514562c9563e5d66665c1cecf8b603e3034fc0f835",
+      "bytes": 14726
+    },
+    {
+      "path": "reproducibility/archived/scripts/eval_solver_comparison.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/eval_solver_comparison.py",
+      "sha256": "20b0b3d095bdd2e234c512b956dd19e8905ccedeefa88e7db3842bff57898d61",
+      "bytes": 17934
+    },
+    {
+      "path": "reproducibility/archived/scripts/validate_threshold_scaling.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/validate_threshold_scaling.py",
+      "sha256": "ca1b6b41a9f84f03c95fab300b5f05c1aa66d2389a8d5ef026ae4f8b4dd9e9e4",
+      "bytes": 14796
+    },
+    {
+      "path": "reproducibility/archived/scripts/collect_qxapp_verification.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/collect_qxapp_verification.py",
+      "sha256": "8239f62eee3b637d1cd9ce5f375c8aabd609e41b5443f335ae54265670c98921",
+      "bytes": 8392
+    },
+    {
+      "path": "reproducibility/archived/scripts/export_portfolio.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/50_LEGACY/code/repo_archive_20260813/from-public-main/scripts/export_portfolio.py",
+      "sha256": "8f57ac7853f18b16322ee1775a1b6e64541d2451ce31ec1e0098989a6a3695d7",
+      "bytes": 24361
+    },
+    {
+      "path": "reproducibility/archived/scripts/benchmark_single_qxapp_latency.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/scripts/benchmark_single_qxapp_latency.py",
+      "sha256": "d809ed5b770093f021a38102dfa6eda9954c911b9faa172e546dc63837a02174",
+      "bytes": 17614
+    },
+    {
+      "path": "reproducibility/archived/scripts/benchmark_fig5_bounded_hungarian_ts.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/scripts/benchmark_fig5_bounded_hungarian_ts.py",
+      "sha256": "9a32bfa324b1ddc2155fb240e602c652572ac6f1d3a86a47541d10029039fad2",
+      "bytes": 18185
+    },
+    {
+      "path": "reproducibility/archived/scripts/calibrate_ts_parallel_hardware_latency.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/scripts/calibrate_ts_parallel_hardware_latency.py",
+      "sha256": "d66c0072f6709299d060c59699160bb3a10bd72de8cd77a276e28ac63cd2450e",
+      "bytes": 33950
+    },
+    {
+      "path": "reproducibility/archived/scripts/analyze_quantum_versions_latency.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/scripts/analyze_quantum_versions_latency.py",
+      "sha256": "9d497aa92bc0c4f674eae3218089597843772efd9b52e054646c23cc9d3c89cc",
+      "bytes": 33990
+    },
+    {
+      "path": "reproducibility/archived/scripts/compute_complexity_spatial_audit.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/scripts/compute_complexity_spatial_audit.py",
+      "sha256": "034eb56d28b0ac8aff72d497045039f965c5a8639c39a2829daf1cfb1e0a9c37",
+      "bytes": 20374
+    },
+    {
+      "path": "reproducibility/archived/scripts/run_v39_quantum_knapsack.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/scripts/run_v39_quantum_knapsack.py",
+      "sha256": "3b155e07487a87acbce0181f9db110d860edd863e3ad45d60c2424d85f3ad834",
+      "bytes": 7850
+    },
+    {
+      "path": "reproducibility/archived/reports/v5_holdout_seed20260702_report.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/60_GENERATED/repo_archive_20260813/from-public-main/reports/v5_holdout_seed20260702_report.json",
+      "sha256": "d7d0e6ff602524116bcb6d36a8b072970cbe2bf6583a2f39a53a439a4c64cb9b",
+      "bytes": 385411
+    },
+    {
+      "path": "reproducibility/archived/reports/v5_holdout_seed20260702_rerun_refdefault.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/60_GENERATED/repo_archive_20260813/from-public-main/reports/v5_holdout_seed20260702_rerun_refdefault.json",
+      "sha256": "5744e102ab1a4ad3bba7c1d5bb491d54fc6601a45f491fee5bb53488d86b87f7",
+      "bytes": 385541
+    },
+    {
+      "path": "reproducibility/archived/reports/v5_tuning_report.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/60_GENERATED/repo_archive_20260813/from-public-main/reports/v5_tuning_report.json",
+      "sha256": "62078cea1f4c42945c360d249f44c27a528c36042ca15705a4d20cf0574b780f",
+      "bytes": 1353278
+    },
+    {
+      "path": "reproducibility/archived/reports/tuning_manifest_20260718.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/60_GENERATED/repo_archive_20260813/from-public-main/reports/tuning_manifest_20260718.json",
+      "sha256": "e49d848c530c5de2ea915c655f829227f49510360246ab84559bd17ed6a7bf45",
+      "bytes": 37031
+    },
+    {
+      "path": "reproducibility/archived/reports/ts_timing_report.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/60_GENERATED/repo_archive_20260813/from-public-main/reports/ts_timing_report.json",
+      "sha256": "cd899dc6ae54bd513f5b3ec3d02ff6dcd17fbcd16b29ec18ea6ddd8929ea1d12",
+      "bytes": 4245
+    },
+    {
+      "path": "reproducibility/archived/artifacts/qxapp_reference_circuit.qpy",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/artifacts/qxapp_reference_circuit.qpy",
+      "sha256": "a4f4a40b183076be93e9fd57a7453fa8e2ec5c61b3c90b0ca69606de8018a990",
+      "bytes": 43814
+    },
+    {
+      "path": "reproducibility/archived/artifacts/legacy_ts_reference_circuits.qpy",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/artifacts/legacy_ts_reference_circuits.qpy",
+      "sha256": "ea0e647cd1afbc02242b6ed7189bd63ef241f1626944e1625d46ed2d209fea2e",
+      "bytes": 66551
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/quantum_knapsack.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/from-Q-xApp/flexric/xApp/quantum_knapsack.py",
+      "sha256": "bdfd876f3db89ca4691981b48d8211aee4247c5ca49bba6034f63c75a367e6d5",
+      "bytes": 8993
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_ts.py",
+      "source": "git:2afabfe:flexric/xApp/dqna_ts.py",
+      "sha256": "450073da604a799dddddbe052195c6da53b3ea4d243aa48ff8fe21e8a5149b54",
+      "bytes": 56475
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_42.py",
+      "source": "git:2afabfe:flexric/xApp/dqna_42.py",
+      "sha256": "6113466c3556f81ebb9da7fc97a834ecc884b4a7196ffb6a719bbcd855c0f9aa",
+      "bytes": 20270
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_qos.py",
+      "source": "git:2afabfe:flexric/xApp/dqna_qos.py",
+      "sha256": "9c7b4e594f24108412ee46fb048a1a496194778b8f482edace6d354f73eac810",
+      "bytes": 11290
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_modes.py",
+      "source": "git:2afabfe:flexric/xApp/dqna_modes.py",
+      "sha256": "68f2799bc00b64c9855a2d5e30107f51c51797fc3b60aecbea747c61f42514ae",
+      "bytes": 32317
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_constraints.py",
+      "source": "git:2afabfe:flexric/xApp/dqna_constraints.py",
+      "sha256": "a97486338c3309a8151cca2eb773f8d14a63935071d3f78bb1578220f6e909b9",
+      "bytes": 16955
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_threshold.py",
+      "source": "git:e1ebaee:flexric/xApp/dqna_threshold.py",
+      "sha256": "59af9785cc5eb8a9013c20d69d18119fab7241a7ded814c4352ea4016e814590",
+      "bytes": 24762
+    },
+    {
+      "path": "reproducibility/archived/flexric/xApp/dqna_threshold_aa.py",
+      "source": "git:e1ebaee:flexric/xApp/dqna_threshold_aa.py",
+      "sha256": "187f728887fed9f0084495748da12db231a0fddb8b2bae13af1db8b33611fa2e",
+      "bytes": 19898
+    },
+    {
+      "path": "reproducibility/snapshots/holdout-original/dqna_ts.py",
+      "source": "git:89cffd107adcf78c5f69572823ed27afc2992b83:flexric/xApp/dqna_ts.py",
+      "sha256": "0d61aa432e192d971de81bd25e94817a91ba15386b55aadd4fa26e8912a31e43",
+      "bytes": 52395
+    },
+    {
+      "path": "reproducibility/archived/analysis/Q_xApp_Complexity.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/complexity_and_validation/Q_xApp_Complexity.md",
+      "sha256": "c3cd4efc293a13a6c835aecdef82ebef182a7e055e0f7785b3380f32cb23ceb8",
+      "bytes": 22176
+    },
+    {
+      "path": "reproducibility/archived/analysis/Q_xApp_Complexity_tree.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/complexity_and_validation/Q_xApp_Complexity_tree.md",
+      "sha256": "88849274009965821e2924dfbea7c5a49a1543afd0f4727c10f54e1dd3b2232d",
+      "bytes": 6579
+    },
+    {
+      "path": "reproducibility/archived/analysis/Q_xApp_Complexity_spatial.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/complexity_and_validation/Q_xApp_Complexity_spatial.md",
+      "sha256": "2ff35acac33b6261bdd4e6090468908033239663182a98881f95218c9c0c7168",
+      "bytes": 8885
+    },
+    {
+      "path": "reproducibility/archived/analysis/qxapp_verification.csv",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/complexity_and_validation/qxapp_verification.csv",
+      "sha256": "8e2e9c50b8eb321d82173a944647ed5662d0f0c52525a781d41e97c478ab3db8",
+      "bytes": 25207
+    },
+    {
+      "path": "reproducibility/archived/scripts/analyze_ibm_job_timing.py",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/orca-threshold-aa-worktree/scripts/analyze_ibm_job_timing.py",
+      "sha256": "28174aa813f61199d36d37b1bed1eecf4f6cb7443a338a3f9b5266dd7fdce240",
+      "bytes": 40944
+    },
+    {
+      "path": "reproducibility/archived/ibm_job_timing_report.md",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/orca-threshold-aa-worktree/ibm_job_timing_report.md",
+      "sha256": "86505b97ab50c8b056496fc51a5700c3657388a550665507cdaf9541ab170768",
+      "bytes": 6398
+    },
+    {
+      "path": "reproducibility/archived/ibm_job_timing_raw.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/orca-threshold-aa-worktree/ibm_job_timing_raw.json",
+      "sha256": "ca0bcc7f2eb70e3c22b20e31017baa19473c0c0d21c2dc69f5131768db726b88",
+      "bytes": 2842
+    },
+    {
+      "path": "reproducibility/archived/ibm_job_timing_summary.csv",
+      "source": "Q-xApp_LOCAL_LIBRARY/40_RESEARCH_WIP/repo_archive_20260813/orca-threshold-aa-worktree/ibm_job_timing_summary.csv",
+      "sha256": "081a89aeffe69b89bce5b6eb81aba5bea2842a16531d705df0c9d1026c64b5cd",
+      "bytes": 230
+    },
+    {
+      "path": "reproducibility/archived/data/qxapp_local_instances_v39_real_all_1000.json",
+      "source": "Q-xApp_LOCAL_LIBRARY/20_REPRODUCTION/fig4_frozen/supporting_data/secondary_archive/qxapp_local_instances_v39_real_all_1000.json",
+      "sha256": "8791a0cdd3029abb073f415d5a9b684c53cd5260c0d467c9a18308259ba743b2",
+      "bytes": 10170210
+    },
+    {
+      "path": "reproducibility/fez/snapshot/conf_fez.json",
+      "source": "conf_fez.json",
+      "sha256": "74e356537d86a2d6ca057a954556e5d140f2aeeca6c447a71a5710af6d45093f",
+      "bytes": 85420
+    },
+    {
+      "path": "reproducibility/fez/snapshot/props_fez.json",
+      "source": "props_fez.json",
+      "sha256": "7657d388bba0530c0c3cb7ebbb55d4f66c7cf5d21f81e55b4f97aaaf804b8693",
+      "bytes": 567654
+    },
+    {
+      "path": "reproducibility/fez/reference/results.json",
+      "source": "results.json",
+      "sha256": "0521de6b690935b01c0348092d469a9948307fb41925fb6c2a1138c088509556",
+      "bytes": 652
+    },
+    {
+      "path": "reproducibility/fez/reference/shots.json",
+      "source": "shots.json",
+      "sha256": "a01bc59e5b11821dde9ab28195200503d1d1d29068d21b48aa2b8eb11b54755a",
+      "bytes": 204
+    },
+    {
+      "path": "reproducibility/fez/inputs/qxapp_reference_circuit.qpy",
+      "source": "qxapp_reference_circuit.qpy",
+      "sha256": "a4f4a40b183076be93e9fd57a7453fa8e2ec5c61b3c90b0ca69606de8018a990",
+      "bytes": 43814
+    },
+    {
+      "path": "reproducibility/fez/requirements-windows-lock.txt",
+      "source": "requirements-lock.txt",
+      "sha256": "a2697da6d8f215076fbd6f021cfde7e6f7d03b15031d09b660e5f9a21c51d805",
+      "bytes": 634
+    },
+    {
+      "path": "reproducibility/fez/snapshot/LICENSE.txt",
+      "source": "qiskit_ibm_runtime-0.48.0 wheel:qiskit_ibm_runtime-0.48.0.dist-info/licenses/LICENSE.txt",
+      "sha256": "7b7de08c64b1824bdc2b9f4b530814a9d0b5905a38ad0e96a717f3dd46d2bbe7",
+      "bytes": 11416
+    }
+  ]
+}

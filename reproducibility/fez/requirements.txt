@@ -1,0 +1,8 @@
+# Python 3.11; portable direct dependency pins used for the reconstruction.
+# The loader version and the frozen snapshot version intentionally differ.
+qiskit==1.2.4
+qiskit-ibm-runtime==0.30.0
+numpy==1.26.4
+scipy==1.17.1
+rustworkx==0.18.1
+symengine==0.13.0

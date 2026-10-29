@@ -1,5 +1,10 @@
 # Q-xApp
 
+Recovered code, data, frozen solver blobs, and executable Fez reconstruction
+are available in the [reproducibility supplement](reproducibility/README.md).
+The [Korean missing-code response](docs/reproducibility/MISSING_CODE_RESPONSE_KO.md)
+addresses all 37 checklist items and records remaining gaps.
+
 Q-xApp is a quantum-enabled near-real-time O-RAN controller built around
 FlexRIC, ns-O-RAN, and Qiskit. This repository is the compact public release:
 the current simulator GUI, the unified controller and simulator overlay, the

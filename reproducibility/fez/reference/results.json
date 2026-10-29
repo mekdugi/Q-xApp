@@ -1,0 +1,23 @@
+{
+  "qiskit": "1.2.4",
+  "hashes": {
+    "qxapp_reference_circuit.qpy": "a4f4a40b183076be93e9fd57a7453fa8e2ec5c61b3c90b0ca69606de8018a990",
+    "conf_fez.json": "74e356537d86a2d6ca057a954556e5d140f2aeeca6c447a71a5710af6d45093f",
+    "props_fez.json": "7657d388bba0530c0c3cb7ebbb55d4f66c7cf5d21f81e55b4f97aaaf804b8693"
+  },
+  "rows": [
+    {
+      "level": 2,
+      "seed": 2,
+      "copies": 6,
+      "logical_qubits": 102,
+      "cz": 175316,
+      "depth": 82444,
+      "duration_dt": 768252,
+      "duration_ms": 3.073008,
+      "shots": 19,
+      "active_ms": 58.387152,
+      "compile_seconds": 113.95299999997951
+    }
+  ]
+}

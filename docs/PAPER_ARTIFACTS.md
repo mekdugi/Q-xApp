@@ -1,8 +1,9 @@
 # Current paper artifacts
 
 This index maps the final paper figures to their current public code and
-compact evidence. Intermediate and superseded material is intentionally not
-part of the public branch.
+compact evidence. Recovered historical material is identified separately in
+the [reproducibility supplement](../reproducibility/README.md), with a
+[37-item response to missing-code questions](reproducibility/MISSING_CODE_RESPONSE_KO.md).
 
 ## Fig. 4
 

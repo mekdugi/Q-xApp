@@ -32,3 +32,11 @@
 # Preserve the entire byte-exact final Fig. 5 source bundle. This also keeps
 # generated SVG whitespace and CSV line endings identical to the source ZIP.
 fig5/releases/2026-08-12-limited-projection/** binary
+
+# Preserve hashes of recovered evidence and third-party calibration snapshots.
+reproducibility/archived/** -text -whitespace
+reproducibility/snapshots/** -text -whitespace
+reproducibility/fez/snapshot/** -text -whitespace
+reproducibility/fez/reference/** -text -whitespace
+reproducibility/fez/requirements-windows-lock.txt -text -whitespace
+*.qpy binary

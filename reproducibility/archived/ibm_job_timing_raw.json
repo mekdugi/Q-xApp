@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-08-09T23:33:05.181083+00:00",
+  "read_only_guarantee": "No primitive/backend run or job submission method is called by this script.",
+  "secrets_policy": "Credentials, account identifiers, instances and CRNs are redacted and are not stored.",
+  "environment": {
+    "python_version": "3.8.10",
+    "python_executable": "C:\\Program Files\\Python38\\python.exe",
+    "python_prefix": "C:\\Program Files\\Python38",
+    "virtual_environment_active": false,
+    "qiskit_version": "1.2.4",
+    "qiskit_ibm_runtime_version": "0.34.0"
+  },
+  "repository": "C:\\Users\\Wookjin\\orca\\workspaces\\Q-xApp\\https-github.com-mekdugi-Q-xApp",
+  "repository_scan": {
+    "explicit_job_ids": [],
+    "hardware_runtime_source_files": [],
+    "simulator_source_files": [
+      "README.md",
+      "bs_ue_matching.py",
+      "docs/QUANTUM_VALIDATION.md",
+      "docs/validation_matrix.json",
+      "flexric/xApp/dqna_42.py",
+      "flexric/xApp/dqna_modes.py",
+      "flexric/xApp/dqna_qos.py",
+      "flexric/xApp/dqna_threshold_aa.py",
+      "flexric/xApp/dqna_ts.py",
+      "install/runtime_contract.json",
+      "reports/ts_timing_report.json",
+      "scripts/aer_strict_probe.py",
+      "scripts/benchmark_aer.py",
+      "scripts/diag_round7_mass.py",
+      "scripts/gen_runtime_manifest.py",
+      "scripts/measure_ts_timing.py",
+      "scripts/validate_backend_default.py",
+      "scripts/validate_constraints.py",
+      "scripts/validate_dqna_ts.py",
+      "scripts/validate_modes.py",
+      "scripts/validate_threshold.py",
+      "scripts/validate_threshold_invariants.py",
+      "scripts/validate_threshold_scaling.py",
+      "scripts/validate_v5_stage_a.py"
+    ]
+  },
+  "candidate_jobs": [],
+  "selected_job_ids": [],
+  "jobs": [],
+  "timing_classification_without_retrieved_job": {
+    "created": "unavailable from existing metadata",
+    "running": "unavailable from existing metadata",
+    "finished": "unavailable from existing metadata",
+    "queue_or_preparation_s": "unavailable from existing metadata",
+    "server_active_s": "unavailable from existing metadata",
+    "total_server_s": "unavailable from existing metadata",
+    "qpu_locked_usage_s": "unavailable from existing metadata",
+    "execution_span_start": "unavailable from existing metadata",
+    "execution_span_stop": "unavailable from existing metadata",
+    "execution_span_duration_s": "unavailable from existing metadata",
+    "korea_network_delay_s": "unavailable from existing metadata",
+    "result_transfer_s": "unavailable from existing metadata"
+  },
+  "errors": [
+    "QiskitRuntimeService initialization skipped: no pre-existing Runtime account file or credential environment variable was found. This avoids creating an empty account file during a read-only analysis."
+  ]
+}
